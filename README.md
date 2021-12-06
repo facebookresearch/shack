@@ -1,14 +1,25 @@
-# Semantic of Hack
+# shack: Semantic of Hack
 
-The goal of this project is to formally define the semantic of the Hack language.
-It will enable us to explore the semantic of existing / new features and their interactions.
+The goal of this project is to formally define the semantic of the [Hack](https://hacklang.org/) language.
+It will enable us to explore the semantic of existing and new features of this language,
+and their interactions.
+
+This project aims at giving a better understanding of what the semantic of
+a Hack program is, and help us move towards a more sound type system.
 
 ## Requirements
-shack requires or works with
+Shack is formalized in the [Coq](https://coq.inria.fr/) proof assistant, using
+the [Iris](https://iris-project.org/) framework. Both dependencies can be
+installed via the Ocaml package manager [opam](https://opam.ocaml.org/).
+
+Shack requires or works with:
 * Coq 8.14.1
-* Iris 3.5 / dev.2021-11-25.0.b01aa338
+* Iris 3.5 and dev.2021-11-25.0.b01aa338
 
 ## Building shack
+The whole project using Coq's Makefile setup to build. Everything can be built
+by running the following commands:
+
 ```
 $ make
 ```
