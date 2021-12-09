@@ -18,10 +18,16 @@ Shack requires or works with:
 
 ## Building shack
 The whole project using Coq's Makefile setup to build. Everything can be built
-by running the following commands:
+by running the following command:
 
 ```
 $ make
+```
+
+If the Makefile itself needs to be regenerated, one can run the following
+command:
+```
+$ coq_makefile -f _CoqProject -o Makefile
 ```
 
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
