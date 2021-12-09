@@ -1,3 +1,9 @@
+(*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * 
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *)
 From stdpp Require Import base strings gmap stringmap fin_maps.
 From iris.base_logic Require Import upred.
 From iris.base_logic.lib Require Import iprop own.
