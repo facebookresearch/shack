@@ -428,6 +428,9 @@ Definition interp_type_pre (rec : ty_interpO) : ty_interpO :=
        | InterT A B => interp_inter (go A) (go B)
        end) typ.
 
+(* TODO: update iris version to get this from the library
+ * merge request: https://gitlab.mpi-sws.org/iris/iris/-/merge_requests/751
+ *)
 Section gmap.
   Context {K: Type} {HKeqdec: EqDecision K} {HKcount: Countable K}.
 
@@ -1721,8 +1724,3 @@ Qed.
 End proofs.
 
 Print Assumptions cmd_adequacy.
-
-(* Thank you Robbert. TODO: update iris to get it from it *)
-Global Instance gmap_dom_ne n `{Countable K} {A : ofe}:
-  Proper ((≡{n}@{gmap K A}≡) ==> (=)) (dom (gset K)).
-Proof. intros m1 m2 Hm. apply set_eq=> k. by rewrite !elem_of_dom Hm. Qed.
