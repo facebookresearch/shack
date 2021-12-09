@@ -16,11 +16,11 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          #- macos-latest   # TODO: failure because of gmp
+          - macos-latest
           - ubuntu-latest
           #- windows-latest # TODO: failure because of `opam pin -n .`
         ocaml-compiler:
-          - '4.12.x'
+ #         - '4.12.x' # let's save CPU cycles
           - '4.13.x'
 
     runs-on: ${{ matrix.os }}
@@ -30,6 +30,8 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
+      - run: brew install gmp
+        if: matrix.os == 'macos-latest'
       - run: opam pin -n .
 #      - run: opam depext -yt shack
 # TODO: create a shack.opam file ? dunno how to do this for Coq project yet
