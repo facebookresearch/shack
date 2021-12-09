@@ -108,8 +108,8 @@ Context (Δ: stringmap classDef).
 
 (* class A extends B *)
 Definition extends (A B: tag) : Prop :=
-  exists cdef,
-  Δ !! A = Some cdef /\
+  ∃ cdef,
+  Δ !! A = Some cdef ∧
   cdef.(superclass) = Some B
 .
 
@@ -120,9 +120,9 @@ Definition inherits := rtc extends.
  * if A inherits B and C, then either B inherits C or C inherits B.
  *)
 Corollary inherits_is_chain:
-  forall A B C,
-   inherits A B -> inherits A C->
-  (inherits C B \/ inherits B C).
+  ∀ A B C,
+   inherits A B → inherits A C →
+  (inherits C B ∨ inherits B C).
 Proof.
   intros A B C h; revert C.
   induction h as [ t | x y z hxy hyz hi]; move => c hc; first by right.
@@ -138,22 +138,22 @@ Proof.
      by right.
 Qed.
 
-Inductive subtype : lang_ty -> lang_ty -> Prop :=
-  | SubMixed : forall ty, subtype ty MixedT
-  | SubClass : forall A B, inherits A B -> subtype (ClassT A) (ClassT B)
+Inductive subtype : lang_ty → lang_ty → Prop :=
+  | SubMixed : ∀ ty, subtype ty MixedT
+  | SubClass : ∀ A B, inherits A B → subtype (ClassT A) (ClassT B)
   | SubMixed2: subtype MixedT (UnionT NonNullT NullT)
   | SubIntNonNull: subtype IntT NonNullT
   | SubBoolNonNull: subtype BoolT NonNullT
-  | SubClassNonNull: forall A, subtype (ClassT A) NonNullT
-  | SubUnionUpper1 : forall s t, subtype s (UnionT s t)
-  | SubUnionUpper2 : forall s t, subtype t (UnionT s t)
-  (* Do we need this one *)
-  | SubUnionLeast : forall s t u, subtype s u -> subtype t u -> subtype (UnionT s t) u
-  | SubInterLower1 : forall s t, subtype (InterT s t) s
-  | SubInterLower2 : forall s t, subtype (InterT s t) t
-  | SubInterGreatest: forall s t u, subtype u s -> subtype u t -> subtype u (InterT s t)
-  | SubRefl: forall s, subtype s s
-  | SubTrans : forall s t u, subtype s t -> subtype t u -> subtype s u
+  | SubClassNonNull: ∀ A, subtype (ClassT A) NonNullT
+  | SubUnionUpper1 : ∀ s t, subtype s (UnionT s t)
+  | SubUnionUpper2 : ∀ s t, subtype t (UnionT s t)
+      (* TODO: Do we need this one ? *)
+  | SubUnionLeast : ∀ s t u, subtype s u → subtype t u → subtype (UnionT s t) u
+  | SubInterLower1 : ∀ s t, subtype (InterT s t) s
+  | SubInterLower2 : ∀ s t, subtype (InterT s t) t
+  | SubInterGreatest: ∀ s t u, subtype u s → subtype u t → subtype u (InterT s t)
+  | SubRefl: ∀ s, subtype s s
+  | SubTrans : ∀ s t u, subtype s t → subtype t u → subtype s u
 .
 
 Hint Constructors subtype : core.
@@ -163,22 +163,22 @@ Notation "s <: t" := (subtype s t) (at level 70, no associativity).
 Definition local_tys := stringmap lang_ty.
 
 (* has_field fname ty cname checks if the class cname has a field named fname of type ty *)
-Inductive has_field (fname: string) (typ: lang_ty): tag -> Prop :=
+Inductive has_field (fname: string) (typ: lang_ty): tag → Prop :=
   | HasField current cdef:
-      Δ !! current = Some cdef ->
-      cdef.(classfields) !! fname = Some typ ->
+      Δ !! current = Some cdef →
+      cdef.(classfields) !! fname = Some typ →
       has_field fname typ current
   | InheritsField current parent cdef:
-      Δ !! current = Some cdef ->
-      cdef.(classfields) !! fname = None ->
-      cdef.(superclass) = Some parent ->
-      has_field fname typ parent ->
+      Δ !! current = Some cdef →
+      cdef.(classfields) !! fname = None →
+      cdef.(superclass) = Some parent →
+      has_field fname typ parent →
       has_field fname typ current.
 
 Hint Constructors has_field : core.
 
 (* Naive method lookup: methods are unique *)
-Inductive has_method (mname: string) (mdef: methodDef): tag -> Prop :=
+Inductive has_method (mname: string) (mdef: methodDef): tag → Prop :=
   | HasMethod current cdef:
       Δ !! current = Some cdef →
       cdef.(classmethods) !! mname = Some mdef →
@@ -195,8 +195,10 @@ Hint Constructors has_method : code.
 
 Lemma has_method_from m mdef A:
   has_method m mdef A →
-  ∃B cdef, Δ !! B = Some cdef ∧ cdef.(classmethods) !! m = Some mdef ∧
-  inherits A B.
+  ∃ B cdef,
+    Δ !! B = Some cdef ∧
+    cdef.(classmethods) !! m = Some mdef ∧
+    inherits A B.
 Proof.
   induction 1 as [ current cdef hΔ hm | current parent cdef hΔ hm hs h hi];
       first by exists current, cdef.
@@ -210,9 +212,9 @@ Qed.
  * any of its parent definition.
  *)
 Definition wf_cdef_fields cdef : Prop :=
-  forall f fty super,
-  cdef.(superclass) = Some super ->
-  has_field f fty super ->
+  ∀ f fty super,
+  cdef.(superclass) = Some super →
+  has_field f fty super →
   cdef.(classfields) !! f = None.
 
 (* We allow method override: children can redeclare a method if types
@@ -222,7 +224,7 @@ Definition wf_cdef_fields cdef : Prop :=
  *)
 Definition mdef_incl sub super :=
   dom stringset sub.(methodargs) = dom _ super.(methodargs) ∧
-  (forall k A B, sub.(methodargs) !! k = Some A →
+  (∀ k A B, sub.(methodargs) !! k = Some A →
     super.(methodargs) !! k = Some B → B <: A) ∧
   sub.(methodrettype) <: super.(methodrettype).
 
@@ -261,8 +263,8 @@ Definition wf_cdef_methods cdef : Prop :=
 Definition has_fields (cname: tag) (fnames: stringmap lang_ty) : Prop :=
   ∀ fname typ, has_field fname typ cname ↔ fnames !! fname = Some typ.
 
-Lemma has_fields_fun: forall c fs0 fs1,
-  has_fields c fs0 -> has_fields c fs1 -> fs0 = fs1.
+Lemma has_fields_fun: ∀ c fs0 fs1,
+  has_fields c fs0 → has_fields c fs1 → fs0 = fs1.
 Proof.
 move => c fs0 fs1 h0 h1.
 apply map_eq => k.
@@ -278,7 +280,7 @@ Qed.
 
 Ltac inv H := inversion H; subst; clear H.
 
-Lemma has_method_fun: forall c name mdef0 mdef1,
+Lemma has_method_fun: ∀ c name mdef0 mdef1,
   has_method name mdef0 c → has_method name mdef1 c → mdef0 = mdef1.
 Proof.
 move => c name mdef0 mdef1 h; move: mdef1.
@@ -296,8 +298,8 @@ induction h as [ current cdef hΔ hm | current parent cdef hΔ hm hs hp hi ].
     by apply hi.
 Qed.
 
-Lemma has_field_inherits : map_Forall (fun _ => wf_cdef_fields) Δ -> forall A B, inherits A B ->
-  forall f fty, has_field f fty B -> has_field f fty A.
+Lemma has_field_inherits : map_Forall (fun _ => wf_cdef_fields) Δ → ∀ A B, inherits A B →
+  ∀ f fty, has_field f fty B → has_field f fty A.
 Proof.
 move => wfΔ A B h.
 induction h as [ t | x y z hxy hyz hi]; move => f fty hf; first done.
@@ -310,7 +312,7 @@ Qed.
 
 Corollary has_fields_inherits_lookup:
   map_Forall (fun _ => wf_cdef_fields) Δ →
-  forall A B name fty fields,
+  ∀ A B name fty fields,
   has_field name fty B →
   inherits A B →
   has_fields A fields →
@@ -323,7 +325,7 @@ Proof.
 Qed.
 
 Lemma has_method_inherits (Hcdef: map_Forall (fun _ => wf_cdef_methods) Δ):
-  ∀ A B, inherits A B ->
+  ∀ A B, inherits A B →
   ∀ m mdef, has_method m mdef B →
   ∃ mdef', has_method m mdef' A ∧ mdef_incl mdef' mdef.
 Proof.
@@ -428,23 +430,6 @@ Definition interp_type_pre (rec : ty_interpO) : ty_interpO :=
        | InterT A B => interp_inter (go A) (go B)
        end) typ.
 
-(* TODO: update iris version to get this from the library
- * merge request: https://gitlab.mpi-sws.org/iris/iris/-/merge_requests/751
- *)
-Section gmap.
-  Context {K: Type} {HKeqdec: EqDecision K} {HKcount: Countable K}.
-
-	Lemma gmap_fmap_ne_ext
-	{A} {B : ofe} (f1 f2 : A → B) (m : gmap K A) n :
-	(∀ (i: K) (x: A), m !! i = Some x -> f1 x ≡{n}≡ f2 x) →
-	f1 <$> m ≡{n}≡ f2 <$> m.
-	Proof.
-		move => Hf i.
-		rewrite !lookup_fmap.
-		by destruct (m !! i) eqn:?; constructor; eauto.
-	Qed.
-End gmap.
-
 (* we cannot use solve_contractive out of the box because of
  * the 'fix' combinator above
  *)
@@ -509,7 +494,7 @@ Proof.
 Qed.
 
 (* #hyp *)
-Global Instance interp_type_persistent : forall t v, Persistent (interp_type t v).
+Global Instance interp_type_persistent : ∀ t v, Persistent (interp_type t v).
 Proof.
   elim => [ | | | | cname | | |s hs t ht | s hs t ht] v;
       rewrite interp_type_unfold //=; try by apply _.
@@ -524,33 +509,33 @@ Lemma dom_interp_tys_next fields:
 Proof. by rewrite /interp_tys_next /interp_ty_next dom_fmap. Qed.
 
 (* Derived rules *)
-Lemma subtype_union_comm : forall A B, (UnionT A B) <: (UnionT B A).
+Lemma subtype_union_comm : ∀ A B, (UnionT A B) <: (UnionT B A).
 Proof.
 by auto.
 Qed.
 
-Lemma subtype_inter_comm : forall A B, (InterT A B) <: (InterT B A).
+Lemma subtype_inter_comm : ∀ A B, (InterT A B) <: (InterT B A).
 Proof.
 by auto.
 Qed.
 
 Lemma subtype_union_assoc:
-  forall A B C, (UnionT (UnionT A B) C) <: (UnionT A (UnionT B C)).
+  ∀ A B C, (UnionT (UnionT A B) C) <: (UnionT A (UnionT B C)).
 Proof.
 by eauto.
 Qed.
 
 Lemma subtype_inter_assoc:
-  forall A B C, (InterT (InterT A B) C) <: (InterT A (InterT B C)).
+  ∀ A B C, (InterT (InterT A B) C) <: (InterT A (InterT B C)).
 Proof.
 by eauto.
 Qed.
 
 
-(* A <: B -> ΦA ⊂ ΦB *)
+(* A <: B → ΦA ⊂ ΦB *)
 Theorem subtype_is_inclusion_aux:
-  forall A B, A <: B →
-  forall v,
+  ∀ A B, A <: B →
+  ∀ v,
   interp_type_pre interp_type A v -∗
   interp_type_pre interp_type B v.
 Proof.
@@ -623,9 +608,8 @@ induction 1 as [A | A B hext | | | | A | A B| A B | A B C h0 hi0 h1 hi1
 Qed.
 
 Theorem subtype_is_inclusion:
-  forall A B, A <: B →
-  forall v,
-  interp_type A v -∗ interp_type B v.
+  ∀ A B, A <: B →
+  ∀ v, interp_type A v -∗ interp_type B v.
 Proof.
   move => A B hAB v.
   rewrite !interp_type_unfold.
@@ -633,9 +617,8 @@ Proof.
 Qed.
 
 Corollary inherits_is_inclusion:
-  forall A B, inherits A B →
-  forall v,
-  interp_class A interp_type v -∗ interp_class B interp_type v.
+  ∀ A B, inherits A B →
+  ∀ v, interp_class A interp_type v -∗ interp_class B interp_type v.
 Proof.
   move => A B hAB v; iIntros "h".
   iDestruct (subtype_is_inclusion (ClassT A) (ClassT B)) as "H"; first by eauto.
@@ -654,23 +637,23 @@ Definition is_bool_op op : bool :=
 
 Inductive expr_has_ty (lty : local_tys) :
     expr → lang_ty → Prop :=
-  | IntTy : forall z, expr_has_ty lty (IntE z) IntT
-  | BoolTy: forall b, expr_has_ty lty (BoolE b) BoolT
+  | IntTy : ∀ z, expr_has_ty lty (IntE z) IntT
+  | BoolTy: ∀ b, expr_has_ty lty (BoolE b) BoolT
   | NullTy: expr_has_ty lty NullE NullT
-  | OpIntTy: forall op e1 e2,
+  | OpIntTy: ∀ op e1 e2,
       is_bool_op op = false →
       expr_has_ty lty e1 IntT →
       expr_has_ty lty e2 IntT →
       expr_has_ty lty (OpE op e1 e2) IntT
-  | OpBoolTy: forall op e1 e2,
+  | OpBoolTy: ∀ op e1 e2,
       is_bool_op op = true →
       expr_has_ty lty e1 IntT →
       expr_has_ty lty e2 IntT →
       expr_has_ty lty (OpE op e1 e2) BoolT
-  | VarTy: forall v ty,
+  | VarTy: ∀ v ty,
       lty !! v = Some ty →
       expr_has_ty lty (VarE v) ty
-  | ESubTy: forall e s t,
+  | ESubTy: ∀ e s t,
       expr_has_ty lty e s →
       s <: t →
       expr_has_ty lty e t
@@ -679,52 +662,52 @@ Inductive expr_has_ty (lty : local_tys) :
 (* continuation-based typing for commands *)
 Inductive cmd_has_ty :
     local_tys → cmd → local_tys → Prop :=
-  | SkipTy: forall lty, cmd_has_ty lty SkipC lty
-  | SeqTy: forall lty1 lty2 lty3 fstc sndc,
+  | SkipTy: ∀ lty, cmd_has_ty lty SkipC lty
+  | SeqTy: ∀ lty1 lty2 lty3 fstc sndc,
       cmd_has_ty lty1 fstc lty2 →
       cmd_has_ty lty2 sndc lty3 →
       cmd_has_ty lty1 (SeqC fstc sndc) lty3
-  | LetTy: forall lty lhs e ty,
+  | LetTy: ∀ lty lhs e ty,
       expr_has_ty lty e ty →
       cmd_has_ty lty (LetC lhs e) (<[lhs := ty]>lty)
-  | IfTy: forall lty1 lty2 cond thn els,
+  | IfTy: ∀ lty1 lty2 cond thn els,
       expr_has_ty lty1 cond BoolT →
       cmd_has_ty lty1 thn lty2 →
       cmd_has_ty lty1 els lty2 →
       cmd_has_ty lty1 (IfC cond thn els) lty2
-  | GetTy: forall lty lhs recv t name fty,
+  | GetTy: ∀ lty lhs recv t name fty,
       expr_has_ty lty recv (ClassT t) →
       has_field name fty t →
       cmd_has_ty lty (GetC lhs recv name) (<[lhs := fty]>lty)
-  | SetTy: forall lty recv fld rhs fty t,
+  | SetTy: ∀ lty recv fld rhs fty t,
       expr_has_ty lty recv (ClassT t) →
       expr_has_ty lty rhs fty →
       has_field fld fty t →
       cmd_has_ty lty (SetC recv fld rhs) lty
-  | NewTy: forall lty lhs t args fields,
+  | NewTy: ∀ lty lhs t args fields,
       has_fields t fields →
       dom (gset string) fields = dom _ args →
-      (forall f fty arg,
+      (∀ f fty arg,
         fields !! f = Some fty →
         args !! f = Some arg →
         expr_has_ty lty arg fty) →
       cmd_has_ty lty (NewC lhs t args) (<[ lhs := ClassT t]>lty)
-  | CallTy: forall lty lhs recv t name mdef args,
+  | CallTy: ∀ lty lhs recv t name mdef args,
       expr_has_ty lty recv (ClassT t) →
       has_method name mdef t →
       dom (gset string) mdef.(methodargs) = dom _ args →
-      (forall x ty arg,
+      (∀ x ty arg,
         mdef.(methodargs) !! x = Some ty →
         args !! x = Some arg →
         expr_has_ty lty arg ty) →
       cmd_has_ty lty (CallC lhs recv name args) (<[lhs := mdef.(methodrettype)]>lty)
-  | WeakenTy: forall lty c rty' rty,
+  | WeakenTy: ∀ lty c rty' rty,
       rty ⊆ rty' →
       cmd_has_ty lty c rty' →
       cmd_has_ty lty c rty
-  | SubTy: forall lty c rty' rty,
+  | SubTy: ∀ lty c rty' rty,
       dom stringset rty' = dom _ rty →
-      (forall k A B, rty' !! k = Some A → rty !! k = Some B →  A <: B) →
+      (∀ k A B, rty' !! k = Some A → rty !! k = Some B →  A <: B) →
       cmd_has_ty lty c rty' →
       cmd_has_ty lty c rty
   | CondTagTy lty v tv t cmd :
@@ -733,11 +716,11 @@ Inductive cmd_has_ty :
       cmd_has_ty lty (CondTagC v t cmd) lty
 .
 
-Corollary CallTy_: forall lty lhs recv t name mdef args,
+Corollary CallTy_: ∀ lty lhs recv t name mdef args,
       expr_has_ty lty recv (ClassT t) →
       has_method name mdef t →
       dom (gset string) mdef.(methodargs) = dom _ args →
-      (forall x ty arg,
+      (∀ x ty arg,
         mdef.(methodargs) !! x = Some ty →
         args !! x = Some arg →
         ∃ ty', ty' <: ty ∧ expr_has_ty lty arg ty') →
@@ -750,11 +733,11 @@ Proof.
   by econstructor.
 Qed.
 
-Lemma CallTyGen: forall lty lhs recv t name mdef args ret,
+Lemma CallTyGen: ∀ lty lhs recv t name mdef args ret,
       expr_has_ty lty recv (ClassT t) →
       has_method name mdef t →
       dom (gset string) mdef.(methodargs) = dom _ args →
-      (forall x ty arg,
+      (∀ x ty arg,
         mdef.(methodargs) !! x = Some ty →
         args !! x = Some arg →
         ∃ ty', ty' <: ty ∧ expr_has_ty lty arg ty') →
@@ -790,7 +773,7 @@ Record wf_cdefs (prog: stringmap classDef)  := {
 .
 
 (* Big set reduction *)
-Definition primop_eval (op: primop) : Z -> Z -> value :=
+Definition primop_eval (op: primop) : Z → Z → value :=
   match op with
   | PlusO => fun x y => IntV (x + y)
   | MinusO => fun x y => IntV (x - y)
@@ -825,9 +808,9 @@ Definition map_args {A B: Type} (f: A → option  B) (m: stringmap A) : option (
   guard (map_Forall (λ _ x, is_Some (f x)) m); Some (omap f m)
 .
 
-Lemma dom_map_args: forall A B (f: A → option B)
+Lemma dom_map_args: ∀ A B (f: A → option B)
   (m: stringmap A) (n: stringmap B),
-  map_args f m = Some n -> 
+  map_args f m = Some n → 
   dom stringset n = dom _ m.
 Proof.
   rewrite /map_args => A B f m n h.
@@ -842,9 +825,9 @@ Proof.
     by apply H in hv.
 Qed.
 
-Lemma map_args_lookup: forall A B (f: A → option B) (m: stringmap A) n,
+Lemma map_args_lookup: ∀ A B (f: A → option B) (m: stringmap A) n,
   map_args f m = Some n →
-  forall k, n !! k = (m !! k) ≫= f.
+  ∀ k, n !! k = (m !! k) ≫= f.
 Proof.
   rewrite /map_args => A B f m n h k.
   case_option_guard; last done.
@@ -853,7 +836,7 @@ Proof.
   by rewrite lookup_omap.
 Qed.
 
-Lemma map_args_empty: forall A B (f: A → option B),
+Lemma map_args_empty: ∀ A B (f: A → option B),
   map_args f ∅ = Some ∅.
 Proof.
   rewrite /map_args => A B f /=.
@@ -862,7 +845,7 @@ Proof.
   apply map_Forall_lookup => i x h; discriminate h.
 Qed.
 
-Lemma map_args_update: forall A B (f: A → option B) k a m n,
+Lemma map_args_update: ∀ A B (f: A → option B) k a m n,
   map_args f m = Some n →
   map_args f (<[ k := a]> m) =
   match f a with
@@ -898,38 +881,38 @@ Definition tag_match (st : local_env * heap) (v: string) (t: tag) :=
 Inductive cmd_eval:
     (local_env * heap) → cmd →
     (local_env * heap) → nat → Prop :=
-  | SkipEv : forall st, cmd_eval st SkipC st 0
-  | LetEv: forall le h v e val,
+  | SkipEv : ∀ st, cmd_eval st SkipC st 0
+  | LetEv: ∀ le h v e val,
       expr_eval le e = Some val →
       cmd_eval (le, h) (LetC v e) (<[v:=val]> le, h) 0
-  | NewEv: forall le h lhs new t args vargs,
+  | NewEv: ∀ le h lhs new t args vargs,
       h !! new = None →
       map_args (expr_eval le) args = Some vargs →
       cmd_eval (le, h) (NewC lhs t args) (<[lhs := LocV new]>le, <[new := (t, vargs)]>h) 1
-  | GetEv: forall le h lhs recv name l t vs v,
+  | GetEv: ∀ le h lhs recv name l t vs v,
       expr_eval le recv = Some (LocV l) →
       h !! l = Some (t, vs) →
       vs !! name = Some v →
       cmd_eval (le, h) (GetC lhs recv name) (<[lhs := v]>le, h) 1
-  | SetEv: forall le h recv fld rhs l v t vs vs',
+  | SetEv: ∀ le h recv fld rhs l v t vs vs',
       expr_eval le recv = Some (LocV l) →
       expr_eval le rhs = Some v →
       h !! l = Some (t, vs) →
       vs' = <[ fld := v ]>vs →
       cmd_eval (le, h) (SetC recv fld rhs) (le, <[l := (t, vs')]> h) 0
-  | SeqEv: forall st1 st2 st3 fstc sndc n1 n2,
+  | SeqEv: ∀ st1 st2 st3 fstc sndc n1 n2,
       cmd_eval st1 fstc st2 n1 →
       cmd_eval st2 sndc st3 n2 →
       cmd_eval st1 (SeqC fstc sndc) st3 (n1 + n2)
-  | IfTrueEv: forall st1 st2 cond thn els n,
+  | IfTrueEv: ∀ st1 st2 cond thn els n,
       expr_eval st1.1 cond = Some (BoolV true) →
       cmd_eval st1 thn st2 n →
       cmd_eval st1 (IfC cond thn els) st2 n
-  | IfFalseEv: forall st1 st2 cond thn els n,
+  | IfFalseEv: ∀ st1 st2 cond thn els n,
       expr_eval st1.1 cond = Some (BoolV false) →
       cmd_eval st1 els st2 n →
       cmd_eval st1 (IfC cond thn els) st2 n
-  | CallEv: forall le h h' lhs recv l t vs name args vargs mdef
+  | CallEv: ∀ le h h' lhs recv l t vs name args vargs mdef
       run_env run_env' ret n,
       expr_eval le recv = Some (LocV l) →
       map_args (expr_eval le) args = Some vargs →
@@ -958,7 +941,7 @@ Definition heap_models_fields
   ∀ f (iF: interp),
   iFs !! f ≡ Some (Next iF) -∗ ∃ v, (⌜vs !! f = Some v⌝ ∗ ▷iF v).
 
-Lemma heap_models_fields_ext_L: forall iFs iFs' vs,
+Lemma heap_models_fields_ext_L: ∀ iFs iFs' vs,
   iFs ≡ iFs' -∗ heap_models_fields iFs vs -∗ heap_models_fields iFs' vs.
 Proof.
   move => iFs iFs' vs.
@@ -1059,7 +1042,7 @@ Qed.
 Lemma interp_local_tys_weaken_ty v A B lty lty' le:
   lty !! v = Some A →
   lty' !! v = Some B →
-  (forall w, v ≠ w → lty !! w = lty' !! w) →
+  (∀ w, v ≠ w → lty !! w = lty' !! w) →
   A <: B →
   interp_local_tys lty le -∗
   interp_local_tys lty' le.
@@ -1196,7 +1179,7 @@ Qed.
 
 Lemma heap_models_fields_update iFs vs f v (Φ : interpO)
   `{∀ v, Persistent (Φ v)} :
-  iFs !! f = Some (Next Φ) ->
+  iFs !! f = Some (Next Φ) →
   heap_models_fields iFs vs -∗
   Φ v -∗
   heap_models_fields iFs (<[ f := v]>vs).
@@ -1223,10 +1206,10 @@ Proof.
 Qed.
 
 Lemma heap_models_update h l t t0 vs f v fty:
-  wf_cdefs Δ ->
-  h !! l = Some (t, vs) ->
-  has_field f fty t0 ->
-  inherits t t0 ->
+  wf_cdefs Δ →
+  h !! l = Some (t, vs) →
+  has_field f fty t0 →
+  inherits t t0 →
   heap_models h -∗
   interp_type (ClassT t0) (LocV l) -∗
   interp_type fty v -∗
@@ -1346,7 +1329,7 @@ Proof.
   by iSplitL "H".
 Qed.
 
-Lemma updN_plus n1 (P: iProp) : forall n2,
+Lemma updN_plus n1 (P: iProp) : ∀ n2,
   (|=▷^n1 P) -∗ (|=▷^(n1 + n2) P).
 Proof.
   elim:n1 => [ | n1 hi] /= => n2; iIntros "h1"; first by iApply updN_intro.
