@@ -43,7 +43,6 @@ jobs:
 # TODO: move to build using dune ?
       - run: opam exec -- make
 
-|
          # CFLAGS="$CFLAGS -I$(brew --prefix gmp)/include"
          # export CFLAGS
          # echo "$CFLAGS"
