@@ -1,0 +1,42 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  run:
+    name: Build
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+        ocaml-compiler:
+          - '4.12.x'
+          - '4.13.x'
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+      - run: opam pin -n .
+#      - run: opam depext -yt shack
+# TODO: create a shack.opam file ? dunno how to do this for Coq project yet
+#      - run: opam install -t . --deps-only shack
+      - run: opam repo add coq-released https://coq.inria.fr/opam/released
+      - run: opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
+      - run: opam update
+      - run: opam install coq.8.14.1 coq-stdpp coq-iris coq-iris-heap-lang
+# TODO: move to build using dune ?
+      - run: make
