@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - macos-latest
+          # - macos-latest # issue with gmp, can't find it
           - ubuntu-latest
           #- windows-latest # TODO: failure because of `opam pin -n .`
         ocaml-compiler:
@@ -30,8 +30,8 @@ jobs:
         uses: ocaml/setup-ocaml@v2
         with:
           ocaml-compiler: ${{ matrix.ocaml-compiler }}
-      - run: brew install gmp
-        if: matrix.os == 'macos-latest'
+      #- run: brew install gmp
+       # if: matrix.os == 'macos-latest'
       - run: opam pin -n .
 #      - run: opam depext -yt shack
 # TODO: create a shack.opam file ? dunno how to do this for Coq project yet
@@ -39,10 +39,11 @@ jobs:
       - run: opam repo add coq-released https://coq.inria.fr/opam/released
       - run: opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
       - run: opam update
-      - run: |
-          CFLAGS="$CFLAGS -I$(brew --prefix gmp)/include"
-          export CFLAGS
-          echo "$CFLAGS"
-          opam install coq.8.14.1 coq-stdpp coq-iris coq-iris-heap-lang
+      - run: opam install coq.8.14.1 coq-stdpp coq-iris coq-iris-heap-lang
 # TODO: move to build using dune ?
       - run: opam exec -- make
+
+|
+         # CFLAGS="$CFLAGS -I$(brew --prefix gmp)/include"
+         # export CFLAGS
+         # echo "$CFLAGS"
