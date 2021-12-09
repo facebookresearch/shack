@@ -39,6 +39,10 @@ jobs:
       - run: opam repo add coq-released https://coq.inria.fr/opam/released
       - run: opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
       - run: opam update
-      - run: opam install coq.8.14.1 coq-stdpp coq-iris coq-iris-heap-lang
+      - run: |
+          CFLAGS="$CFLAGS -I$(brew --prefix gmp)/include"
+          export CFLAGS
+          echo "$CFLAGS"
+          opam install coq.8.14.1 coq-stdpp coq-iris coq-iris-heap-lang
 # TODO: move to build using dune ?
       - run: opam exec -- make
