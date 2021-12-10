@@ -89,10 +89,13 @@ Record classDef := {
   classmethods : stringmap methodDef;
 }.
 
+(* A program is a collection of classes *)
+Class ProgDefContext := { Δ : stringmap classDef }.
+
 Section ProgDef.
 
   (* assume a given set of class definitions *)
-  Context (Δ: stringmap classDef).
+  Context `{PDC: ProgDefContext}.
 
   (* class A extends B *)
   Definition extends (A B: tag) : Prop :=
@@ -113,17 +116,17 @@ Section ProgDef.
     (inherits C B ∨ inherits B C).
   Proof.
     intros A B C h; revert C.
-  induction h as [ t | x y z hxy hyz hi]; move => c hc; first by right.
-  destruct hxy as (cdef & hin & hs).
-  destruct hc as [ t | u v w huv hvw].
-  - left; econstructor; first by exists cdef. done.
-  - destruct huv as (? & hin' & hs').
-    rewrite hin' in hin.
-  injection hin; intros ->; clear hin hin'.
-  rewrite hs' in hs.
-  injection hs; intros ->; clear hs hs'.
-  apply hi in hvw as [h | h]; first by left.
-  by right.
+    induction h as [ t | x y z hxy hyz hi]; move => c hc; first by right.
+    destruct hxy as (cdef & hin & hs).
+    destruct hc as [ t | u v w huv hvw].
+    - left; econstructor; first by exists cdef. done.
+    - destruct huv as (? & hin' & hs').
+      rewrite hin' in hin.
+      injection hin; intros ->; clear hin hin'.
+      rewrite hs' in hs.
+      injection hs; intros ->; clear hs hs'.
+      apply hi in hvw as [h | h]; first by left.
+      by right.
   Qed.
 
   Inductive subtype : lang_ty → lang_ty → Prop :=
@@ -150,26 +153,18 @@ Section ProgDef.
 
     (* Derived rules *)
     Lemma subtype_union_comm : ∀ A B, (UnionT A B) <: (UnionT B A).
-    Proof.
-      by auto.
-    Qed.
+    Proof. by auto.  Qed.
 
     Lemma subtype_inter_comm : ∀ A B, (InterT A B) <: (InterT B A).
-    Proof.
-      by auto.
-    Qed.
+    Proof. by auto.  Qed.
 
     Lemma subtype_union_assoc:
       ∀ A B C, (UnionT (UnionT A B) C) <: (UnionT A (UnionT B C)).
-    Proof.
-      by eauto.
-    Qed.
+    Proof. by eauto.  Qed.
 
     Lemma subtype_inter_assoc:
       ∀ A B C, (InterT (InterT A B) C) <: (InterT A (InterT B C)).
-    Proof.
-      by eauto.
-    Qed.
+    Proof. by eauto.  Qed.
 
     Definition local_tys := stringmap lang_ty.
 
@@ -215,10 +210,10 @@ Section ProgDef.
     Proof.
       induction 1 as [ current cdef hΔ hm | current parent cdef hΔ hm hs h hi];
           first by exists current, cdef.
-    destruct hi as (B & cdef' & hΔ' & hm' & hinherits). 
-    exists B, cdef'; repeat split => //.
-    econstructor; last by apply hinherits.
-    by exists cdef.
+      destruct hi as (B & cdef' & hΔ' & hm' & hinherits). 
+      exists B, cdef'; repeat split => //.
+      econstructor; last by apply hinherits.
+      by exists cdef.
     Qed.
 
     (* A class cannot redeclare a field if it is present in
@@ -244,26 +239,26 @@ Section ProgDef.
     Lemma mdef_incl_reflexive: reflexive _ mdef_incl.
     Proof.
       move => mdef; split; first done.
-    split; last done.
-    by move => k A B -> [] ->.
+      split; last done.
+      by move => k A B -> [] ->.
     Qed.
 
     Lemma mdef_incl_transitive: transitive _ mdef_incl.
     Proof.
       move => m0 m1 m2 [hdom1 [h1 ?]] [hdom2 [h2 ?]]; split; first by etransitivity.
-    split; last by eauto.
-    move => k A B hA hB.
-    destruct (methodargs m1 !! k) as [C | ] eqn:hC; last first.
-    { apply mk_is_Some in hA.
-      apply elem_of_dom in hA.
-    rewrite hdom1 in hA.
-    apply elem_of_dom in hA.
-    rewrite hC in hA.
-    by elim: hA.
-    }
-    apply SubTrans with C.
-    - by eapply h2.
-    - by eapply h1.
+      split; last by eauto.
+      move => k A B hA hB.
+      destruct (methodargs m1 !! k) as [C | ] eqn:hC; last first.
+      { apply mk_is_Some in hA.
+        apply elem_of_dom in hA.
+        rewrite hdom1 in hA.
+        apply elem_of_dom in hA.
+        rewrite hC in hA.
+        by elim: hA.
+      }
+      apply SubTrans with C.
+      - by eapply h2.
+      - by eapply h1.
     Qed.
 
     Definition wf_cdef_methods cdef : Prop :=
@@ -280,33 +275,33 @@ Section ProgDef.
       has_fields c fs0 → has_fields c fs1 → fs0 = fs1.
     Proof.
       move => c fs0 fs1 h0 h1.
-    apply map_eq => k.
-    destruct (fs0 !! k) as [ ty | ] eqn:hty.
-    - destruct (h1 k ty) as [hl1 hr1].
-      rewrite hl1 //=.
-    by apply h0.
-    - destruct (fs1 !! k) as [ ty | ] eqn:hty'; last done.
-      destruct (h1 k ty) as [hl1 hr1].
-    apply h0 in hr1; last done.
-    by rewrite hty in hr1.
+      apply map_eq => k.
+      destruct (fs0 !! k) as [ ty | ] eqn:hty.
+      - destruct (h1 k ty) as [hl1 hr1].
+        rewrite hl1 //=.
+        by apply h0.
+      - destruct (fs1 !! k) as [ ty | ] eqn:hty'; last done.
+        destruct (h1 k ty) as [hl1 hr1].
+        apply h0 in hr1; last done.
+        by rewrite hty in hr1.
     Qed.
 
     Lemma has_method_fun: ∀ c name mdef0 mdef1,
       has_method name mdef0 c → has_method name mdef1 c → mdef0 = mdef1.
     Proof.
       move => c name mdef0 mdef1 h; move: mdef1.
-    induction h as [ current cdef hΔ hm | current parent cdef hΔ hm hs hp hi ].
-    - move => mdef1 h1; inv h1.
-      + rewrite hΔ in H; injection H; intros; subst; clear hΔ H.
-        rewrite hm in H0; by injection H0.
-      + rewrite hΔ in H; injection H; intros; subst; clear hΔ H.
-        rewrite hm in H0; discriminate H0.
-    - move => mdef1 h1; inv h1.
-      + rewrite hΔ in H; injection H; intros; subst; clear hΔ H.
-        rewrite hm in H0; discriminate H0.
-      + rewrite hΔ in H; injection H; intros; subst; clear hΔ H.
-        rewrite hs in H1; injection H1; intros; subst; clear hs H1.
-    by apply hi.
+      induction h as [ current cdef hΔ hm | current parent cdef hΔ hm hs hp hi ].
+      - move => mdef1 h1; inv h1.
+        + rewrite hΔ in H; injection H; intros; subst; clear hΔ H.
+          rewrite hm in H0; by injection H0.
+        + rewrite hΔ in H; injection H; intros; subst; clear hΔ H.
+          rewrite hm in H0; discriminate H0.
+      - move => mdef1 h1; inv h1.
+        + rewrite hΔ in H; injection H; intros; subst; clear hΔ H.
+          rewrite hm in H0; discriminate H0.
+        + rewrite hΔ in H; injection H; intros; subst; clear hΔ H.
+          rewrite hs in H1; injection H1; intros; subst; clear hs H1.
+          by apply hi.
     Qed.
 
     Lemma has_field_inherits : map_Forall (fun _ => wf_cdef_fields) Δ →
@@ -314,12 +309,12 @@ Section ProgDef.
       ∀ f fty, has_field f fty B → has_field f fty A.
     Proof.
       move => wfΔ A B h.
-    induction h as [ t | x y z hxy hyz hi]; move => f fty hf; first done.
-    apply hi in hf.
-    destruct hxy as (cdef & hΔ & hs).
-    apply InheritsField with y cdef; move => //.
-    apply wfΔ in hΔ.
-    by eapply hΔ.
+      induction h as [ t | x y z hxy hyz hi]; move => f fty hf; first done.
+      apply hi in hf.
+      destruct hxy as (cdef & hΔ & hs).
+      apply InheritsField with y cdef; move => //.
+      apply wfΔ in hΔ.
+      by eapply hΔ.
     Qed.
 
     Corollary has_fields_inherits_lookup:
@@ -331,9 +326,9 @@ Section ProgDef.
       fields !! name = Some fty.
     Proof.
       move => wfΔ A B name fty fields hfields hinherits hf.
-    destruct (hf name fty) as [hl hr].
-    apply hl.
-    by eapply (has_field_inherits wfΔ).
+      destruct (hf name fty) as [hl hr].
+      apply hl.
+      by eapply (has_field_inherits wfΔ).
     Qed.
 
     Lemma has_method_inherits (Hcdef: map_Forall (fun _ => wf_cdef_methods) Δ):
@@ -342,20 +337,20 @@ Section ProgDef.
       ∃ mdef', has_method m mdef' A ∧ mdef_incl mdef' mdef.
     Proof.
       move => A B h.
-    induction h as [ t | x y z hxy hyz hi]; move => m mdef hf.
-    { exists mdef; split => //.
-      by apply mdef_incl_reflexive.
-    }
-    apply hi in hf as (mdef' & hm & hincl).
-    destruct hxy as (cdef & hΔ & hs).
-    destruct (cdef.(classmethods) !! m) as [ mdef'' | ] eqn:heq; last first.
-    { exists mdef'; split; last done.
-      by apply InheritsMethod with y cdef.
-    }
-    exists mdef''; split; first by apply HasMethod with cdef.
-    apply mdef_incl_transitive with mdef'; last done.
-    apply Hcdef in hΔ.
-    by eapply hΔ.
+      induction h as [ t | x y z hxy hyz hi]; move => m mdef hf.
+      { exists mdef; split => //.
+        by apply mdef_incl_reflexive.
+      }
+      apply hi in hf as (mdef' & hm & hincl).
+      destruct hxy as (cdef & hΔ & hs).
+      destruct (cdef.(classmethods) !! m) as [ mdef'' | ] eqn:heq; last first.
+      { exists mdef'; split; last done.
+        by apply InheritsMethod with y cdef.
+      }
+      exists mdef''; split; first by apply HasMethod with cdef.
+      apply mdef_incl_transitive with mdef'; last done.
+      apply Hcdef in hΔ.
+      by eapply hΔ.
     Qed.
 
     (* Typing Judgements *)
@@ -458,10 +453,10 @@ Section ProgDef.
       cmd_has_ty lty (CallC lhs recv name args) (<[lhs := mdef.(methodrettype)]>lty).
     Proof.
       move => lty lhs recv t name mdef args hrecv hmdef hdom hargs.
-    econstructor; [done | done | done | ].
-    move => k ty arg hk ha.
-    destruct (hargs _ _ _ hk ha) as (ty' & hsub & he).
-    by econstructor.
+      econstructor; [done | done | done | ].
+      move => k ty arg hk ha.
+      destruct (hargs _ _ _ hk ha) as (ty' & hsub & he).
+      by econstructor.
     Qed.
 
     Lemma CallTyGen: ∀ lty lhs recv t name mdef args ret,
@@ -476,16 +471,16 @@ Section ProgDef.
       cmd_has_ty lty (CallC lhs recv name args) (<[lhs := ret]>lty).
     Proof.
       move =>lty lhs ????? ret hrecv hm hdom hargs hret.
-    eapply SubTy; last by eapply CallTy_.
-    { by rewrite !dom_insert_L. }
-    move => k A B hin.
-    rewrite lookup_insert_Some in hin.
-    destruct hin as [[<- <-] | [hne heq]].
-    - rewrite lookup_insert.
-      by case => <-.
-    - rewrite lookup_insert_ne //.
-      move => h; rewrite h in heq.
-    by case: heq => ->.
+      eapply SubTy; last by eapply CallTy_.
+      { by rewrite !dom_insert_L. }
+      move => k A B hin.
+      rewrite lookup_insert_Some in hin.
+      destruct hin as [[<- <-] | [hne heq]].
+      - rewrite lookup_insert.
+        by case => <-.
+      - rewrite lookup_insert_ne //.
+        move => h; rewrite h in heq.
+        by case: heq => ->.
     Qed.
 
     Definition wf_mdef_ty t mdef :=
@@ -546,15 +541,15 @@ Section ProgDef.
       dom stringset n = dom _ m.
     Proof.
       rewrite /map_args => A B f m n h.
-    case_option_guard; last done.
-    injection h; intros <-; clear h.
-    rewrite -> map_Forall_lookup in H.
-    apply set_eq => x; split; move/elem_of_dom => hx; apply elem_of_dom.
-    - rewrite lookup_omap in hx.
-      destruct hx as [v hv]; by apply bind_Some in hv as [a [-> ha]].
-    - destruct hx as [v hv].
-      rewrite lookup_omap hv.
-    by apply H in hv.
+      case_option_guard; last done.
+      injection h; intros <-; clear h.
+      rewrite -> map_Forall_lookup in H.
+      apply set_eq => x; split; move/elem_of_dom => hx; apply elem_of_dom.
+      - rewrite lookup_omap in hx.
+        destruct hx as [v hv]; by apply bind_Some in hv as [a [-> ha]].
+      - destruct hx as [v hv].
+        rewrite lookup_omap hv.
+        by apply H in hv.
     Qed.
 
     Lemma map_args_lookup: ∀ A B (f: A → option B) (m: stringmap A) n,
@@ -562,19 +557,19 @@ Section ProgDef.
       ∀ k, n !! k = (m !! k) ≫= f.
     Proof.
       rewrite /map_args => A B f m n h k.
-    case_option_guard; last done.
-    injection h; intros <-; clear h.
-    rewrite -> map_Forall_lookup in H.
-    by rewrite lookup_omap.
+      case_option_guard; last done.
+      injection h; intros <-; clear h.
+      rewrite -> map_Forall_lookup in H.
+      by rewrite lookup_omap.
     Qed.
 
     Lemma map_args_empty: ∀ A B (f: A → option B),
       map_args f ∅ = Some ∅.
     Proof.
       rewrite /map_args => A B f /=.
-    case_option_guard; first by rewrite omap_empty.
-    elim: H.
-    apply map_Forall_lookup => i x h; discriminate h.
+      case_option_guard; first by rewrite omap_empty.
+      elim: H.
+      apply map_Forall_lookup => i x h; discriminate h.
     Qed.
 
     Lemma map_args_update: ∀ A B (f: A → option B) k a m n,
@@ -585,23 +580,23 @@ Section ProgDef.
       | None => None
       end.
     Proof.
-      rewrite /map_args => A B f k a m n h/=.
-    case_option_guard; last done.
-    injection h; intros <-; clear h.
-    case_option_guard.
-    - rewrite map_Forall_lookup in H0.
-      specialize H0 with k a.
-    rewrite lookup_insert in H0.
-    destruct H0 as [ b hb ]; first by done.
-    rewrite hb.
-    f_equal.
-    by apply omap_insert_Some.
-    - destruct (f a) as [b | ] eqn:hb; last done.
-      elim: H0 => i x h.
-    rewrite lookup_insert_Some in h.
-    destruct h as [[<- <-] | [hne hin]]; first by rewrite hb.
-    rewrite map_Forall_lookup in H.
-    now apply H in hin.
+      rewrite /map_args => A B f k a m n h /=.
+      case_option_guard; last done.
+      injection h; intros <-; clear h.
+      case_option_guard.
+      - rewrite map_Forall_lookup in H0.
+        specialize H0 with k a.
+        rewrite lookup_insert in H0.
+        destruct H0 as [ b hb ]; first by done.
+        rewrite hb.
+        f_equal.
+        by apply omap_insert_Some.
+      - destruct (f a) as [b | ] eqn:hb; last done.
+        elim: H0 => i x h.
+        rewrite lookup_insert_Some in h.
+        destruct h as [[<- <-] | [hne hin]]; first by rewrite hb.
+        rewrite map_Forall_lookup in H.
+        now apply H in hin.
     Qed.
 
     Definition tag_match (st : local_env * heap) (v: string) (t: tag) :=
@@ -616,7 +611,7 @@ Section ProgDef.
       | SkipEv : ∀ st, cmd_eval st SkipC st 0
       | LetEv: ∀ le h v e val,
           expr_eval le e = Some val →
-          cmd_eval (le, h) (LetC v e) (<[v:=val]> le, h) 0
+          cmd_eval (le, h) (LetC v e) (<[v := val]> le, h) 0
       | NewEv: ∀ le h lhs new t args vargs,
           h !! new = None →
           map_args (expr_eval le) args = Some vargs →
