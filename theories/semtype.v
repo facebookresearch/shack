@@ -30,15 +30,8 @@ Section proofs.
   Context `{!sem_heapG Σ}.
   Notation iProp := (iProp Σ).
 
-  (* Hints and notations are local to the section. Re-exporting them *)
-  (* Local Notation inherits := (@inherits Δ). *)
-  (* Local Notation has_fields := (@has_fields Δ). *)
+  (* Helping the inference with this notation that hides Δ *)
   Local Notation "s <: t" := (@subtype _ s t) (at level 70, no associativity).
-  (* Local Notation expr_has_ty := (@expr_has_ty Δ). *)
-  (* Local Notation cmd_has_ty := (@cmd_has_ty Δ). *)
-  (* Local Notation wf_cdefs := (@wf_cdefs Δ). *)
-  (* Local Notation has_field := (@has_field Δ). *)
-  (* Local Notation cmd_eval := (@cmd_eval Δ). *)
 
   (* the interpretation of types is simply given by
      the carrier set of the sem_typeO ofe *)
