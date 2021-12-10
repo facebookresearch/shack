@@ -168,6 +168,25 @@ Section ProgDef.
 
     Definition local_tys := stringmap lang_ty.
 
+    Definition lty_sub (lty rty: local_tys) :=
+      ∀ k A, rty !! k = Some A → ∃ B, lty !! k = Some B ∧ B <: A.
+
+    Notation "lty <:< rty" := (lty_sub lty rty) (at level 70, no associativity).
+
+    Lemma lty_sub_reflexive: reflexive _ lty_sub.
+    Proof.
+      move => lty k A ->.
+      by exists A.
+    Qed.
+
+    Lemma lty_sub_transitive: transitive _ lty_sub.
+    Proof.
+      move => lty rty zty hlr hrz k A hA.
+      apply hrz in hA as (C & hC & hsub).
+      apply hlr in hC as (B & -> & hsub').
+      exists B; by eauto.
+    Qed.
+
     (* has_field fname ty cname checks if the class cname has a field named
      * fname of type ty
      *)
@@ -427,13 +446,8 @@ Section ProgDef.
           args !! x = Some arg →
           expr_has_ty lty arg ty) →
           cmd_has_ty lty (CallC lhs recv name args) (<[lhs := mdef.(methodrettype)]>lty)
-      | WeakenTy: ∀ lty c rty' rty,
-          rty ⊆ rty' →
-          cmd_has_ty lty c rty' →
-          cmd_has_ty lty c rty
-      | SubTy: ∀ lty c rty' rty,
-          dom stringset rty' = dom _ rty →
-          (∀ k A B, rty' !! k = Some A → rty !! k = Some B →  A <: B) →
+      | SubTy: ∀ lty c rty rty',
+          rty' <:< rty →
           cmd_has_ty lty c rty' →
           cmd_has_ty lty c rty
       | CondTagTy lty v tv t cmd :
@@ -472,15 +486,13 @@ Section ProgDef.
     Proof.
       move =>lty lhs ????? ret hrecv hm hdom hargs hret.
       eapply SubTy; last by eapply CallTy_.
-      { by rewrite !dom_insert_L. }
-      move => k A B hin.
-      rewrite lookup_insert_Some in hin.
-      destruct hin as [[<- <-] | [hne heq]].
+      move => k A hA.
+      rewrite lookup_insert_Some in hA.
+      destruct hA as [[<- <-] | [hne heq]].
       - rewrite lookup_insert.
-        by case => <-.
+        by eexists.
       - rewrite lookup_insert_ne //.
-        move => h; rewrite h in heq.
-        by case: heq => ->.
+        by exists A.
     Qed.
 
     Definition wf_mdef_ty t mdef :=
