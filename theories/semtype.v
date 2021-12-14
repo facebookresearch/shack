@@ -17,8 +17,9 @@ Section proofs.
   Context `{PDC: ProgDefContext}.
 
   (* Iris semantic context *)
-  Context `{!sem_heapG Σ}.
+  Context `{!sem_heapGS Σ}.
   Notation iProp := (iProp Σ).
+  Notation γ := sem_heap_name.
 
   (* Helping the inference with this notation that hides Δ *)
   Local Notation "s <: t" := (@subtype _ s t) (at level 70, no associativity).
@@ -51,9 +52,6 @@ Section proofs.
 
   Definition interp_nothing : interp :=
     λ (_: value), False%I.
-
-  (* name for the semantic heap *)
-  Context (γ : gname).
 
   Notation sem_heap_mapsto ℓ t iFs :=
     (own γ (gmap_view_frag ℓ DfracDiscarded (t, iFs))).
@@ -491,10 +489,11 @@ Section proofs.
     iDestruct ("Hh" with "[//]") as (?) "[H H▷]".
     iRewrite "H" in "HΦ".
     rewrite option_equivI prod_equivI /=.
-    iDestruct "HΦ" as "[-> HΦ]".
+    iDestruct "HΦ" as "[%Ht HΦ]".
+    fold_leibniz. rewrite Ht.
     iExists fields.
     iSplitL. { iExists _. iFrame. by iSplit. }
-    iSplitR; first by rewrite H0.
+    iSplitR; first done.
     iIntros (f fty) "%hfield".
     iDestruct "H▷" as "[%hdf h]".
     rewrite gmap_equivI.
@@ -531,8 +530,8 @@ Section proofs.
     iDestruct ("Hh" with "[//]") as (?) "[H H▷]".
     iRewrite "H" in "HΦ".
     rewrite option_equivI prod_equivI /=.
-    iDestruct "HΦ" as "[-> HΦ]".
-    fold_leibniz; rewrite H0.
+    iDestruct "HΦ" as "[%Ht HΦ]".
+    fold_leibniz; rewrite Ht.
     iSplitL.
     { iExists _; iFrame; by iSplit. }
     iExists l, t0, fields; by iSplitR.
@@ -867,9 +866,13 @@ Section proofs.
         iDestruct ("Hh" with "[//]") as (?) "[H H▷]".
         iRewrite "H" in "HΦ".
         rewrite option_equivI prod_equivI /=.
-        iDestruct "HΦ" as "[-> HΦ]".
+        iDestruct "HΦ" as "[%Ht HΦ]".
+        fold_leibniz; rewrite Ht.
         iSplitR; first done.
-        by iExists l, t1, fields; iSplitR.
+        iExists l, t1, fields; iSplitR; last done.
+        iPureIntro; split; first done.
+        split; first by rewrite -Ht.
+        done.
       }
       iDestruct "Hl" as "[%Hinherits #Hl]".
       assert (hincl: mdef_incl mdef0 mdef).
@@ -965,19 +968,6 @@ Section proofs.
     by iPureIntro.
   Qed.
 
-Theorem int_adequacy st lty:
-  ∀ v, lty !! v = Some IntT →
-  heap_models st.2 ∗ interp_local_tys lty st.1 -∗
-  ⌜∃ z, st.1 !! v = Some (IntV z)⌝%I.
-Proof.
-  move => v hv.
-  iIntros "[Hh Hl]".
-  iSpecialize ("Hl" $! v IntT hv).
-  iDestruct "Hl" as (w hw) "Hw".
-  rewrite interp_type_unfold /=.
-  iDestruct "Hw" as (z) "->".
-  by eauto.
-Qed.
 End proofs.
 
 Print Assumptions cmd_adequacy.

@@ -6,13 +6,39 @@
  *)
 From iris Require Import fancy_updates.
 From iris.proofmode Require Import base tactics classes.
-
-From shack Require Import heap.
+From iris.base_logic.lib Require Import iprop own wsat.
 
 Section Modality.
 
 (* Iris semantic context *)
-Context `{!sem_heapG Σ}.
+Context `{Σ: gFunctors}.
+
+(* Helper to iterate laters *)
+Lemma laterN_soundness n (P : iProp Σ) : (⊢ ▷^n P) → ⊢ P.
+Proof.
+  elim : n => [ | n hi] //= h.
+  apply uPred.later_soundness in h.
+  by apply hi.
+Qed.
+
+Lemma bupd_elim (P Q: iProp Σ) : (Q -∗ (|==> P)) → (|==> Q) -∗ (|==> P).
+Proof.
+  move => ->.
+  iIntros "H".
+  by iMod "H".
+Qed.
+
+Lemma bupd_plainly_later (P : iProp Σ) : (▷ |==> ■ P) ⊢ |==> ▷ ◇ P.
+Proof.
+  iIntros "H".
+  iModIntro.
+  iNext.
+  rewrite bupd_plainly.
+  by auto.
+Qed.
+
+Lemma bupd_plain_later (P: iProp Σ) `{!Plain P} : (▷ |==> P) ⊢ |==> ▷ ◇ P.
+Proof.  by rewrite {1}(plain P) bupd_plainly_later. Qed.
 
 Notation "|=▷^ n Q" := (Nat.iter n (λ P, |==> ▷ P) Q)%I
     (at level 99, n at level 9, Q at level 200,
@@ -88,23 +114,40 @@ Proof.
   by iApply hi.
 Qed.
 
-Lemma step_updN_step_fupdN `{!invGS Σ} (P : iProp Σ) n :
-  (|=▷^n P) ⊢ (|={∅}▷=>^n P)%I.
+Lemma step_upd_plain (P: iProp Σ) `{!Plain P} : (|==> ▷ |==> P) -∗ |==> ▷ ◇ P.
 Proof.
-  iInduction n as [|n ] "IH"; first by eauto.
-  iIntros "H". iMod "H". do 3 iModIntro. by iApply "IH".
+  apply bupd_elim.
+  by rewrite bupd_plain_later.
 Qed.
 
-Lemma step_updN_step_fupdN_soundness `{!invGpreS Σ} φ n:
-  (⊢ |=▷^n (⌜φ⌝ : iProp Σ)) → φ.
+Lemma step_updN_plain n (P: iProp Σ) `{!Plain P} : (|=▷^n P) -∗ |==> ▷^n ◇ P.
 Proof.
-  intros Hvdash. eapply step_fupdN_soundness.
-  iIntros (Hinv). iPoseProof Hvdash as "H".
-  iDestruct (step_updN_step_fupdN with "H") as "H'".
-  iApply fupd_mask_intro_discard; auto.
+  elim : n => [ | n hi] /=.
+  - rewrite -bupd_intro; by auto.
+  - rewrite hi step_upd_plain.
+    apply bupd_mono.
+    by rewrite bi.except_0_laterN bi.except_0_idemp.
 Qed.
+
 End Modality.
 
 Notation "|=▷^ n Q" := (Nat.iter n (λ P, |==> ▷ P) Q)%I
     (at level 99, n at level 9, Q at level 200,
     format "|=▷^ n  Q") : bi_scope.
+
+Lemma step_updN_soundness Σ n φ: (⊢@{iPropI Σ} |=▷^n ⌜ φ ⌝) → φ.
+Proof.
+  move => Hiter.
+  apply (uPred.soundness (M:=iResUR Σ) _  (S n)); simpl.
+  apply uPred.bupd_plain_soundness.
+  { rewrite -bi.later_laterN.
+    apply laterN_plain.
+    by apply pure_plain.
+  }
+  iPoseProof Hiter as "H". clear Hiter.
+  iMod (step_updN_plain with "H") as "H2". iModIntro.
+  rewrite -bi.later_laterN bi.laterN_later.
+  iNext. iMod "H2" as %Hφ. auto.
+Qed.
+
+Print Assumptions step_updN_soundness.
