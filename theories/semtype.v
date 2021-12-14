@@ -5,22 +5,12 @@
  * LICENSE file in the root directory of this source tree.
  *)
 From stdpp Require Import base strings gmap stringmap fin_maps.
-From iris.base_logic Require Import upred.
+From iris.base_logic Require Import upred derived.
 From iris.base_logic.lib Require Import iprop own.
 From iris.algebra Require Import ofe cmra gmap_view.
 From iris.proofmode Require Import tactics.
 
-From shack Require Import lang.
-
-Canonical Structure tagO : ofe := leibnizO tag.
-Canonical Structure lang_tyO : ofe := leibnizO lang_ty.
-
-(* interpretation of types *)
-Definition sem_typeO (Σ : gFunctors) : ofe := value -d> iPropO Σ.
-
-Class sem_heapG (Σ : gFunctors) : Set := SemHeapG {
-  sem_heapG_heap :> inG Σ (gmap_viewR loc (prodO tagO (gmapO string (laterO (sem_typeO Σ)))));
-}.
+From shack Require Import lang heap modality.
 
 Section proofs.
   (* assume a given set of class definitions *)
@@ -636,80 +626,6 @@ Section proofs.
       by rewrite lookup_insert_ne // in Heq.
   Qed.
 
-  Notation "|=▷^ n Q" := (Nat.iter n (λ P, |==> ▷ P) Q)%I
-      (at level 99, n at level 9, Q at level 200,
-      format "|=▷^ n  Q") : bi_scope.
-
-  Lemma updN_zero (Q : iProp) : (|=▷^0 Q) ⊣⊢ Q.
-  Proof. done. Qed.
-
-  Lemma updN_S n (Q : iProp) :
-    (|=▷^(S n) Q) ⊣⊢ |==> ▷ |=▷^n Q.
-  Proof. done. Qed.
-
-  Lemma updN_mono n (P Q : iProp) :
-    (P -∗ Q) → (|=▷^n P) -∗ (|=▷^n Q).
-  Proof.
-    elim: n => [//|n HI H /=].
-    iApply bupd_mono.
-    iApply bi.later_mono.
-    by iApply HI.
-  Qed.
-
-  Lemma updN_mono_I n (P Q : iProp) :
-    (P -∗ Q) -∗ (|=▷^n P) -∗ (|=▷^n Q).
-  Proof.
-    elim: n => [|n hi]; first done.
-    iIntros "H".
-    rewrite !updN_S.
-    iIntros "HH".
-    iMod "HH".
-    iModIntro.
-    iNext.
-    by iApply (hi with "H").
-  Qed.
-
-  Lemma updN_intro n (P: iProp) : P -∗ (|=▷^n P).
-  Proof.
-    elim: n => [// | n hi /=].
-    iIntros "p".
-    iApply bupd_intro.
-    apply bi.later_mono in hi.
-    by iApply hi.
-  Qed.
-
-  Lemma updN_sep n (P R: iProp) : ((|=▷^n P) ∗ (|=▷^n R)) -∗ |=▷^n (P ∗ R).
-  Proof.
-    elim: n => [// | n hi /=].
-    iIntros "[H0 H1]".
-    iMod "H0".
-    iMod "H1".
-    iModIntro.
-    iNext.
-    iApply hi.
-    by iSplitL "H0".
-  Qed.
-
-  Lemma updN_frame_r n (P R: iProp) : (|=▷^n P) ∗ R -∗ |=▷^n P ∗ R.
-  Proof.
-    elim: n => [// | n hi /=].
-    iIntros "[H HR]".
-    iMod "H"; iModIntro.
-    iNext.
-    iApply hi.
-    by iSplitL "H".
-  Qed.
-
-  Lemma updN_plus n1 (P: iProp) : ∀ n2,
-    (|=▷^n1 P) -∗ (|=▷^(n1 + n2) P).
-  Proof.
-    elim:n1 => [ | n1 hi] /= => n2; iIntros "h1"; first by iApply updN_intro.
-    iMod "h1".
-    iModIntro.
-    iNext.
-    by iApply hi.
-  Qed.
-
   Lemma interp_type_loc_inversion h le lty (v: string) l T t fields:
     h !! l = Some (t, fields) →
     le !! v = Some (LocV l) →
@@ -1049,6 +965,19 @@ Section proofs.
     by iPureIntro.
   Qed.
 
+Theorem int_adequacy st lty:
+  ∀ v, lty !! v = Some IntT →
+  heap_models st.2 ∗ interp_local_tys lty st.1 -∗
+  ⌜∃ z, st.1 !! v = Some (IntV z)⌝%I.
+Proof.
+  move => v hv.
+  iIntros "[Hh Hl]".
+  iSpecialize ("Hl" $! v IntT hv).
+  iDestruct "Hl" as (w hw) "Hw".
+  rewrite interp_type_unfold /=.
+  iDestruct "Hw" as (z) "->".
+  by eauto.
+Qed.
 End proofs.
 
 Print Assumptions cmd_adequacy.

@@ -282,6 +282,7 @@ Section ProgDef.
 
     Definition wf_cdef_methods cdef : Prop :=
       ∀ m mdef superdef super,
+      cdef.(superclass) = Some super →
       has_method m superdef super →
       cdef.(classmethods) !! m = Some mdef →
       mdef_incl mdef superdef.
