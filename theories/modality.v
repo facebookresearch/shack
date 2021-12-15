@@ -135,7 +135,7 @@ Notation "|=▷^ n Q" := (Nat.iter n (λ P, |==> ▷ P) Q)%I
     (at level 99, n at level 9, Q at level 200,
     format "|=▷^ n  Q") : bi_scope.
 
-Lemma step_updN_soundness Σ n φ: (⊢@{iPropI Σ} |=▷^n ⌜ φ ⌝) → φ.
+Lemma step_updN_soundness Σ n φ: (⊢@{iPropI Σ} |==> |=▷^n ⌜ φ ⌝) → φ.
 Proof.
   move => Hiter.
   apply (uPred.soundness (M:=iResUR Σ) _  (S n)); simpl.
@@ -145,7 +145,9 @@ Proof.
     by apply pure_plain.
   }
   iPoseProof Hiter as "H". clear Hiter.
-  iMod (step_updN_plain with "H") as "H2". iModIntro.
+  iMod (step_updN_plain with "H") as "H2".
+  iMod "H2".
+  iModIntro.
   rewrite -bi.later_laterN bi.laterN_later.
   iNext. iMod "H2" as %Hφ. auto.
 Qed.

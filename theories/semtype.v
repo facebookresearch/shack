@@ -971,3 +971,22 @@ Section proofs.
 End proofs.
 
 Print Assumptions cmd_adequacy.
+
+Lemma sem_heap_init
+  `{PDC: ProgDefContext}
+  `{!sem_heapGpreS Σ}:
+  ⊢@{iPropI Σ} |==> ∃ _: sem_heapGS Σ, (heap_models ∅ ∗ interp_local_tys ∅ ∅).
+Proof.
+  iMod (own_alloc (gmap_view_auth (DfracOwn 1) ∅)) as (γI) "HI";
+    first by apply gmap_view_auth_valid.
+  iExists (SemHeapGS _ _ γI).
+  iModIntro; iSplit.
+  { iExists ∅. 
+    iSplit; first done.
+    iSplit; first (iPureIntro; by set_solver).
+    iModIntro; iIntros (l t vs) "%H".
+    by rewrite !lookup_empty in H.
+  }
+  iIntros (v t H).
+  by rewrite !lookup_empty in H.
+Qed.

@@ -7,6 +7,7 @@
 From stdpp Require Import strings.
 From iris.base_logic.lib Require Import iprop own ghost_map.
 From iris.algebra Require Import ofe cmra gmap_view.
+From iris.proofmode Require Import tactics.
 
 From shack Require Import lang.
 
@@ -35,5 +36,3 @@ Class sem_heapGS (Σ: gFunctors) := SemHeapGS {
   sem_heap_inG :> sem_heapGpreS Σ;
   sem_heap_name: gname;
 }.
-
-(* Lemma sem_heap_init `{!sem_heapGpreS Σ}: ⊢ |==> ∃ _ : sem_heapGS Σ, True%I. *)

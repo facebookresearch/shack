@@ -8,3 +8,4 @@ theories/lang.v
 theories/heap.v
 theories/modality.v
 theories/semtype.v
+theories/examples.v
