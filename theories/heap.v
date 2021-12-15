@@ -19,8 +19,7 @@ Canonical Structure valueO : ofe := leibnizO value.
 (* interpretation of types *)
 Definition sem_typeO (Σ : gFunctors) : ofe := value -d> iPropO Σ.
 
-Definition sem_typeOF (F: oFunctor) : oFunctor :=
-  discrete_funOF (λ (_:value), F).
+Definition sem_typeOF (F: oFunctor) : oFunctor := value -d> F.
 
 Class sem_heapGpreS (Σ : gFunctors) : Set := {
   sem_heap :> inG Σ (gmap_viewR loc (prodO tagO (gmapO string (laterO (sem_typeO Σ)))));
