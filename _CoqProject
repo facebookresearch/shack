@@ -7,5 +7,6 @@ INSTALLDEFAULTROOT = shack-test
 theories/lang.v
 theories/heap.v
 theories/modality.v
+theories/interp.v
 theories/semtype.v
 theories/examples.v

@@ -64,6 +64,7 @@ Notation "l ↦ '(' t ',' iFs ')'" := (mapsto l t iFs)
 
 Section sem_heap.
   Context `{hG: !sem_heapGS Σ}.
+  Notation γ := sem_heap_name.
 
 	Lemma mapsto_contractive
     (l: loc)
@@ -85,7 +86,7 @@ Section sem_heap.
   Qed.
 
   Lemma sem_heap_own_valid_2 sh l t iFs:
-    own sem_heap_name (gmap_view_auth (DfracOwn 1) sh) -∗
+    own γ (gmap_view_auth (DfracOwn 1) sh) -∗
     l ↦ (t, iFs) -∗
     sh !! l ≡ Some (t, iFs).
   Proof.
@@ -100,8 +101,8 @@ Section sem_heap.
     sh !! new = None →
     (gmap_view_auth (DfracOwn 1) sh ~~>
       gmap_view_auth (DfracOwn 1) (<[new:=(t, iFs)]> sh) ⋅ (new ↪ (t, iFs))%I) →
-    own sem_heap_name (gmap_view_auth (DfracOwn 1) sh) -∗
-    |==> own sem_heap_name ((gmap_view_auth (DfracOwn 1) (<[new:=(t, iFs)]> sh)) ⋅
+    own γ (gmap_view_auth (DfracOwn 1) sh) -∗
+    |==> own γ ((gmap_view_auth (DfracOwn 1) (<[new:=(t, iFs)]> sh)) ⋅
            (new  ↪ (t, iFs))%I).
   Proof.
     rewrite loc_mapsto_eq /loc_mapsto_def  => hnew h.
