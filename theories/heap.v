@@ -56,7 +56,7 @@ Section definitions.
   Definition mapsto_eq : @mapsto = @mapsto_def := mapsto_aux.(seal_eq).
 End definitions.
 
-Notation "l  ↪ '(' t ',' iFs ')'" := (loc_mapsto l t iFs)
+Notation "l ↪ '(' t ',' iFs ')'" := (loc_mapsto l t iFs)
   (at level 20, format "l  ↪ '(' t ',' iFs ')'") : bi_scope.
 
 Notation "l ↦ '(' t ',' iFs ')'" := (mapsto l t iFs)

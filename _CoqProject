@@ -8,5 +8,5 @@ theories/lang.v
 theories/heap.v
 theories/modality.v
 theories/interp.v
-theories/semtype.v
+theories/adequacy.v
 theories/examples.v
