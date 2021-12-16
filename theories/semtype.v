@@ -53,31 +53,32 @@ Section proofs.
   Definition interp_nothing : interp :=
     λ (_: value), False%I.
 
-  Notation sem_heap_mapsto ℓ t iFs :=
-    (own γ (gmap_view_frag ℓ DfracDiscarded (t, iFs))).
-
   Notation ty_interpO := (lang_ty -d> interpO).
 
-  (* TODO: 
-   * I need these two intermediate definition to make Coq/Type Classes
-   * instaces happy.
-   *)
-  Definition interp_ty_next (rec: ty_interpO) (typ: lang_ty): laterO interpO :=
-    Next (rec typ)
+  Definition interp_fields (rec: ty_interpO) (ftys: stringmap lang_ty) :
+    gmapO string (laterO interpO) :=
+    let f := λ (typ: lang_ty), Next (rec typ) in
+    @fmap _ _ _ (later interpO) f ftys
   .
 
-  Definition interp_tys_next (rec: ty_interpO) (ftys: stringmap lang_ty) :
-    gmapO string (laterO interpO) :=
-    (interp_ty_next rec) <$> ftys
-  .
+  Lemma interp_fields_contractive ftys:
+    Contractive (λ f, interp_fields f ftys).
+  Proof.
+    move => n i1 i2 hdist.
+    rewrite /interp_fields.
+    apply gmap_fmap_ne_ext => k ty hin.
+    f_contractive.
+    by destruct n.
+  Qed.
 
   (* interpret a class type given the tag and the
      interpretation of their fields *)
   Definition interp_class (cname : tag) (rec : ty_interpO) : interp :=
+    let f := λ (typ: lang_ty), Next (rec typ) in
     λ (w : value),
     (∃ ℓ t (fields:stringmap lang_ty),
     ⌜w = LocV ℓ ∧ inherits t cname ∧ has_fields t fields⌝ ∗
-    sem_heap_mapsto ℓ t (interp_tys_next rec fields))%I.
+    (ℓ ↦ (t , interp_fields rec fields)))%I.
 
   Definition interp_nonnull (rec : ty_interpO) : interp :=
     λ (v : value),
@@ -107,6 +108,24 @@ Section proofs.
     | InterT A B => interp_inter (go A) (go B)
     end) typ.
 
+  Lemma interp_class_contractive cname: Contractive (interp_class cname). 
+  Proof.
+    rewrite /interp_class => n i1 i2 hdist v.
+    do 3 (f_equiv; intro).
+    f_equiv.
+    set (f := λ i, interp_fields i a1).
+    assert (hf : Contractive f) by apply interp_fields_contractive.
+    by apply (mapsto_contractive _ _ f).
+  Qed.
+
+  Lemma interp_nonnull_contractive: Contractive interp_nonnull.
+  Proof.
+    rewrite /interp_nonnull => n i1 i2 hdist v.
+    do 4 f_equiv.
+    revert v.
+    by apply interp_class_contractive.
+  Qed.
+
   (* we cannot use solve_contractive out of the box because of
    * the 'fix' combinator above
    *)
@@ -120,42 +139,11 @@ Section proofs.
  | solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv])
  | solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv])
      ].
-     (* TODO: factor out interp class and interp nonnull *)
      - move => v; rewrite /interp_mixed.
-       f_equiv.
-       rewrite /interp_nonnull.
-       f_equiv.
-       f_equiv.
-       f_equiv.
-       f_equiv.
-       (* interp class *)
-       rewrite /interp_class.
-       do 3 (f_equiv; intro).
-       do 4 f_equiv.
-       rewrite /interp_tys_next /interp_ty_next.
-       apply gmap_fmap_ne_ext => k ty hin.
-       f_contractive.
-       by destruct n.
-     - move => v; rewrite /interp_class.
-       do 3 (f_equiv; intro).
-       do 4 f_equiv.
-       rewrite /interp_tys_next /interp_ty_next.
-       apply gmap_fmap_ne_ext => k ty hin.
-       f_contractive.
-       by destruct n.
-     - move => v; rewrite /interp_nonnull.
-       f_equiv.
-       f_equiv.
-       f_equiv.
-       f_equiv.
-       (* interp class *)
-       rewrite /interp_class.
-       do 3 (f_equiv; intro).
-       do 4 f_equiv.
-       rewrite /interp_tys_next /interp_ty_next.
-       apply gmap_fmap_ne_ext => k ty hin.
-       f_contractive.
-       by destruct n.
+       f_equiv; revert v.
+       by apply interp_nonnull_contractive.
+     - by apply interp_class_contractive.
+     - by apply interp_nonnull_contractive.
   Qed.
 
   (* the interpretation of types can now be
@@ -181,9 +169,27 @@ Section proofs.
       by apply bi.and_persistent; rewrite -!interp_type_unfold.
   Qed.
 
-  Lemma dom_interp_tys_next fields:
-    dom stringset (interp_tys_next interp_type fields) ≡ dom _ fields.
-  Proof. by rewrite /interp_tys_next /interp_ty_next dom_fmap. Qed.
+  Lemma dom_interp_fields fields:
+    dom stringset (interp_fields interp_type fields) ≡ dom _ fields.
+  Proof. by rewrite /interp_fields dom_fmap. Qed.
+
+  Lemma inherits_is_inclusion:
+    ∀ A B, inherits A B →
+    ∀ v, interp_class A interp_type v -∗ interp_class B interp_type v.
+  Proof.
+    move => A B hAB v.
+    rewrite /interp_class.
+    iIntros "h".
+    iDestruct "h" as (ℓ t fields) "[%h hsem]".
+    destruct h as [-> [hext2 hfields ]].
+    iExists ℓ, t, fields.
+    iSplit.
+    { iPureIntro; split; first by done.
+      split; last done.
+      by eapply rtc_transitive.
+    }
+    by iFrame.
+  Qed.
 
   (* A <: B → ΦA ⊂ ΦB *)
   Theorem subtype_is_inclusion_aux:
@@ -193,22 +199,17 @@ Section proofs.
     interp_type_pre interp_type B v.
   Proof.
     induction 1 as [A | A B hext | | | | A | A B| A B | A B C h0 hi0 h1 hi1
- | A B | A B | A B C h0 hi0 h1 hi1 | A | A B C h0 hi0 h1 hi1 ];
+        | A B | A B | A B C h0 hi0 h1 hi1 | A | A B C h0 hi0 h1 hi1 ];
     move => v /=.
     - rewrite /interp_mixed.
-      elim: A v => /=.
+      elim: A v => //=.
       + move => v; iIntros "h"; by repeat iLeft.
       + move => v; iIntros "h"; by iLeft; iRight; iLeft.
       + move => v; by rewrite /interp_nothing; iIntros "h".
-      + done.
-      + rewrite /interp_class => v cname.
+      + move => cname v.
         iIntros "h".
-        iDestruct "h" as (ℓ t fields) "[%h0 h1]".
-        destruct h0 as [-> [hext hfields]].
-        iLeft.
-        iRight.
-        iRight.
-        by iExists t, _, _, _; iFrame.
+        iLeft; iRight; iRight.
+        iExists cname; by iApply inherits_is_inclusion. 
       + move => v; iIntros "h"; by iRight.
       + move => v; by iIntros "h"; iLeft.
       + move => s hs t ht v.
@@ -220,25 +221,14 @@ Section proofs.
         rewrite /interp_inter.
         iIntros "h".
         iDestruct "h" as "[? _]"; by iApply hs.
-    - rewrite /interp_class.
-      iIntros "h".
-      iDestruct "h" as (ℓ t fields) "[%h hsem]".
-      destruct h as [-> [hext2 hfields ]].
-      iExists ℓ, t, fields.
-      iSplit.
-      { iPureIntro; split; first by done.
-        split; last done.
-        by eapply rtc_transitive.
-      }
-      by iFrame.
+    - by iApply inherits_is_inclusion.
     - by rewrite /= /interp_mixed.
     - iIntros "h"; by iLeft.
     - iIntros "h"; by iRight; iLeft.
-    - rewrite /interp_class.
-      iIntros "h"; iRight; iRight.
-      iDestruct "h" as (ℓ t fields) "[%h0 h1]".
-      destruct h0 as [-> [hext hfields]].
-      by iExists t, _, _, _; iFrame.
+    - iIntros "H".
+      iRight; iRight.
+      iExists A.
+      by iApply inherits_is_inclusion.
     - rewrite /interp_union.
       by iIntros "h"; iLeft.
     - rewrite /interp_union.
@@ -267,16 +257,6 @@ Section proofs.
     move => A B hAB v.
     rewrite !interp_type_unfold.
     by iApply subtype_is_inclusion_aux.
-  Qed.
-
-  Corollary inherits_is_inclusion:
-    ∀ A B, inherits A B →
-    ∀ v, interp_class A interp_type v -∗ interp_class B interp_type v.
-  Proof.
-    move => A B hAB v; iIntros "h".
-    iDestruct (subtype_is_inclusion (ClassT A) (ClassT B)) as "H"; first by eauto.
-    rewrite !interp_type_unfold /=.
-    by iApply "H".
   Qed.
 
   (* heap models relation; the semantic heap does
@@ -483,9 +463,7 @@ Section proofs.
     iDestruct "hl" as (???) "[%H H◯]".
     destruct H as [[= <-] [hinherits hf]].
     iDestruct "hmodels" as (sh) "(H● & % & #Hh)".
-    iDestruct (own_valid_2 with "H● H◯") as "#Hv".
-    rewrite gmap_view_both_validI.
-    iDestruct "Hv" as "[_ HΦ]".
+    iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
     iDestruct ("Hh" with "[//]") as (?) "[H H▷]".
     iRewrite "H" in "HΦ".
     rewrite option_equivI prod_equivI /=.
@@ -498,7 +476,7 @@ Section proofs.
     iDestruct "H▷" as "[%hdf h]".
     rewrite gmap_equivI.
     iSpecialize ("HΦ" $! f).
-    rewrite /interp_tys_next /interp_ty_next lookup_fmap hfield /=.
+    rewrite /interp_fields lookup_fmap hfield /=.
     iAssert (⌜is_Some (iFs !! f)⌝)%I as "%hiFs".
     { destruct (iFs !! f) eqn:hh; first done.
       by rewrite hh option_equivI.
@@ -524,9 +502,7 @@ Section proofs.
     iDestruct "hl" as (???) "[%H #H◯]".
     destruct H as [[= <-] [hinherits hf]].
     iDestruct "hmodels" as (sh) "(H● & % & #Hh)".
-    iDestruct (own_valid_2 with "H● H◯") as "#Hv".
-    rewrite gmap_view_both_validI.
-    iDestruct "Hv" as "[_ HΦ]".
+    iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
     iDestruct ("Hh" with "[//]") as (?) "[H H▷]".
     iRewrite "H" in "HΦ".
     rewrite option_equivI prod_equivI /=.
@@ -582,9 +558,7 @@ Section proofs.
     rewrite interp_type_unfold /= /interp_class.
     iDestruct "hl" as (?? fields) "[%H hsem]".
     destruct H as [[= <-] [ hinherits' hfields]].
-    iDestruct (own_valid_2 with "hown hsem") as "#Hv".
-    rewrite gmap_view_both_validI.
-    iDestruct "Hv" as "[_ Hv]".
+    iDestruct (sem_heap_own_valid_2 with "hown hsem") as "#Hv".
     iSplitL; first by iFrame.
     iSplitR.
     { iPureIntro.
@@ -603,11 +577,11 @@ Section proofs.
         by iDestruct "hsh" as "[? ?]".
       }
       iExists _; iSplitR.
-      { rewrite Ht.
+      { replace t1 with t.
         by iRewrite "Hv".
       }
       iApply heap_models_fields_update; first by apply interp_type_persistent.
-      + rewrite /interp_tys_next /interp_ty_next lookup_fmap.
+      + rewrite /interp_fields lookup_fmap.
         destruct (hfields f fty) as [h0 h1].
         rewrite h0; first by done.
         apply has_field_inherits with t0 => //.
@@ -775,17 +749,28 @@ Section proofs.
          semantic heap *)
       iDestruct "Hh" as (sh) "(H●&Hdom&#Hh)".
       iDestruct "Hdom" as %Hdom.
-      iMod (own_update with "H●") as "[H● H◯]".
-      { apply (gmap_view_alloc _ new DfracDiscarded
-        (t, interp_tys_next interp_type fields)); last done.
-        apply (not_elem_of_dom (D:=gset loc)).
+      assert (hnew: sh !! new = None).
+      { apply (not_elem_of_dom (D:=gset loc)).
         by rewrite Hdom not_elem_of_dom.
       }
-      iIntros "!> !>". iDestruct "H◯" as "#H◯".
+      iMod ((sem_heap_own_update new) with "H●") as "[H● H◯]" => //.
+      {
+        (* TODO *)
+        rewrite loc_mapsto_eq /loc_mapsto_def.
+        by apply (gmap_view_alloc _ new DfracDiscarded
+          (t, interp_fields interp_type fields)).
+      }
+      iIntros "!> !>".
+      (* TODO *)
+      rewrite loc_mapsto_eq /loc_mapsto_def.
+      iDestruct "H◯" as "#H◯".
       iAssert (interp_type (ClassT t) (LocV new))
       with "[]" as "#Hl".
       { rewrite interp_type_unfold /=.
-        iExists _, _, _. by iSplit.
+        iExists _, _, _.
+        iSplit; first done.
+        (* TODO *)
+        by rewrite mapsto_eq /mapsto_def.
       }
       iSplitL; last first.
       by iApply interp_local_tys_update.
@@ -799,13 +784,13 @@ Section proofs.
         iSplitR.
         { 
           apply dom_map_args in H6.
-          by rewrite dom_interp_tys_next H6 -hdom.
+          by rewrite dom_interp_fields H6 -hdom.
         }
         iIntros (f iF) "hiF".
         iAssert (⌜f ∈ dom stringset fields⌝)%I as "%hfield".
         {
-          rewrite -dom_interp_tys_next elem_of_dom.
-          rewrite /interp_tys_next /interp_ty_next.
+          rewrite -dom_interp_fields elem_of_dom.
+          rewrite /interp_fields.
           rewrite !lookup_fmap.
           by iRewrite "hiF".
         }
@@ -825,7 +810,7 @@ Section proofs.
         assert (h2: is_Some (fields !! f)) by (by apply elem_of_dom).
         destruct h2 as [fty hty].
         iExists v0; iSplitR; first done.
-        rewrite /interp_tys_next /interp_ty_next lookup_fmap.
+        rewrite /interp_fields lookup_fmap.
         assert (heval0: expr_eval le a0 = Some v0).
         { rewrite (map_args_lookup _ _ _ args vargs H6 f) in hv0.
           by rewrite ha0 in hv0.
@@ -860,9 +845,7 @@ Section proofs.
         iDestruct "Hrecv" as (? t1 ?) "[%hpure Hsem]".
         destruct hpure as [[= <-] [hinherits' ?]].
         iDestruct "Hh" as (sh) "(H● & % & #Hh)".
-        iDestruct (own_valid_2 with "H● Hsem") as "#Hv".
-        rewrite gmap_view_both_validI.
-        iDestruct "Hv" as "[_ HΦ]".
+        iDestruct (sem_heap_own_valid_2 with "H● Hsem") as "#HΦ".
         iDestruct ("Hh" with "[//]") as (?) "[H H▷]".
         iRewrite "H" in "HΦ".
         rewrite option_equivI prod_equivI /=.
