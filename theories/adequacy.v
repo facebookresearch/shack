@@ -353,6 +353,33 @@ Section proofs.
       by rewrite lookup_insert_ne // in Heq.
   Qed.
 
+  Lemma interp_class_loc_inversion h (v: string) l cname t fields:
+    h !! l = Some (t, fields) →
+    heap_models h -∗
+    interp_class cname interp_type (LocV l) -∗
+    heap_models h ∗ interp_type (ClassT t) (LocV l).
+  Proof.
+    move => hl; iIntros "Hh H".
+    iDestruct ((heap_models_class _ _ cname _ _ hl) with "[Hh //]") as "Hv".
+    iApply "Hv".
+    by rewrite interp_type_unfold.
+  Qed.
+
+  Lemma interp_nonnull_loc_inversion h (v: string) l t fields:
+    h !! l = Some (t, fields) →
+    heap_models h -∗
+    interp_nonnull interp_type (LocV l) -∗
+    heap_models h ∗ interp_type (ClassT t) (LocV l).
+  Proof.
+    move => hl; iIntros "Hh H".
+    iDestruct "H" as "[H | H]".
+    { iDestruct "H" as (z) "%H"; discriminate. }
+    iDestruct "H" as "[H | H]".
+    { iDestruct "H" as (b) "%H"; discriminate. }
+    iDestruct "H" as (cname) "H".
+    by iApply ((interp_class_loc_inversion _ v _ cname) with "[Hh]").
+  Qed.
+
   Lemma interp_type_loc_inversion h le lty (v: string) l T t fields:
     h !! l = Some (t, fields) →
     le !! v = Some (LocV l) →
@@ -371,30 +398,13 @@ Section proofs.
     - move => v hv; iIntros "#Hs Hh H".
       iDestruct "H" as "[H | H]"; last first.
       { iDestruct "H" as "%H"; discriminate. }
-      (* start of nonnull as part of mixed. TODO: factor outTODO: factor out class/nonnull *)
-      iDestruct "H" as "[H | H]".
-      { iDestruct "H" as (z) "%H"; discriminate. }
-      iDestruct "H" as "[H | H]".
-      { iDestruct "H" as (b) "%H"; discriminate. }
-      iDestruct "H" as (cname) "H".
-      iDestruct ((heap_models_class _ _ cname _ _ hl) with "[Hh //]") as "Hv".
-      iApply "Hv".
-      by rewrite interp_type_unfold.
+      by iApply ((interp_nonnull_loc_inversion _ v) with "[Hh]").
     - move => cname v hv; iIntros "Hs Hh H".
-      iDestruct ((heap_models_class _ _ cname _ _ hl) with "[Hh //]") as "Hv".
-      iApply "Hv".
-      by rewrite interp_type_unfold.
+      by iApply ((interp_class_loc_inversion _ v _ cname) with "[Hh]").
     - move => ??; iIntros "? ? H".
       iDestruct "H" as "%H"; discriminate.
     - move => v hv; iIntros "#Hs Hh H".
-      iDestruct "H" as "[H | H]".
-      { iDestruct "H" as (z) "%H"; discriminate. }
-      iDestruct "H" as "[H | H]".
-      { iDestruct "H" as (b) "%H"; discriminate. }
-      iDestruct "H" as (cname) "H".
-      iDestruct ((heap_models_class _ _ cname _ _ hl) with "[Hh //]") as "Hv".
-      iApply "Hv".
-      by rewrite interp_type_unfold.
+      by iApply ((interp_nonnull_loc_inversion _ v) with "[Hh]").
     - move => S hS T hT v hv; iIntros "#Hs Hh H".
       iDestruct "H" as "[H | H]".
       + apply hS in hv.
@@ -507,24 +517,14 @@ Section proofs.
       { apply (not_elem_of_dom (D:=gset loc)).
         by rewrite Hdom not_elem_of_dom.
       }
-      iMod ((sem_heap_own_update new) with "H●") as "[H● H◯]" => //.
-      {
-        (* TODO *)
-        rewrite loc_mapsto_eq /loc_mapsto_def.
-        by apply (gmap_view_alloc _ new DfracDiscarded
-          (t, interp_fields interp_type fields)).
-      }
+      iMod ((sem_heap_own_update new) with "H●") as "[H● H◯]" => //; first by
+        apply (sem_heap_view_alloc _ new t (interp_fields interp_type fields)).
       iIntros "!> !>".
-      (* TODO *)
-      rewrite loc_mapsto_eq /loc_mapsto_def.
       iDestruct "H◯" as "#H◯".
-      iAssert (interp_type (ClassT t) (LocV new))
-      with "[]" as "#Hl".
+      iAssert (interp_type (ClassT t) (LocV new)) with "[]" as "#Hl".
       { rewrite interp_type_unfold /=.
         iExists _, _, _.
-        iSplit; first done.
-        (* TODO *)
-        by rewrite mapsto_eq /mapsto_def.
+        by iSplit.
       }
       iSplitL; last first.
       by iApply interp_local_tys_update.

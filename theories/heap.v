@@ -97,18 +97,30 @@ Section sem_heap.
     by iDestruct "Hv" as "[_ HΦ]".
   Qed.
 
+  Lemma sem_heap_view_alloc sh new t iFs:
+    sh !! new = None →
+    gmap_view_auth (DfracOwn 1) sh ~~>
+    gmap_view_auth (DfracOwn 1) (<[new:=(t, iFs)]> sh) ⋅ (@loc_mapsto Σ new t iFs).
+  Proof.
+    move => hnew.
+    rewrite loc_mapsto_eq /loc_mapsto_def.
+    by apply gmap_view_alloc.
+  Qed.
+
   Lemma sem_heap_own_update new sh t iFs:
     sh !! new = None →
     (gmap_view_auth (DfracOwn 1) sh ~~>
       gmap_view_auth (DfracOwn 1) (<[new:=(t, iFs)]> sh) ⋅ (new ↪ (t, iFs))%I) →
     own γ (gmap_view_auth (DfracOwn 1) sh) -∗
-    |==> own γ ((gmap_view_auth (DfracOwn 1) (<[new:=(t, iFs)]> sh)) ⋅
-           (new  ↪ (t, iFs))%I).
+    |==> (own γ (gmap_view_auth (DfracOwn 1) (<[new:=(t, iFs)]> sh))) ∗
+         (new ↦ (t, iFs))%I.
   Proof.
     rewrite loc_mapsto_eq /loc_mapsto_def  => hnew h.
     iIntros "H●".
-    iMod (own_update with "H●") as "H";
+    iMod (own_update with "H●") as "[? ?]";
       first by apply (gmap_view_alloc _ new DfracDiscarded (t, iFs)).
-    by iModIntro.
+    iModIntro.
+    iSplit; first done.
+    by rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
   Qed.
 End sem_heap.
