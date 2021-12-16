@@ -231,17 +231,8 @@ Section proofs.
     rewrite gmap_equivI.
     iSpecialize ("HΦ" $! f).
     rewrite /interp_fields lookup_fmap hfield /=.
-    iAssert (⌜is_Some (iFs !! f)⌝)%I as "%hiFs".
-    { destruct (iFs !! f) eqn:hh; first done.
-      by rewrite hh option_equivI.
-    }
-    destruct hiFs as [[iF] hIF].
-    iDestruct ("h" $! f iF with "[]") as (v) "[%hv hl]"; first by rewrite hIF.
-    iExists v; iSplitR; first done.
-    rewrite hIF option_equivI later_equivI discrete_fun_equivI.
-    iNext.
-    iSpecialize ("HΦ" $! v).
-    by iRewrite -"HΦ".
+    iDestruct ("h" $! f _ with "[]") as (v) "[%hv hl]"; first by iApply "HΦ".
+    iExists v; by iSplitR.
   Qed.
 
   Lemma heap_models_class l h A vs t :
@@ -457,12 +448,9 @@ Section proofs.
         |=▷^n2 heap_models st'.2 ∗ interp_local_tys lty3 st'.1
       )%I as "H2"; first by apply H5.
       clear H5.
-      iAssert (
-        (|=▷^n1 (heap_models st2.2 ∗ interp_local_tys lty2 st2.1)) -∗
-        |=▷^n1 (|=▷^n2 heap_models st'.2 ∗ interp_local_tys lty3 st'.1)
-      )%I as "H2'"; first by iApply updN_mono_I.
+      rewrite updN_mono_I.
       rewrite Nat_iter_add.
-      by iApply "H2'".
+      by iApply "H2".
     - inv hc.
       iIntros "[? #Hle]".
       rewrite updN_zero. iFrame.
