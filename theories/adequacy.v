@@ -420,8 +420,7 @@ Section proofs.
     move => wfΔ.
     iLöb as "IH" forall (lty cmd lty').
     iIntros "%hty" (st st' n) "%hc".
-    move: st st' n hc.
-    induction hty as [ lty | lty1 lty2 lty3 fstc sndc hfst hi1 hsnd hi2 |
+    iInduction hty as [ lty | lty1 lty2 lty3 fstc sndc hfst hi1 hsnd hi2 |
         lty lhs e ty he | lty1 lty2 cond thn els hcond hthn hi1 hels hi2 |
         lty lhs recv t name fty hrecv hf |
         lty recv fld rhs fty t hrecv hrhs hf |
@@ -429,51 +428,23 @@ Section proofs.
         lty lhs recv t name mdef args hrecv hm hdom |
         lty c rty' rty hsub h hi |
         lty v tv t cmd hv h hi
-        ] => st st' n hc.
-    - inv hc.
+      ] "IHty" forall (st st' n hc).
+    - (* SkipC *) inv hc.
       rewrite updN_zero.
       by iIntros "?".
-    - inv hc.
-      apply hi1 in H2; clear hi1.
-      apply hi2 in H5; clear hi2.
-      iIntros "H".
-      iAssert(
-        heap_models st.2 ∗ interp_local_tys lty1 st.1 -∗
-        |=▷^n1 heap_models st2.2 ∗ interp_local_tys lty2 st2.1
-      )%I as "H1"; first by apply H2.
-      clear H2.
-      iSpecialize ("H1" with "H").
-      iAssert(
-        heap_models st2.2 ∗ interp_local_tys lty2 st2.1 -∗
-        |=▷^n2 heap_models st'.2 ∗ interp_local_tys lty3 st'.1
-      )%I as "H2"; first by apply H5.
-      clear H5.
-      rewrite updN_mono_I.
+    - (* SeqC *) inv hc. iIntros "H".
+      iSpecialize ("IHty" with "[//] H").
       rewrite Nat_iter_add.
-      by iApply "H2".
-    - inv hc.
-      iIntros "[? #Hle]".
+      iApply (updN_mono_I with "[] IHty").
+      by iApply "IHty1".
+    - (* LetC *) inv hc. iIntros "[? #Hle]".
       rewrite updN_zero. iFrame.
       iDestruct (expr_adequacy with "Hle") as "#?"; try done.
       by iApply interp_local_tys_update.
-    - iIntros "H".
-      inv hc.
-      + apply hi1 in H6; clear hi1 hi2.
-        iAssert (
-          heap_models st.2 ∗ interp_local_tys lty1 st.1 -∗
-          |=▷^n heap_models st'.2 ∗ interp_local_tys lty2 st'.1
-        )%I as "H1"; first by apply H6.
-        clear H6.
-        by iApply "H1".
-      + apply hi2 in H6; clear hi1 hi2.
-        iAssert (
-          heap_models st.2 ∗ interp_local_tys lty1 st.1 -∗
-          |=▷^n heap_models st'.2 ∗ interp_local_tys lty2 st'.1
-        )%I as "H1"; first by apply H6.
-        clear H6.
-        by iApply "H1".
-    - inv hc.
-      iIntros "[Hh #Hle]". simpl.
+    - (* IfC *) inv hc.
+      + iIntros "H". by iApply "IHty".
+      + iIntros "H". by iApply "IHty1".
+    - (* GetC *) inv hc. iIntros "[Hh #Hle]".
       iModIntro. (* keep the later *)
       iDestruct (expr_adequacy with "Hle") as "#He"; try done.
       iDestruct (heap_models_lookup with "Hh He") as (fields) "(Hh&Ht&Hv)"; first done.
@@ -487,7 +458,7 @@ Section proofs.
       iDestruct ("Hv" $! name fty hfield) as (w) "[%hw hi]".
       rewrite H7 in hw; case: hw => ->.
       iNext. by iApply interp_local_tys_update.
-    - inv hc.
+    - (* SetC *) inv hc.
       iIntros "[Hh #Hle]" => /=.
       iSplitL; last done.
       iDestruct (expr_adequacy recv with "Hle") as "#Hrecv" => //.
@@ -495,8 +466,7 @@ Section proofs.
       iDestruct (heap_models_lookup with "Hh Hrecv") as (fields) "(Hh&Ht&?)"; first done.
       iDestruct "Ht" as %[? ?].
       by iApply (heap_models_update with "Hh").
-    - inv hc; simpl.
-      iIntros "[Hh #Hle]".
+    - (* NewC *) inv hc. iIntros "[Hh #Hle]".
       (* we need one modality to update the
          semantic heap *)
       iDestruct "Hh" as (sh) "(H●&Hdom&#Hh)".
@@ -507,7 +477,7 @@ Section proofs.
       }
       iMod ((sem_heap_own_update new) with "H●") as "[H● H◯]" => //; first by
         apply (sem_heap_view_alloc _ new t (interp_fields interp_type fields)).
-      iIntros "!> !>".
+      iIntros "!> !>". (* kill the modalities *)
       iDestruct "H◯" as "#H◯".
       iAssert (interp_type (ClassT t) (LocV new)) with "[]" as "#Hl".
       { rewrite interp_type_unfold /=.
@@ -566,8 +536,7 @@ Section proofs.
         by iDestruct (expr_adequacy a0 with "Hle") as "#Ha0".
       + rewrite lookup_insert_ne; last done.
         by iApply "Hh".
-    - iIntros "[Hh #Hle]".
-      inv hc; simpl in *.
+    - (* CallC *) inv hc. iIntros "[Hh #Hle]".
       assert (wfbody: ∃B, wf_mdef_ty B mdef0 ∧ inherits t0 B).
       { destruct wfΔ as [? ? hbodies].
         rewrite map_Forall_lookup in hbodies.
@@ -635,33 +604,17 @@ Section proofs.
       destruct hincl as [? [? hret']].
       iApply subtype_is_inclusion; first by apply hret'.
       by iDestruct (expr_adequacy (methodret mdef0) with "Hle2") as "#Hret".
-    - apply hi in hc; clear hi.
-      iAssert(
-        heap_models st.2 ∗ interp_local_tys lty st.1 -∗
-        |=▷^n heap_models st'.2 ∗ interp_local_tys rty st'.1
-      )%I as "HC"; first by apply hc.
-      iClear "IH".
-      clear hc.
-      iIntros "H".
-      iSpecialize ("HC" with "H").
-      iRevert "HC".
-      iApply updN_mono_I.
-      iIntros "[Hh #Hrty]".
-      iFrame.
+    - (* Subtyping *) 
+      iIntros "H". iSpecialize ("IHty" with "[//] H").
+      iApply updN_mono_I; last done.
+      iIntros "[Hh #Hrty]". iFrame.
       iDestruct (interp_local_tys_is_inclusion with "Hrty") as "Hrty'"; first done.
       by iApply "Hrty'".
-    - inv hc.
-      + apply hi in H6; clear hi.
-        iAssert (
-          heap_models st.2 ∗
-          interp_local_tys (<[v:=InterT tv (ClassT t)]> lty) st.1 -∗
-          |=▷^n heap_models st'.2 ∗ interp_local_tys lty st'.1
-        )%I as "HC"; first by apply H6.
-        iClear "IH".
+    - (* CondTagC *) inv hc.
+      + iIntros "H". iApply ("IHty" with "[//]").
         clear H6.
         destruct H5 as (l & hl & t' & fields & hlt & hinherits).
-        iIntros "[H #Hle]".
-        iApply "HC"; iClear "HC".
+        iDestruct "H" as "[H #Hle]".
         iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
         rewrite Hlev in hl; simplify_eq.
         iAssert(heap_models st.2 ∗ interp_type (ClassT t') (LocV l))%I with "[H]" as "[H #Hinv]";
