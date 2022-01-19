@@ -113,6 +113,12 @@ Section proofs.
     by f_equiv.
   Qed.
 
+  Local Instance ty_interpO_ne : ∀ (rec: ty_interpO) ty, NonExpansive (rec ty).
+  Proof.
+    move => rec ty.
+    by apply _.
+  Qed.
+
   Lemma interp_fields_ne ftys (rec: ty_interpO):
     NonExpansive (λ env, interp_fields env ftys rec).
   Proof.
@@ -185,13 +191,27 @@ Section proofs.
     by apply interp_fields_ne.
   Qed.
 
+<<<<<<< HEAD
   Definition itp_rec (env: listO (interpO Σ)) (rec: ty_interpO) (ty: lang_ty)
       : sem_typeO Σ := go env rec ty.
 
   Local Instance itp_ne (rec: ty_interpO) (ty: lang_ty) :
     NonExpansive (λ (env: listO (interpO Σ)), itp_rec env rec ty).
+||||||| parent of a888209 (simplifying _ne proofs)
+  Local Instance go_ne (rec: ty_interpO) ty :
+    (∀ ty, NonExpansive (rec ty)) →
+    NonExpansive (λ env, go env rec ty).
+=======
+  Local Instance go_ne (rec: ty_interpO) ty :
+    NonExpansive (λ env, go env rec ty).
+>>>>>>> a888209 (simplifying _ne proofs)
   Proof.
+<<<<<<< HEAD
     rewrite /itp_rec.
+||||||| parent of a888209 (simplifying _ne proofs)
+    move => hrec. 
+=======
+>>>>>>> a888209 (simplifying _ne proofs)
     induction ty
       as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | tv ]
       using lang_ty_ind' => //= n x y h.
