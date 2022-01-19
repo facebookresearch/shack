@@ -113,12 +113,6 @@ Section proofs.
     by f_equiv.
   Qed.
 
-  Local Instance ty_interpO_ne : ∀ (rec: ty_interpO) ty, NonExpansive (rec ty).
-  Proof.
-    move => rec ty.
-    by apply _.
-  Qed.
-
   Lemma interp_fields_ne ftys (rec: ty_interpO):
     NonExpansive (λ env, interp_fields env ftys rec).
   Proof.
@@ -139,16 +133,16 @@ Section proofs.
       (ℓ ↦ (t , interp_fields env fields rec)))%I
     ).
 
-  Definition interp_nonnull (env: list (interp Σ)) (rec : ty_interpO) : interp Σ :=
+  Definition interp_nonnull (rec : ty_interpO) : interp Σ :=
     Interp (
       λ (v : value),
       ((interp_int v) ∨
       (interp_bool v) ∨
-      (∃ t, interp_class t env rec v))%I
+      (∃ t env, interp_class t env rec v))%I
     ).
 
-  Definition interp_mixed (env: list (interp Σ)) (rec: ty_interpO) : interp Σ :=
-    Interp (λ (v: value), (interp_nonnull env rec v ∨ interp_null v)%I).
+  Definition interp_mixed (rec: ty_interpO) : interp Σ :=
+    Interp (λ (v: value), (interp_nonnull rec v ∨ interp_null v)%I).
 
   Definition interp_tvar (env: list (interp Σ)) (tv: nat) : interp Σ :=
     List.nth tv env interp_nothing.
@@ -167,12 +161,12 @@ Section proofs.
       | IntT => interp_int
       | BoolT => interp_bool
       | NothingT => interp_nothing
-      | MixedT => interp_mixed env rec
+      | MixedT => interp_mixed rec
       | ClassT t targs =>
           let env : list (interp Σ) := List.map go targs in
           interp_class t env rec
       | NullT => interp_null
-      | NonNullT => interp_nonnull env rec
+      | NonNullT => interp_nonnull rec
       | UnionT A B => interp_union (go A) (go B)
       | InterT A B => interp_inter (go A) (go B)
       | VarT tv => interp_tvar env tv
@@ -191,36 +185,16 @@ Section proofs.
     by apply interp_fields_ne.
   Qed.
 
-<<<<<<< HEAD
   Definition itp_rec (env: listO (interpO Σ)) (rec: ty_interpO) (ty: lang_ty)
       : sem_typeO Σ := go env rec ty.
 
   Local Instance itp_ne (rec: ty_interpO) (ty: lang_ty) :
     NonExpansive (λ (env: listO (interpO Σ)), itp_rec env rec ty).
-||||||| parent of a888209 (simplifying _ne proofs)
-  Local Instance go_ne (rec: ty_interpO) ty :
-    (∀ ty, NonExpansive (rec ty)) →
-    NonExpansive (λ env, go env rec ty).
-=======
-  Local Instance go_ne (rec: ty_interpO) ty :
-    NonExpansive (λ env, go env rec ty).
->>>>>>> a888209 (simplifying _ne proofs)
   Proof.
-<<<<<<< HEAD
     rewrite /itp_rec.
-||||||| parent of a888209 (simplifying _ne proofs)
-    move => hrec. 
-=======
->>>>>>> a888209 (simplifying _ne proofs)
     induction ty
       as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | tv ]
       using lang_ty_ind' => //= n x y h.
-    - rewrite /interp_mixed => v.
-      rewrite !interp_car_simpl.
-      f_equiv.
-      do 4 f_equiv.
-      revert v.
-      by apply interp_class_ne.
     - apply interp_class_ne => //.
       rewrite Forall_forall in htargs.
       induction targs as [ | hd tl hi] => //=.
@@ -231,10 +205,6 @@ Section proofs.
       apply hi => ? hIn.
       apply htargs.
       now constructor.
-    - rewrite /interp_nonnull => v.
-      rewrite !interp_car_simpl.
-      do 4 f_equiv.
-      revert v; by apply interp_class_ne.
     - rewrite /interp_union => v.
       rewrite !interp_car_simpl.
       f_equiv.
@@ -266,12 +236,12 @@ Section proofs.
       | IntT => interp_int
       | BoolT => interp_bool
       | NothingT => interp_nothing
-      | MixedT => interp_mixed env rec
+      | MixedT => interp_mixed rec
       | ClassT t targs =>
           let env : list (interp Σ) := List.map go targs in
           interp_class t env rec
       | NullT => interp_null
-      | NonNullT => interp_nonnull env rec
+      | NonNullT => interp_nonnull rec
       | UnionT A B => interp_union (go A) (go B)
       | InterT A B => interp_inter (go A) (go B)
       | VarT tv => interp_tvar env tv
@@ -296,11 +266,11 @@ Section proofs.
     by apply interp_fields_contractive.
   Qed.
 
-  Lemma interp_nonnull_contractive env: Contractive (interp_nonnull env).
+  Lemma interp_nonnull_contractive : Contractive interp_nonnull.
   Proof.
     rewrite /interp_nonnull => n i1 i2 hdist v.
     rewrite !interp_car_simpl.
-    do 4 f_equiv.
+    do 6 f_equiv.
     revert v.
     by apply interp_class_contractive.
   Qed.
@@ -378,16 +348,20 @@ Section proofs.
     by iFrame.
   Qed.
 
+  Definition env_as_mixed (env : list (interpO Σ)) :=
+    Forall (λ (e: interp Σ), ∀ v, e v -∗ interp_mixed interp_type v) env.
+
   (* A <: B → ΦA ⊂ ΦB *)
   Theorem subtype_is_inclusion_aux:
     ∀ (A B: lang_ty), A <: B →
     ∀ env v,
+    env_as_mixed env →
     interp_type_pre interp_type A env v -∗
     interp_type_pre interp_type B env v.
   Proof.
     induction 1 as [A | A B hext | | | | A | A B| A B | A B C h0 hi0 h1 hi1
         | A B | A B | A B C h0 hi0 h1 hi1 | A | A B C h0 hi0 h1 hi1 ];
-    move => env v /=.
+    move => env v henv /=.
     - rewrite /interp_mixed.
       elim: A v => //=.
       + move => v; iIntros "h"; by repeat iLeft.
@@ -396,8 +370,7 @@ Section proofs.
       + move => cname targs v.
         iIntros "h".
         iLeft; iRight; iRight.
-        iExists cname. iApply inherits_is_inclusion. 
-        done.
+        iExists cname, _; by iApply inherits_is_inclusion. 
       + move => v; iIntros "h"; by iRight.
       + move => v; by iIntros "h"; iLeft.
       + move => s hs t ht v.
@@ -409,13 +382,24 @@ Section proofs.
         rewrite /interp_inter.
         iIntros "h".
         iDestruct "h" as "[? _]"; by iApply hs.
+      + move => tvar v.
+        rewrite /interp_tvar.
+        iIntros "hv".
+        rewrite /env_as_mixed Forall_forall in henv.
+        destruct (decide (tvar < length env)) as [hlt | hge].
+        * iApply henv; last done.
+          apply elem_of_list_In.
+          apply nth_In.
+          by apply hlt.
+        * rewrite nth_overflow; first done.
+          by apply not_lt.
     - by iApply inherits_is_inclusion.
     - by rewrite /= /interp_mixed.
     - iIntros "h"; by iLeft.
     - iIntros "h"; by iRight; iLeft.
     - iIntros "H".
       iRight; iRight.
-      iExists A.
+      iExists A, _.
       by iApply inherits_is_inclusion.
     - rewrite /interp_union.
       by iIntros "h"; iLeft.
@@ -434,32 +418,35 @@ Section proofs.
       by iApply hi1.
     - done.
     - iIntros "h".
-      iApply hi1.
-  by iApply hi0.
+      iApply hi1 => //.
+      by iApply hi0.
   Qed.
 
   Theorem subtype_is_inclusion:
     ∀ A B, A <: B →
-    ∀ v, interp_type A v -∗ interp_type B v.
+    ∀ env, env_as_mixed env →
+    ∀ v, interp_type A env v -∗ interp_type B env v.
   Proof.
-    move => A B hAB v.
+    move => A B hAB env henv v.
     rewrite !interp_type_unfold.
     by iApply subtype_is_inclusion_aux.
   Qed.
 
   Definition interp_local_tys
-    (lty : local_tys) (le : local_env) : iProp Σ :=
+    env (lty : local_tys) (le : local_env) : iProp Σ :=
     (∀ v ty, ⌜lty !! v = Some ty⌝ -∗
-    ∃ val, ⌜le !! v = Some val⌝ ∗ interp_type ty val)%I.
+    ∃ val, ⌜le !! v = Some val⌝ ∗ interp_type ty env val)%I.
 
-  Lemma interp_local_tys_is_inclusion lty rty le:
+  Lemma interp_local_tys_is_inclusion (env: list (interpO Σ))  lty rty le:
+    env_as_mixed env →
+    Forall (λ (i: interp Σ), ∀ v, Persistent (i v)) env →
     lty <:< rty →
-    interp_local_tys lty le -∗
-    interp_local_tys rty le.
+    interp_local_tys env lty le -∗
+    interp_local_tys env rty le.
   Proof.
-    move => hsub; iIntros "Hle" (v ty) "%Hv".
+    move => henv hpers hsub; iIntros "Hle" (v ty) "%Hv".
     apply hsub in Hv as (B & hB & hsubB).
-    iDestruct ("Hle" $! v B hB) as (val) "[%Hv' #H]".
+    iDestruct ("Hle" $! v B hB) as (val) "[%Hv' H]".
     iExists val; iSplitR; first done.
     by iApply subtype_is_inclusion.
   Qed.
