@@ -40,12 +40,57 @@ Inductive lang_ty :=
   | BoolT
   | NothingT
   | MixedT
-  | ClassT (cname: tag)
+  | ClassT (cname: tag) (targs: list lang_ty)
   | NullT
   | NonNullT
   | UnionT (s t: lang_ty)
   | InterT (s t: lang_ty)
+  | VarT (tvar: nat)
 .
+
+Section nested_ind.
+  Variable P : lang_ty -> Prop.
+  Hypothesis case_IntT : P IntT.
+  Hypothesis case_BoolT : P BoolT.
+  Hypothesis case_NothingT : P NothingT.
+  Hypothesis case_MixedT : P MixedT.
+  Hypothesis case_ClassT : ∀ cname targs, Forall P targs → P (ClassT cname targs).
+  Hypothesis case_NullT : P NullT.
+  Hypothesis case_NonNullT : P NonNullT.
+  Hypothesis case_UnionT :  ∀ s t, P s → P t → P (UnionT s t).
+  Hypothesis case_InterT :  ∀ s t, P s → P t → P (InterT s t).
+  Hypothesis case_VarT: ∀ n, P (VarT n).
+
+  Fixpoint lang_ty_ind' (t : lang_ty) :=
+    match t with
+    | IntT => case_IntT
+    | BoolT => case_BoolT
+    | NothingT => case_NothingT
+    | MixedT => case_MixedT
+    | ClassT cname targs =>
+        let H := (fix fold (xs : list lang_ty) : Forall P xs :=
+          match xs with
+          | nil => List.Forall_nil _
+          | x :: xs => List.Forall_cons _ x xs (lang_ty_ind' x) (fold xs)
+          end) targs in
+        case_ClassT cname targs H
+    | NullT => case_NullT
+    | NonNullT => case_NonNullT
+    | UnionT s t => case_UnionT s t (lang_ty_ind' s) (lang_ty_ind' t)
+    | InterT s t => case_InterT s t (lang_ty_ind' s) (lang_ty_ind' t)
+    | VarT n => case_VarT n
+    end.
+End nested_ind.
+
+Fixpoint subst (targs:list lang_ty) (ty: lang_ty): lang_ty :=
+  match ty with
+  | ClassT cname cargs => ClassT cname (List.map (subst targs) cargs)
+  | UnionT s t => UnionT (subst targs s) (subst targs t)
+  | InterT s t => InterT (subst targs s) (subst targs t)
+  | VarT tvar => List.nth tvar targs ty
+  | IntT | BoolT | NothingT | MixedT | NullT | NonNullT => ty
+  end.
+
 Definition var := string.
 Global Instance var_dec_eq (l l' : var) : Decision (l = l') := _.
 
@@ -67,7 +112,7 @@ Inductive cmd : Set :=
   | LetC (lhs: var) (e: expr)
   | IfC (cond: expr) (thn: cmd) (els: cmd)
   | CallC (lhs: var) (recv: expr) (name: string) (args: stringmap expr)
-  | NewC (lhs: var) (class_name: tag) (args: stringmap expr)
+  | NewC (lhs: var) (class_name: tag) (targs: list lang_ty) (args: stringmap expr)
   | GetC (lhs: var) (recv: expr) (name: string)
   | SetC (recv: expr) (fld: string) (rhs: expr)
       (* tag test "if ($v is C) { ... }" *)
@@ -84,10 +129,58 @@ Record methodDef := {
 
 Record classDef := {
   classname: tag;
+  generics: nat; (* number of generics, no constraint for now *)
   superclass: option tag;
   classfields : stringmap lang_ty;
   classmethods : stringmap methodDef;
 }.
+
+Fixpoint gen_targs_ nleft n : list lang_ty :=
+  match nleft with
+  | O => []
+  | S nleft => VarT n :: gen_targs_ nleft (S n)
+  end.
+
+Lemma lookup_gen_targs__lt :
+  ∀ nleft n pos, pos < nleft →
+  gen_targs_ nleft n !! pos = Some (VarT (n + pos)).
+Proof.
+  elim => [ | nleft hi] n pos //=; first by lia.
+  case: pos hi => [ | pos] hi //=.
+  { move => _; by rewrite plus_comm. }
+  move/lt_S_n => hlt.
+  apply (hi (S n)) in hlt.
+  rewrite hlt.
+  do 2 f_equal.
+  by lia.
+Qed.
+
+Lemma lookup_gen_targs__ge:
+  ∀ nleft n pos, pos >= nleft →
+  gen_targs_ nleft n !! pos = None.
+Proof.
+  elim => [ | nleft hi] n pos //= hge.
+  case: pos hge => [ | pos] hge; first by lia.
+  simpl.
+  rewrite (hi (S n)) //.
+  by lia.
+Qed.
+
+Definition gen_targs n : list lang_ty := gen_targs_ n 0.
+
+Corollary lookup_gen_targs_lt :
+  ∀ n pos, pos < n → gen_targs n !! pos = Some (VarT pos).
+Proof.
+  rewrite /gen_targs => n pos h.
+  by rewrite lookup_gen_targs__lt.
+Qed.
+
+Corollary lookup_gen_targs_ge :
+  ∀ n pos, pos ≥ n → gen_targs n !! pos = None.
+Proof.
+  rewrite /gen_targs => n pos h.
+  by rewrite lookup_gen_targs__ge.
+Qed.
 
 (* A program is a collection of classes *)
 Class ProgDefContext := { Δ : stringmap classDef }.
@@ -131,11 +224,12 @@ Section ProgDef.
 
   Inductive subtype : lang_ty → lang_ty → Prop :=
     | SubMixed : ∀ ty, subtype ty MixedT
-    | SubClass : ∀ A B, inherits A B → subtype (ClassT A) (ClassT B)
+    (* Generic class are invariant *)
+    | SubClass : ∀ A B targs, inherits A B → subtype (ClassT A targs) (ClassT B targs)
     | SubMixed2: subtype MixedT (UnionT NonNullT NullT)
     | SubIntNonNull: subtype IntT NonNullT
     | SubBoolNonNull: subtype BoolT NonNullT
-    | SubClassNonNull: ∀ A, subtype (ClassT A) NonNullT
+    | SubClassNonNull: ∀ A targs, subtype (ClassT A targs) NonNullT
     | SubUnionUpper1 : ∀ s t, subtype s (UnionT s t)
     | SubUnionUpper2 : ∀ s t, subtype t (UnionT s t)
         (* TODO: Do we need this one ? *)
@@ -421,71 +515,72 @@ Section ProgDef.
           cmd_has_ty lty1 thn lty2 →
           cmd_has_ty lty1 els lty2 →
           cmd_has_ty lty1 (IfC cond thn els) lty2
-      | GetTy: ∀ lty lhs recv t name fty,
-          expr_has_ty lty recv (ClassT t) →
+      | GetTy: ∀ lty lhs recv t targs name fty,
+          expr_has_ty lty recv (ClassT t targs) →
           has_field name fty t →
-          cmd_has_ty lty (GetC lhs recv name) (<[lhs := fty]>lty)
-      | SetTy: ∀ lty recv fld rhs fty t,
-          expr_has_ty lty recv (ClassT t) →
-          expr_has_ty lty rhs fty →
+          cmd_has_ty lty (GetC lhs recv name) (<[lhs := subst targs fty]>lty)
+      | SetTy: ∀ lty recv fld rhs fty t targs,
+          expr_has_ty lty recv (ClassT t targs) →
           has_field fld fty t →
+          expr_has_ty lty rhs (subst targs fty) →
           cmd_has_ty lty (SetC recv fld rhs) lty
-      | NewTy: ∀ lty lhs t args fields,
+      | NewTy: ∀ lty lhs t targs args fields,
           has_fields t fields →
           dom (gset string) fields = dom _ args →
           (∀ f fty arg,
           fields !! f = Some fty →
           args !! f = Some arg →
-          expr_has_ty lty arg fty) →
-          cmd_has_ty lty (NewC lhs t args) (<[ lhs := ClassT t]>lty)
-      | CallTy: ∀ lty lhs recv t name mdef args,
-          expr_has_ty lty recv (ClassT t) →
+          expr_has_ty lty arg (subst targs fty)) →
+          cmd_has_ty lty (NewC lhs t targs args) (<[ lhs := ClassT t targs]>lty)
+      | CallTy: ∀ lty lhs recv t targs name mdef args,
+          expr_has_ty lty recv (ClassT t targs) →
           has_method name mdef t →
           dom (gset string) mdef.(methodargs) = dom _ args →
           (∀ x ty arg,
           mdef.(methodargs) !! x = Some ty →
           args !! x = Some arg →
-          expr_has_ty lty arg ty) →
-          cmd_has_ty lty (CallC lhs recv name args) (<[lhs := mdef.(methodrettype)]>lty)
+          expr_has_ty lty arg (subst targs ty)) →
+          cmd_has_ty lty (CallC lhs recv name args) (<[lhs := subst targs mdef.(methodrettype)]>lty)
       | SubTy: ∀ lty c rty rty',
           rty' <:< rty →
           cmd_has_ty lty c rty' →
           cmd_has_ty lty c rty
-      | CondTagTy lty v tv t cmd :
+      | CondTagTy lty v tv t targs cmd :
           lty !! v = Some tv →
-          cmd_has_ty (<[v:=InterT tv (ClassT t)]> lty) cmd lty →
+          (* TODO pas correct, ils sortent du chapeau *)
+          cmd_has_ty (<[v:=InterT tv (ClassT t targs)]> lty) cmd lty →
           cmd_has_ty lty (CondTagC v t cmd) lty
     .
 
-    Corollary CallTy_: ∀ lty lhs recv t name mdef args,
-      expr_has_ty lty recv (ClassT t) →
+    Corollary CallTy_: ∀ lty lhs recv t targs name mdef args,
+      expr_has_ty lty recv (ClassT t targs) →
       has_method name mdef t →
       dom (gset string) mdef.(methodargs) = dom _ args →
       (∀ x ty arg,
       mdef.(methodargs) !! x = Some ty →
       args !! x = Some arg →
-      ∃ ty', ty' <: ty ∧ expr_has_ty lty arg ty') →
-      cmd_has_ty lty (CallC lhs recv name args) (<[lhs := mdef.(methodrettype)]>lty).
+      ∃ ty', ty' <: subst targs ty ∧ expr_has_ty lty arg ty') →
+      cmd_has_ty lty (CallC lhs recv name args) (<[lhs := subst targs mdef.(methodrettype)]>lty).
     Proof.
-      move => lty lhs recv t name mdef args hrecv hmdef hdom hargs.
+      move => lty lhs recv t targs name mdef args hrecv hmdef hdom hargs.
       econstructor; [done | done | done | ].
       move => k ty arg hk ha.
       destruct (hargs _ _ _ hk ha) as (ty' & hsub & he).
       by econstructor.
     Qed.
 
-    Lemma CallTyGen: ∀ lty lhs recv t name mdef args ret,
-      expr_has_ty lty recv (ClassT t) →
+    Lemma CallTyGen: ∀ lty lhs recv t targs name mdef args ret,
+      expr_has_ty lty recv (ClassT t targs) →
       has_method name mdef t →
       dom (gset string) mdef.(methodargs) = dom _ args →
       (∀ x ty arg,
       mdef.(methodargs) !! x = Some ty →
       args !! x = Some arg →
-      ∃ ty', ty' <: ty ∧ expr_has_ty lty arg ty') →
-      mdef.(methodrettype) <: ret →
+      ∃ ty', ty' <: subst targs ty ∧ expr_has_ty lty arg ty') →
+      subst targs mdef.(methodrettype) <: ret →
       cmd_has_ty lty (CallC lhs recv name args) (<[lhs := ret]>lty).
     Proof.
-      move =>lty lhs ????? ret hrecv hm hdom hargs hret.
+      move =>lty lhs ?????? ret hrecv hm hdom hargs hret.
       eapply SubTy; last by eapply CallTy_.
       move => k A hA.
       rewrite lookup_insert_Some in hA.
@@ -496,9 +591,9 @@ Section ProgDef.
         by exists A.
     Qed.
 
-    Definition wf_mdef_ty t mdef :=
+    Definition wf_mdef_ty t targs mdef :=
       ∃ lty,
-      cmd_has_ty (<["$this" := ClassT t]>mdef.(methodargs)) mdef.(methodbody) lty ∧
+      cmd_has_ty (<["$this" := ClassT t targs]>mdef.(methodargs)) mdef.(methodbody) lty ∧
       expr_has_ty lty mdef.(methodret) mdef.(methodrettype)
     .
 
@@ -507,7 +602,7 @@ Section ProgDef.
       wf_methods : map_Forall (fun cname => wf_cdef_methods) prog;
       wf_mdefs :
       map_Forall (fun cname cdef =>
-      map_Forall (fun mname mdef => wf_mdef_ty cname mdef) cdef.(classmethods)) prog
+      map_Forall (fun mname mdef => wf_mdef_ty cname (gen_targs cdef.(generics)) mdef) cdef.(classmethods)) prog
     }
     .
 
@@ -625,10 +720,11 @@ Section ProgDef.
       | LetEv: ∀ le h v e val,
           expr_eval le e = Some val →
           cmd_eval (le, h) (LetC v e) (<[v := val]> le, h) 0
-      | NewEv: ∀ le h lhs new t args vargs,
+      (* targs are not stored in the heap: erased generics *)
+      | NewEv: ∀ le h lhs new t targs args vargs,
           h !! new = None →
           map_args (expr_eval le) args = Some vargs →
-          cmd_eval (le, h) (NewC lhs t args) (<[lhs := LocV new]>le, <[new := (t, vargs)]>h) 1
+          cmd_eval (le, h) (NewC lhs t targs args) (<[lhs := LocV new]>le, <[new := (t, vargs)]>h) 1
       | GetEv: ∀ le h lhs recv name l t vs v,
           expr_eval le recv = Some (LocV l) →
           h !! l = Some (t, vs) →

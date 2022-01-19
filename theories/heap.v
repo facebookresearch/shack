@@ -66,19 +66,6 @@ Section sem_heap.
   Context `{hG: !sem_heapGS Σ}.
   Notation γ := sem_heap_name.
 
-	Lemma mapsto_contractive
-    (l: loc)
-    (t: tag)
-    (f: (lang_ty -d> sem_typeO Σ) → gmapO string (laterO (sem_typeO Σ )))
-    `{hf: Contractive f}:
-  Contractive (λ i, mapsto l t (f i)).
-  Proof.
-    move => n i1 i2 hdist.
-    rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
-    do 3 f_equiv.
-    by apply hf.
-  Qed.
-
   Global Instance mapsto_persistent l t iFs: Persistent (mapsto l t iFs).
   Proof.
     rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
