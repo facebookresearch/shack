@@ -18,25 +18,19 @@ Section proofs.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Σ}.
-  Notation iProp := (iProp Σ).
   Notation γ := sem_heap_name.
 
   (* Helping the inference with this notation that hides Δ *)
   Local Notation "s <: t" := (@subtype _ s t) (at level 70, no associativity).
   Local Notation "lty <:< rty" := (@lty_sub _ lty rty) (at level 70, no associativity).
 
-  (* the interpretation of types is simply given by
-     the carrier set of the sem_typeO ofe *)
-  Notation interpO := (sem_typeO Σ).
-  Definition interp := ofe_car interpO.
-
   (* heap models relation; the semantic heap does
      not appear because it is hidden in iProp  *)
   (* Helper defintion to state that fields are correctly modeled *)
   Definition heap_models_fields
-    (iFs: gmapO string (laterO (sem_typeO Σ))) (vs: stringmap value) : iProp :=
-    ⌜dom (gset string) vs ≡ dom _ iFs⌝ ∗
-    ∀ f (iF: interp),
+    (iFs: gmapO string (laterO (sem_typeO Σ))) (vs: stringmap value) : iProp Σ :=
+    ⌜dom (gset string) vs ≡ dom _ iFs⌝  ∗
+    ∀ f (iF: sem_typeO Σ),
     iFs !! f ≡ Some (Next iF) -∗ ∃ v, (⌜vs !! f = Some v⌝ ∗ ▷iF v).
 
   Lemma heap_models_fields_ext_L: ∀ iFs iFs' vs,
@@ -59,7 +53,7 @@ Section proofs.
     by iRewrite "heq".
   Qed.
 
-  Definition heap_models (h : heap) : iProp :=
+  Definition heap_models (h : heap) : iProp Σ :=
     ∃ (sh: gmap loc (prodO tagO (gmapO string (laterO (sem_typeO Σ))))),
     own γ (gmap_view_auth (DfracOwn 1) sh) ∗ ⌜dom (gset loc) sh = dom _ h⌝ ∗
     □ ∀ (ℓ : loc) (t : tag) (vs : stringmap value),
@@ -258,7 +252,7 @@ Section proofs.
     iExists l, t0, fields; by iSplitR.
   Qed.
 
-  Lemma heap_models_fields_update iFs vs f v (Φ : interpO)
+  Lemma heap_models_fields_update iFs vs f v (Φ : sem_typeO Σ)
     `{∀ v, Persistent (Φ v)} :
     iFs !! f = Some (Next Φ) →
     heap_models_fields iFs vs -∗
@@ -403,11 +397,13 @@ Section proofs.
       + apply hT in hv.
         by iApply (hv with "Hs Hh H").
     - move => S hS T hT v hv; iIntros "#Hs Hh H".
-      rewrite /interp_inter -!interp_type_unfold.
-      iDestruct "H" as "[HS HT]".
+      iAssert (interp_type S (LocV l)) with "[H]" as "hs".
+      { rewrite interp_type_unfold.
+        by iDestruct "H" as "[HS HT]".
+      }
       apply hS in hv.
       rewrite -!interp_type_unfold in hv.
-      by iApply (hv with "Hs Hh HS").
+      by iApply (hv with "Hs Hh hs").
   Qed.
 
   Lemma cmd_adequacy_ lty cmd lty' :
