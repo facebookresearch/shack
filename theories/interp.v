@@ -115,22 +115,21 @@ Section proofs.
 
   (* interpret a class type given the tag and the
      interpretation of their fields *)
-  Definition interp_class_car (cname : tag) (rec : ty_interpO) : ofe_car (sem_typeO Σ) :=
-    let f := λ (typ: lang_ty), Next (rec typ) in
-    λ (w : value),
-    (∃ ℓ t (fields:stringmap lang_ty),
-    ⌜w = LocV ℓ ∧ inherits t cname ∧ has_fields t fields⌝ ∗
-    (ℓ ↦ (t , interp_fields rec fields)))%I.
-
-  Definition interp_class (cname: tag) (rec: ty_interpO): interp Σ :=
-    Interp (interp_class_car cname rec).
+  Definition interp_class (cname : tag) (rec : ty_interpO) : interp Σ :=
+    Interp (
+      λ (w : value),
+      (∃ ℓ t (fields:stringmap lang_ty),
+      ⌜w = LocV ℓ ∧ inherits t cname ∧ has_fields t fields⌝ ∗
+      (ℓ ↦ (t , interp_fields rec fields)))%I
+    ).
 
   Definition interp_nonnull (rec : ty_interpO) : interp Σ :=
     Interp (
-    λ (v : value),
-    ((interp_int v) ∨
-    (interp_bool v) ∨
-    (∃ t, interp_class t rec v))%I).
+      λ (v : value),
+      ((interp_int v) ∨
+      (interp_bool v) ∨
+      (∃ t, interp_class t rec v))%I
+    ).
 
   Definition interp_mixed (rec: ty_interpO) : interp Σ :=
     Interp (λ (v: value), (interp_nonnull rec v ∨ interp_null v)%I).
@@ -159,7 +158,6 @@ Section proofs.
   Proof.
     rewrite /interp_class => n i1 i2 hdist v.
     rewrite !interp_car_unfold.
-    rewrite /interp_class_car.
     f_equiv ; intro l.
     f_equiv; intro t.
     f_equiv; intro fields.
