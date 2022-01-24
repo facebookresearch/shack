@@ -61,13 +61,14 @@ Section proofs.
     ∃ (iFs : gmapO string (laterO (sem_typeO Σ))),
     sh !! ℓ ≡ Some (t, iFs) ∗ heap_models_fields iFs vs.
 
-  Lemma expr_adequacy e lty le ty val :
+  Lemma expr_adequacy env e lty le ty val :
+    env_as_mixed env →
     expr_eval le e = Some val →
     expr_has_ty lty e ty →
-    interp_local_tys lty le -∗
-    interp_type ty val.
+    interp_local_tys env lty le -∗
+    interp_type ty env val.
   Proof.
-    move => he h; move: le val he.
+    move => henv he h; move: le val he.
     elim: h => [z | b | | op e1 e2 hop he1 hi1 he2 hi2 |
         op e1 e2 hop he1 hi1 he2 hi2 |
         v vty hv | exp S T hS hi hsub ] le val he; iIntros "#Hlty".
@@ -110,14 +111,14 @@ Section proofs.
       iDestruct ("Hlty" with "[//]") as (?) "[% H]".
       rewrite H0 in H; by case: H => ->.
     - apply hi in he.
-      iApply subtype_is_inclusion; first by apply hsub.
+      iApply subtype_is_inclusion => //.
       by iApply he.
   Qed.
 
-  Lemma interp_local_tys_update v lty le ty val :
-    interp_local_tys lty le -∗
-    interp_type ty val -∗
-    interp_local_tys (<[v:=ty]>lty) (<[v:=val]>le).
+  Lemma interp_local_tys_update env v lty le ty val :
+    interp_local_tys env lty le -∗
+    interp_type ty env val -∗
+    interp_local_tys env (<[v:=ty]>lty) (<[v:=val]>le).
   Proof.
     iIntros "#Hi #?". iIntros (v' ty') "H".
     rewrite lookup_insert_Some.
@@ -126,15 +127,16 @@ Section proofs.
     - rewrite lookup_insert_ne; last done. by iApply "Hi".
   Qed.
 
-  Lemma interp_local_tys_weaken_ty v A B lty lty' le:
+  Lemma interp_local_tys_weaken_ty env v A B lty lty' le:
+    env_as_mixed env →
     lty !! v = Some A →
     lty' !! v = Some B →
     (∀ w, v ≠ w → lty !! w = lty' !! w) →
     A <: B →
-    interp_local_tys lty le -∗
-    interp_local_tys lty' le.
+    interp_local_tys env lty le -∗
+    interp_local_tys env lty' le.
   Proof.
-    move => hin1 hin2 hs hAB; iIntros "H".
+    move => henv hin1 hin2 hs hAB; iIntros "H".
     rewrite /interp_local_tys.
     iIntros (w ty) "%Hin".
     destruct (decide (v = w)) as [<- | hne].
@@ -149,10 +151,10 @@ Section proofs.
       iExists val; by iSplitR.
   Qed.
 
-  Lemma interp_local_tys_subset_eq lty lty' le:
+  Lemma interp_local_tys_subset_eq env lty lty' le:
     lty' ⊆ lty →
-    interp_local_tys lty le -∗
-    interp_local_tys lty' le.
+    interp_local_tys env lty le -∗
+    interp_local_tys env lty' le.
   Proof.
     move => hs; iIntros "H" (w ty) "%Hle".
     iSpecialize ("H" $! w ty).
@@ -162,17 +164,18 @@ Section proofs.
     by rewrite hw; iSplit.
   Qed.
 
-  Lemma interp_local_tys_list lty le targs args vargs:
+  Lemma interp_local_tys_list env lty le targs args vargs:
+    env_as_mixed env →
     dom stringset targs = dom stringset args →
     map_args (expr_eval le) args = Some vargs →
     (∀ (x : string) (ty : lang_ty) (arg : expr),
     targs !! x = Some ty →
     args !! x = Some arg →
     expr_has_ty lty arg ty) →
-    interp_local_tys lty le -∗
-    interp_local_tys targs vargs.
+    interp_local_tys env lty le -∗
+    interp_local_tys env targs vargs.
   Proof.
-    move => hdom hargs helt.
+    move => henv hdom hargs helt.
     iIntros "#Hle" (v ty) "%hin".
     assert (ha: ∃ arg, args !! v = Some arg).
     { apply elem_of_dom.
@@ -195,15 +198,16 @@ Section proofs.
     by iApply expr_adequacy.
   Qed.
 
-  Lemma heap_models_lookup l h A vs t :
+  (* WIP CHECK POINT *)
+  Lemma heap_models_lookup env l h A vs t :
     h !! l = Some (t, vs) →
     heap_models h -∗
-    interp_type (ClassT A) (LocV l) -∗
+    interp_type (ClassT A) env (LocV l) -∗
     ∃ fields, heap_models h ∗
     ⌜inherits t A ∧ has_fields t fields⌝ ∗
     ∀ f fty, ⌜fields !! f = Some fty⌝ → 
     ∃ v, ⌜vs !! f = Some v⌝ ∗
-    ▷ interp_type fty v.
+    ▷ interp_type fty env v.
   Proof.
     move => hheap.
     iIntros "hmodels hl".

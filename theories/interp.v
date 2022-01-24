@@ -133,6 +133,9 @@ Section proofs.
       (ℓ ↦ (t , interp_fields env fields rec)))%I
     ).
 
+  Definition interp_ex (cname: tag) (rec: ty_interpO): interp Σ :=
+    Interp (λ (w: value), (∃ env, interp_class cname env rec w)%I).
+
   Definition interp_nonnull (rec : ty_interpO) : interp Σ :=
     Interp (
       λ (v : value),
@@ -144,7 +147,7 @@ Section proofs.
   Definition interp_mixed (rec: ty_interpO) : interp Σ :=
     Interp (λ (v: value), (interp_nonnull rec v ∨ interp_null v)%I).
 
-  Definition interp_tvar (env: list (interp Σ)) (tv: nat) : interp Σ :=
+  Definition interp_generic (env: list (interpO Σ)) (tv: nat) : interp Σ :=
     List.nth tv env interp_nothing.
 
   (* we use a blend of Coq/Iris recursion, the
@@ -169,7 +172,8 @@ Section proofs.
       | NonNullT => interp_nonnull rec
       | UnionT A B => interp_union (go A) (go B)
       | InterT A B => interp_inter (go A) (go B)
-      | VarT tv => interp_tvar env tv
+      | GenT n => interp_generic env n
+      | ExT cname => interp_ex cname rec
       end.
   End interp_type_pre_rec.
 
@@ -193,7 +197,7 @@ Section proofs.
   Proof.
     rewrite /itp_rec.
     induction ty
-      as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | tv ]
+      as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | i | cname ]
       using lang_ty_ind' => //= n x y h.
     - apply interp_class_ne => //.
       rewrite Forall_forall in htargs.
@@ -215,11 +219,11 @@ Section proofs.
       f_equiv.
       + revert v; by apply hA.
       + revert v; by apply hB.
-    - rewrite /interp_tvar => v.
+    - rewrite /interp_generic => v.
       assert (hl: length x = length y) by now apply Forall2_length in h.
-      elim : x y tv h hl => [ | hd tl hi]; case => [ | hd' tl'] tv h /= hl => //.
+      elim : x y i h hl => [ | hd tl hi]; case => [ | hd' tl'] i h /= hl => //.
       apply Forall2_cons in h as [hhd htl].
-      case: tv hi => [ | tv ] hi //=.
+      case: i hi => [ | i ] hi //=.
       apply:  hi; first done.
       by lia.
   Qed.
@@ -244,7 +248,8 @@ Section proofs.
       | NonNullT => interp_nonnull rec
       | UnionT A B => interp_union (go A) (go B)
       | InterT A B => interp_inter (go A) (go B)
-      | VarT tv => interp_tvar env tv
+      | GenT n => interp_generic env n
+      | ExT cname => interp_ex cname rec
       end)
     in go_rec typ.
 
@@ -282,7 +287,7 @@ Section proofs.
   Proof.
     rewrite /interp_type_pre => n rec1 rec2 hdist ty env /=.
     induction ty
-      as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | tv ]
+      as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | i | cname ]
       using lang_ty_ind' => //=.
     - rewrite /interp_mixed => v /=.
       rewrite !interp_car_simpl.
@@ -303,6 +308,10 @@ Section proofs.
     - by apply interp_nonnull_contractive.
     - solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
+    - rewrite /interp_ex => v.
+      rewrite !interp_car_simpl.
+      do 2 f_equiv.
+      by revert v; apply interp_class_contractive.
   Qed.
 
   (* the interpretation of types can now be
@@ -360,7 +369,7 @@ Section proofs.
     interp_type_pre interp_type B env v.
   Proof.
     induction 1 as [A | A B hext | | | | A | A B| A B | A B C h0 hi0 h1 hi1
-        | A B | A B | A B C h0 hi0 h1 hi1 | A | A B C h0 hi0 h1 hi1 ];
+        | A B | A B | A B C h0 hi0 h1 hi1 | A | A B C h0 hi0 h1 hi1 | cname targs ];
     move => env v henv /=.
     - rewrite /interp_mixed.
       elim: A v => //=.
@@ -383,7 +392,7 @@ Section proofs.
         iIntros "h".
         iDestruct "h" as "[? _]"; by iApply hs.
       + move => tvar v.
-        rewrite /interp_tvar.
+        rewrite /interp_generic.
         iIntros "hv".
         rewrite /env_as_mixed Forall_forall in henv.
         destruct (decide (tvar < length env)) as [hlt | hge].
@@ -393,6 +402,12 @@ Section proofs.
           by apply hlt.
         * rewrite nth_overflow; first done.
           by apply not_lt.
+      + move => cname v;
+        rewrite /interp_ex.
+        iIntros "hv".
+        iDestruct "hv" as (targs) "hv".
+        iLeft; iRight; iRight.
+        by iExists _, _.
     - by iApply inherits_is_inclusion.
     - by rewrite /= /interp_mixed.
     - iIntros "h"; by iLeft.
@@ -420,6 +435,7 @@ Section proofs.
     - iIntros "h".
       iApply hi1 => //.
       by iApply hi0.
+    - by iIntros "h"; iExists _. 
   Qed.
 
   Theorem subtype_is_inclusion:
@@ -446,7 +462,7 @@ Section proofs.
   Proof.
     move => henv hpers hsub; iIntros "Hle" (v ty) "%Hv".
     apply hsub in Hv as (B & hB & hsubB).
-    iDestruct ("Hle" $! v B hB) as (val) "[%Hv' H]".
+    iDestruct ("Hle" $! v B hB) as (val) "[%Hv' #H]".
     iExists val; iSplitR; first done.
     by iApply subtype_is_inclusion.
   Qed.

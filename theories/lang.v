@@ -45,7 +45,8 @@ Inductive lang_ty :=
   | NonNullT
   | UnionT (s t: lang_ty)
   | InterT (s t: lang_ty)
-  | VarT (tvar: nat)
+  | GenT (n: nat)
+  | ExT (cname: tag) (* Ext C == ∃Ti, ClassT C Ti *) 
 .
 
 Section nested_ind.
@@ -59,7 +60,8 @@ Section nested_ind.
   Hypothesis case_NonNullT : P NonNullT.
   Hypothesis case_UnionT :  ∀ s t, P s → P t → P (UnionT s t).
   Hypothesis case_InterT :  ∀ s t, P s → P t → P (InterT s t).
-  Hypothesis case_VarT: ∀ n, P (VarT n).
+  Hypothesis case_GenT: ∀ n, P (GenT n).
+  Hypothesis case_ExT: ∀ cname, P (ExT cname).
 
   Fixpoint lang_ty_ind' (t : lang_ty) :=
     match t with
@@ -78,7 +80,8 @@ Section nested_ind.
     | NonNullT => case_NonNullT
     | UnionT s t => case_UnionT s t (lang_ty_ind' s) (lang_ty_ind' t)
     | InterT s t => case_InterT s t (lang_ty_ind' s) (lang_ty_ind' t)
-    | VarT n => case_VarT n
+    | GenT n => case_GenT n
+    | ExT cname => case_ExT cname
     end.
 End nested_ind.
 
@@ -87,8 +90,8 @@ Fixpoint subst (targs:list lang_ty) (ty: lang_ty): lang_ty :=
   | ClassT cname cargs => ClassT cname (List.map (subst targs) cargs)
   | UnionT s t => UnionT (subst targs s) (subst targs t)
   | InterT s t => InterT (subst targs s) (subst targs t)
-  | VarT tvar => List.nth tvar targs ty
-  | IntT | BoolT | NothingT | MixedT | NullT | NonNullT => ty
+  | GenT n => List.nth n targs ty
+  | ExT _ | IntT | BoolT | NothingT | MixedT | NullT | NonNullT => ty
   end.
 
 Definition var := string.
@@ -138,12 +141,12 @@ Record classDef := {
 Fixpoint gen_targs_ nleft n : list lang_ty :=
   match nleft with
   | O => []
-  | S nleft => VarT n :: gen_targs_ nleft (S n)
+  | S nleft => GenT n :: gen_targs_ nleft (S n)
   end.
 
 Lemma lookup_gen_targs__lt :
   ∀ nleft n pos, pos < nleft →
-  gen_targs_ nleft n !! pos = Some (VarT (n + pos)).
+  gen_targs_ nleft n !! pos = Some (GenT (n + pos)).
 Proof.
   elim => [ | nleft hi] n pos //=; first by lia.
   case: pos hi => [ | pos] hi //=.
@@ -169,7 +172,7 @@ Qed.
 Definition gen_targs n : list lang_ty := gen_targs_ n 0.
 
 Corollary lookup_gen_targs_lt :
-  ∀ n pos, pos < n → gen_targs n !! pos = Some (VarT pos).
+  ∀ n pos, pos < n → gen_targs n !! pos = Some (GenT pos).
 Proof.
   rewrite /gen_targs => n pos h.
   by rewrite lookup_gen_targs__lt.
@@ -239,6 +242,7 @@ Section ProgDef.
     | SubInterGreatest: ∀ s t u, subtype u s → subtype u t → subtype u (InterT s t)
     | SubRefl: ∀ s, subtype s s
     | SubTrans : ∀ s t u, subtype s t → subtype t u → subtype s u
+    | SubExT : ∀ cname targs, subtype (ClassT cname targs) (ExT cname)
     .
 
     Hint Constructors subtype : core.
@@ -490,7 +494,7 @@ Section ProgDef.
           expr_has_ty lty e1 IntT →
           expr_has_ty lty e2 IntT →
           expr_has_ty lty (OpE op e1 e2) BoolT
-      | VarTy: ∀ v ty,
+      | GenTy: ∀ v ty,
           lty !! v = Some ty →
           expr_has_ty lty (VarE v) ty
       | ESubTy: ∀ e s t,
@@ -545,10 +549,9 @@ Section ProgDef.
           rty' <:< rty →
           cmd_has_ty lty c rty' →
           cmd_has_ty lty c rty
-      | CondTagTy lty v tv t targs cmd :
+      | CondTagTy lty v tv t cmd :
           lty !! v = Some tv →
-          (* TODO pas correct, ils sortent du chapeau *)
-          cmd_has_ty (<[v:=InterT tv (ClassT t targs)]> lty) cmd lty →
+          cmd_has_ty (<[v:=InterT tv (ExT t)]> lty) cmd lty →
           cmd_has_ty lty (CondTagC v t cmd) lty
     .
 
