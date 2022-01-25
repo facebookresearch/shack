@@ -50,6 +50,9 @@ Inductive lang_ty :=
 .
 
 Section nested_ind.
+  (* TODO: use Local Unset Elimination Schemes. and rename this one
+   * lang_ty_ind.
+   *)
   Variable P : lang_ty -> Prop.
   Hypothesis case_IntT : P IntT.
   Hypothesis case_BoolT : P BoolT.
@@ -90,7 +93,7 @@ Fixpoint subst (targs:list lang_ty) (ty: lang_ty): lang_ty :=
   | ClassT cname cargs => ClassT cname (List.map (subst targs) cargs)
   | UnionT s t => UnionT (subst targs s) (subst targs t)
   | InterT s t => InterT (subst targs s) (subst targs t)
-  | GenT n => List.nth n targs ty
+  | GenT n => default ty (targs !! n)
   | ExT _ | IntT | BoolT | NothingT | MixedT | NullT | NonNullT => ty
   end.
 

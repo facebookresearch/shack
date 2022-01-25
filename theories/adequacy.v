@@ -61,14 +61,13 @@ Section proofs.
     ∃ (iFs : gmapO string (laterO (sem_typeO Σ))),
     sh !! ℓ ≡ Some (t, iFs) ∗ heap_models_fields iFs vs.
 
-  Lemma expr_adequacy env e lty le ty val :
-    env_as_mixed env →
+  Lemma expr_adequacy (env:interp_env) e lty le ty val :
     expr_eval le e = Some val →
     expr_has_ty lty e ty →
     interp_local_tys env lty le -∗
     interp_type ty env val.
   Proof.
-    move => henv he h; move: le val he.
+    move => he h; move: le val he.
     elim: h => [z | b | | op e1 e2 hop he1 hi1 he2 hi2 |
         op e1 e2 hop he1 hi1 he2 hi2 |
         v vty hv | exp S T hS hi hsub ] le val he; iIntros "#Hlty".
@@ -127,8 +126,7 @@ Section proofs.
     - rewrite lookup_insert_ne; last done. by iApply "Hi".
   Qed.
 
-  Lemma interp_local_tys_weaken_ty env v A B lty lty' le:
-    env_as_mixed env →
+  Lemma interp_local_tys_weaken_ty (env: interp_env) v A B lty lty' le:
     lty !! v = Some A →
     lty' !! v = Some B →
     (∀ w, v ≠ w → lty !! w = lty' !! w) →
@@ -136,7 +134,7 @@ Section proofs.
     interp_local_tys env lty le -∗
     interp_local_tys env lty' le.
   Proof.
-    move => henv hin1 hin2 hs hAB; iIntros "H".
+    move => hin1 hin2 hs hAB; iIntros "H".
     rewrite /interp_local_tys.
     iIntros (w ty) "%Hin".
     destruct (decide (v = w)) as [<- | hne].
@@ -164,8 +162,7 @@ Section proofs.
     by rewrite hw; iSplit.
   Qed.
 
-  Lemma interp_local_tys_list env lty le targs args vargs:
-    env_as_mixed env →
+  Lemma interp_local_tys_list (env:interp_env) lty le targs args vargs:
     dom stringset targs = dom stringset args →
     map_args (expr_eval le) args = Some vargs →
     (∀ (x : string) (ty : lang_ty) (arg : expr),
@@ -175,7 +172,7 @@ Section proofs.
     interp_local_tys env lty le -∗
     interp_local_tys env targs vargs.
   Proof.
-    move => henv hdom hargs helt.
+    move => hdom hargs helt.
     iIntros "#Hle" (v ty) "%hin".
     assert (ha: ∃ arg, args !! v = Some arg).
     { apply elem_of_dom.
@@ -198,20 +195,19 @@ Section proofs.
     by iApply expr_adequacy.
   Qed.
 
-  (* WIP CHECK POINT *)
-  Lemma heap_models_lookup env l h A vs t :
+  Lemma heap_models_lookup env l h A vs t targs :
     h !! l = Some (t, vs) →
     heap_models h -∗
-    interp_type (ClassT A) env (LocV l) -∗
+    interp_type (ClassT A targs) env (LocV l) -∗
     ∃ fields, heap_models h ∗
     ⌜inherits t A ∧ has_fields t fields⌝ ∗
     ∀ f fty, ⌜fields !! f = Some fty⌝ → 
     ∃ v, ⌜vs !! f = Some v⌝ ∗
-    ▷ interp_type fty env v.
+    ▷ interp_type fty (map (λ ty, interp_type ty env) targs) v.
   Proof.
     move => hheap.
     iIntros "hmodels hl".
-    rewrite interp_type_unfold /= /interp_class.
+    rewrite interp_class_unfold.
     iDestruct "hl" as (???) "[%H H◯]".
     destruct H as [[= <-] [hinherits hf]].
     iDestruct "hmodels" as (sh) "(H● & % & #Hh)".
@@ -230,14 +226,16 @@ Section proofs.
     iSpecialize ("HΦ" $! f).
     rewrite /interp_fields lookup_fmap hfield /=.
     iDestruct ("h" $! f _ with "[]") as (v) "[%hv hl]"; first by iApply "HΦ".
-    iExists v; by iSplitR.
+    iExists v; iSplitR => //.
+    iModIntro.
+    by rewrite -interp_type_map_go.
   Qed.
 
-  Lemma heap_models_class l h A vs t :
+  Lemma heap_models_class env l h A vs t targs :
     h !! l = Some (t, vs) →
     heap_models h -∗
-    interp_type (ClassT A) (LocV l) -∗
-    heap_models h ∗ interp_type (ClassT t) (LocV l).
+    interp_type (ClassT A targs) env (LocV l) -∗
+    heap_models h ∗ interp_type (ClassT t targs) env (LocV l).
   Proof.
     move => hheap.
     iIntros "hmodels hl".
@@ -284,21 +282,21 @@ Section proofs.
       by iApply "h".
   Qed.
 
-  Lemma heap_models_update h l t t0 vs f v fty:
+  Lemma heap_models_update env h l t t0 targs vs f v fty:
     wf_cdefs Δ →
     h !! l = Some (t, vs) →
     has_field f fty t0 →
     inherits t t0 →
     heap_models h -∗
-    interp_type (ClassT t0) (LocV l) -∗
-    interp_type fty v -∗
+    interp_type (ClassT t0 targs) env (LocV l) -∗
+    interp_type fty (map (λ ty, interp_type ty env) targs) v -∗
     heap_models (<[l:=(t, (<[f := v]>vs))]> h).
   Proof.
     move => wfΔ hheap hf hinherits.
     iIntros "hmodels #hl #hv".
     iDestruct "hmodels" as (sh) "[hown [%hdom #h]]".
     iExists sh.
-    rewrite interp_type_unfold /= /interp_class.
+    rewrite interp_class_unfold.
     iDestruct "hl" as (?? fields) "[%H hsem]".
     destruct H as [[= <-] [ hinherits' hfields]].
     iDestruct (sem_heap_own_valid_2 with "hown hsem") as "#Hv".
@@ -336,12 +334,13 @@ Section proofs.
         iDestruct "hsh" as "[? h]".
         iApply heap_models_fields_ext_L; first by iRewrite "h".
         done.
-      + done.
+      + by rewrite interp_type_map_go.
     - iApply "h".
       iPureIntro.
       by rewrite lookup_insert_ne // in Heq.
   Qed.
 
+  (*
   Lemma interp_class_loc_inversion h (v: string) l cname t fields:
     h !! l = Some (t, fields) →
     heap_models h -∗
@@ -409,23 +408,24 @@ Section proofs.
       rewrite -!interp_type_unfold in hv.
       by iApply (hv with "Hs Hh hs").
   Qed.
+   *)
 
   Lemma cmd_adequacy_ lty cmd lty' :
     wf_cdefs Δ →
     ⌜cmd_has_ty lty cmd lty'⌝ -∗
-    ∀ st st' n, ⌜cmd_eval st cmd st' n⌝ -∗
-    heap_models st.2 ∗ interp_local_tys lty st.1 -∗ |=▷^n
-        heap_models st'.2 ∗ interp_local_tys lty' st'.1.
+    ∀ (env: interp_env) st st' n, ⌜cmd_eval st cmd st' n⌝ -∗
+    heap_models st.2 ∗ interp_local_tys env lty st.1 -∗ |=▷^n
+        heap_models st'.2 ∗ interp_local_tys env lty' st'.1.
   Proof.
     move => wfΔ.
     iLöb as "IH" forall (lty cmd lty').
-    iIntros "%hty" (st st' n) "%hc".
+    iIntros "%hty" (env st st' n) "%hc".
     iInduction hty as [ lty | lty1 lty2 lty3 fstc sndc hfst hi1 hsnd hi2 |
         lty lhs e ty he | lty1 lty2 cond thn els hcond hthn hi1 hels hi2 |
-        lty lhs recv t name fty hrecv hf |
-        lty recv fld rhs fty t hrecv hrhs hf |
-        lty lhs t args fields hf hdom harg |
-        lty lhs recv t name mdef args hrecv hm hdom |
+        lty lhs recv t targs name fty hrecv hf |
+        lty recv fld rhs fty t targs hrecv hrhs hf |
+        lty lhs t targs args fields hf hdom harg |
+        lty lhs recv t targs name mdef args hrecv hm hdom |
         lty c rty' rty hsub h hi |
         lty v tv t cmd hv h hi
       ] "IHty" forall (st st' n hc).
@@ -439,9 +439,10 @@ Section proofs.
       by iApply "IHty1".
     - (* LetC *) inv hc. iIntros "[? #Hle]".
       rewrite updN_zero. iFrame.
+      Check expr_adequacy.
       iDestruct (expr_adequacy with "Hle") as "#?"; try done.
       by iApply interp_local_tys_update.
-    - (* IfC *) inv hc.
+    - (* IfC *) inv hc
       + iIntros "H". by iApply "IHty".
       + iIntros "H". by iApply "IHty1".
     - (* GetC *) inv hc. iIntros "[Hh #Hle]".
@@ -457,7 +458,9 @@ Section proofs.
       }
       iDestruct ("Hv" $! name fty hfield) as (w) "[%hw hi]".
       rewrite H7 in hw; case: hw => ->.
-      iNext. by iApply interp_local_tys_update.
+      iNext. iApply interp_local_tys_update; first done.
+      (* rewrite interp_type_map_go. *)
+
     - (* SetC *) inv hc.
       iIntros "[Hh #Hle]" => /=.
       iSplitL; last done.
