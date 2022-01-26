@@ -113,15 +113,15 @@ Section proofs.
   .
 
   Lemma interp_fields_env env0 env1 ftys (rec: ty_interpO):
-    (∀ ty, rec ty env0 ≡ rec ty env1) →
+    (∀ s ty, ftys !! s = Some ty → rec ty env0 ≡ rec ty env1) →
     env0 ≡ env1 →
     interp_fields env0 ftys rec ≡ interp_fields env1 ftys rec.
   Proof.
     rewrite /interp_fields => hrec henv.
     induction ftys as [| s ty ftys Hs IH] using map_ind; first by constructor.
-    rewrite !fmap_insert IH.
-    do 2 f_equiv.
-    by apply hrec.
+    apply map_fmap_equiv_ext => x tx htx.
+    eapply hrec.
+    by apply htx.
   Qed.
 
   Lemma interp_fields_contractive ftys env: Contractive (interp_fields env ftys).
@@ -152,16 +152,6 @@ Section proofs.
       ⌜w = LocV ℓ ∧ inherits t cname ∧ has_fields t fields⌝ ∗
       (ℓ ↦ (t , interp_fields env fields rec)))%I
     ).
-
-  (* Lemma interp_class_env env0 env1 cname (rec: ty_interpO): *)
-  (*   (∀ ty, rec ty env0 ≡ rec ty env1) → *)
-  (*   env0 ≡ env1 → *)
-  (*   interp_class cname env0 rec ≡ interp_class cname env1 rec. *)
-  (* Proof. *)
-  (*   rewrite /interp_class => hrec henv v /=. *)
-  (*   do 7 f_equiv. *)
-  (*   iStartProof; iSplitR; iIntros "H". *)
-  (*   rewrite interp_fields_env. *)
 
   Definition interp_ex (cname: tag) (rec: ty_interpO): interp Σ :=
     Interp (λ (w: value), (∃ env, interp_class cname env rec w)%I).
@@ -224,7 +214,7 @@ Section proofs.
   Proof.
     induction ty
       as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | i | cname ]
-      using lang_ty_ind' => //= n x y h.
+      => //= n x y h.
     - apply interp_class_ne => //.
       rewrite Forall_forall in htargs.
       induction targs as [ | hd tl hi] => //=.
@@ -313,8 +303,7 @@ Section proofs.
   Proof.
     rewrite /interp_type_pre => n rec1 rec2 hdist ty env /=.
     induction ty
-      as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | i | cname ]
-      using lang_ty_ind' => //=.
+      as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | i | cname ] => //=.
     - rewrite /interp_mixed => v.
       rewrite /interp_fun !interp_car_simpl.
       f_equiv.
@@ -351,12 +340,18 @@ Section proofs.
       Forall (λ (e: interp Σ), ∀ v, e v -∗ interp_mixed interp_type v) interp_env_car
   }.
 
+  Definition interp_env_empty : interp_env := InterpEnv [] (Forall_nil_2 _).
+
   Lemma interp_type_unfold (env: list (interpO Σ)) (ty : lang_ty) (v : value) :
     interp_type ty env v ⊣⊢ interp_type_pre interp_type ty env v.
   Proof.
     rewrite {1}/interp_type.
     apply (fixpoint_unfold interp_type_pre ty env v).
   Qed.
+
+  Lemma interp_generic_unfold env n:
+    interp_type (GenT n) env ≡ interp_generic env n.
+  Proof. move => w; by rewrite interp_type_unfold. Qed.
 
   Lemma interp_class_unfold env cname targs v:
     interp_type (ClassT cname targs) env v ⊣⊢
@@ -394,31 +389,29 @@ Section proofs.
   Qed.
 
   Lemma interp_type_env_ext env0 env1 ty v:
-    (env0 ≡ env1)%I -∗
-    interp_type ty env0 v  ∗-∗ interp_type ty env1 v.
+    env0 ≡ env1 →
+    interp_type ty env0 v ≡ interp_type ty env1 v.
+  Proof.  by intros H; rewrite H. Qed.
+
+  Lemma interp_fields_env_ext env0 env1 ftys:
+    env0 ≡ env1 →
+    interp_fields env0 ftys interp_type ≡ interp_fields env1 ftys interp_type.
   Proof.
-    iIntros "H".
-    iRewrite "H".
-    iSplit; by iIntros "H".
+    move => henv.
+    apply interp_fields_env; last done.
+    move => s ty hin v.
+    by rewrite interp_type_env_ext.
   Qed.
 
   Lemma interp_type_map_go fty env targs v:
     interp_type fty (map (go env interp_type) targs) v ⊣⊢
     interp_type fty (map (λ ty : lang_ty, interp_type ty env) targs) v.
   Proof.
-    iApply interp_type_env_ext.
-    iApply list_equivI.
-    iIntros (n).
-    rewrite !list_lookup_fmap.
-    destruct (decide (n < length targs)) as [heq | hne].
-    - apply lookup_lt_is_Some_2 in heq as [ty ->].
-      rewrite option_equivI; simpl.
-      by rewrite interp_type_go.
-    - rewrite !lookup_ge_None_2 /=; last by lia.
-      done.
+    apply interp_type_env_ext.
+    apply list_fmap_equiv_ext => ty.
+    by apply interp_type_go.
   Qed.
 
-  (*
   (* MOVE TO HELPER FILE / STDPP *)
   Section fmap.
     Context {A B : Type} (f : A → B).
@@ -433,143 +426,107 @@ Section proofs.
     Qed.
   End fmap.
 
-  Lemma go_subst ty : ∀ env targs v,
-    go (map (λ ty0 : lang_ty, interp_type ty0 env) targs) interp_type ty v ⊣⊢
-    go env interp_type (subst targs ty) v.
-  Admitted.
-  (*
+  Lemma interp_generic_not_bound n env :
+    n ≥ length env → interp_type (GenT n) env ≡ interp_nothing.
   Proof.
-    induction ty
-      as [ | | | | cname args hargs | | | A B hA hB | A B hA hB | i | cname ]
-      using lang_ty_ind' => env targs //=.
-    - rewrite map_map.
-      assert (hmap:
-        (map (go (map (λ ty0 : lang_ty, interp_type ty0 env) targs) interp_type) args) ≡
-        (map (λ x : lang_ty, go env interp_type (subst targs x)) args)).
-      { apply list_fmap_equiv_ext_in => x hx.
-        rewrite Forall_forall in hargs.
-        by rewrite hargs; last done.
-      }
-      rewrite hmap.
-
-      { rewrite map_map.
-        apply list_equivI.
-        apply map_ext_in  => a /elem_of_list_In ha.
-      rewrite Forall_forall in hargs.
-      apply hargs.
-    - by rewrite hA hB.
-    - by rewrite hA hB.
-    - rewrite /interp_generic. 
-      rewrite list_lookup_fmap.
-      destruct (decide (i < length targs)) as [ hlt | hge].
-      + apply lookup_lt_is_Some_2 in hlt as [a ->] => /=.
-        symmetry.
-        rewrite interp_type_go.
-lookup_lt_is_Some_2:
-  ∀ (A : Type) (l : list A) (i : nat), i < length l → is_Some (l !! i)
-      Search lookup "map".
-
-      replace interp_nothing with (interp_type NothingT env); last first.
-      { rewrite interp_type_unfold .
-      rewrite map_nth.
-
-
+    move => henv w.
+    rewrite interp_type_unfold /= /interp_generic.
+    apply lookup_ge_None_2 in henv.
+    by rewrite henv /=.
   Qed.
 
-   *)
-  (* Lemma *) 
-  (*       assert (hmap: *)
-  (*         (map (go (map (λ ty : lang_ty, interp_type ty env) fargs) interp_type) targs) = *)
-  (*         (map (λ x : lang_ty, go env interp_type (subst fargs x)) targs) *)
-  (*       ). *)
-
-  Lemma interp_type_subst fty fargs env w:
-    interp_type fty (map (λ ty : lang_ty, interp_type ty env) fargs) w -∗
-    interp_type (subst fargs fty) env w.
+  Lemma interp_generic_bound n env :
+    n < length env →
+    ∃ i, env !! n = Some i ∧  interp_type (GenT n) env ≡ i.
   Proof.
+    move => henv.
+    apply lookup_lt_is_Some_2 in henv.
+    destruct henv as [i hi]; exists i; split; first done.
+    move => w; by rewrite interp_type_unfold /= /interp_generic hi.
+  Qed.
+
+  Lemma interp_type_subst fty fargs env:
+    interp_type fty (map (λ ty : lang_ty, interp_type ty env) fargs) ≡
+    interp_type (subst_ty fargs fty) env.
+  Proof.
+    move => w.
     rewrite !interp_type_unfold.
     revert w.
-    induction fty
-      as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | i | cname ]
-      using lang_ty_ind' => // w.
-      - rewrite -!interp_type_unfold !interp_class_unfold.
-        fold subst.
-        rewrite map_map.
-        iIntros "H".
-        iDestruct "H" as (l t fields) "[%H Hl]".
+    induction fty as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | n | cname ] => // w.
+    - rewrite -!interp_type_unfold !interp_class_unfold.
+      rewrite map_map -/subst_ty.
+      rewrite Forall_forall in htargs.
+      iStartProof; iSplit; iIntros "H".
+      + iDestruct "H" as (l t fields) "[%H Hl]".
         destruct H as [-> [hin hfs]].
         iExists l, t, fields; iSplitR; first done.
-        assert (hmap:
-          (map (go (map (λ ty : lang_ty, interp_type ty env) fargs) interp_type) targs) =
-          (map (λ x : lang_ty, go env interp_type (subst fargs x)) targs)
-        ).
-        admit.
-        rewrite hmap.
-        done.
-        admit.
-        iRewrite "hmap".
-
-
-
-        admit.
-        iIntros "H".
-        rewrite map_map.
-        iRewrite "hmap".
-        iDestruct "H" as (l t fields) "[%H Hl]".
+        iApply mapsto_proper; last done.
+        apply interp_fields_env; last first.
+        {
+          apply list_fmap_equiv_ext_in => ty hty.
+          rewrite !interp_type_go.
+          move => w.
+          by rewrite !interp_type_unfold htargs.
+        }
+        move => s ty hty w.
+        rewrite interp_type_map_go.
+        apply interp_type_env_ext.
+        apply list_fmap_equiv_ext_in => x hx v.
+        by rewrite interp_type_go !interp_type_unfold htargs.
+      + iDestruct "H" as (l t fields) "[%H Hl]".
         destruct H as [-> [hin hfs]].
         iExists l, t, fields; iSplitR; first done.
-        assert (hmap:
-              (map (go (map (λ ty : lang_ty, interp_type ty env) fargs) interp_type) targs)
-              =
-              (map (λ x : lang_ty, go env interp_type (subst fargs x)) targs)
-              ).
-              clear cname l t fields hin hfs.
-              apply map_ext_in => ty hin.
-
-
-
-    - rewrite -interp_type_unfold interp_union_unfold.
-      iIntros "[H | H]".
+        iApply mapsto_proper; last done.
+        apply interp_fields_env; last first.
+        { apply list_fmap_equiv_ext_in => ty hty.
+          rewrite !interp_type_go.
+          move => w.
+          by rewrite !interp_type_unfold htargs.
+        }
+        move => s ty hty w.
+        rewrite interp_type_map_go.
+        apply interp_type_env_ext.
+        apply list_fmap_equiv_ext_in => x hx v.
+        by rewrite interp_type_go !interp_type_unfold htargs.
+    - rewrite -interp_type_unfold !interp_union_unfold.
+      iStartProof; iSplit; iIntros "[H | H]".
       + iLeft.
         iApply hA.
         by rewrite -interp_type_unfold.
       + iRight.
         iApply hB.
         by rewrite -interp_type_unfold.
+      + iLeft.
+        rewrite interp_type_unfold.
+        by iApply hA.
+      + iRight.
+        rewrite interp_type_unfold.
+        by iApply hB.
     - rewrite -interp_type_unfold interp_inter_unfold.
-      iIntros "[HL HR]".
-      iSplit.
-      + iApply hA.
+      iStartProof; iSplit; iIntros "[HL HR]".
+      + iSplit.
+        { iApply hA.
+          by rewrite -interp_type_unfold.
+        }
+        iApply hB.
         by rewrite -interp_type_unfold.
-      + iApply hB.
-        by rewrite -interp_type_unfold.
-    - iAssert (∀ i j, ⌜i ≤ j⌝ -∗
-        nth i (map (λ ty : lang_ty, interp_type ty env) fargs) interp_nothing w -∗
-        (fix go (typ : lang_ty) : interp Σ :=
-        match typ with
-        | IntT => interp_int
-        | BoolT => interp_bool
-        | NothingT => interp_nothing
-        | MixedT => interp_mixed interp_type
-        | ClassT t targs => interp_class t (map go targs) interp_type
-        | NullT => interp_null
-        | NonNullT => interp_nonnull interp_type
-        | UnionT A B => interp_union (go A) (go B)
-        | InterT A B => interp_inter (go A) (go B)
-        | GenT n => nth n env interp_nothing
-        | ExT cname => interp_ex cname interp_type
-        end) (nth i fargs (GenT j)) w
-        )%I as "Hgen".
-      { iIntros (x y) "%hxy"; simpl; rewrite /interp_generic; iIntros "H". 
-        iInduction fargs as [ | hd tl hi] "IH" forall (x y hxy) => //=; first by destruct x.
-        destruct x as [ | x]; first by rewrite interp_type_unfold.
-        iApply "IH"; last done.
-        iPureIntro; by lia.
-      }
-      iApply "Hgen".
-      by iPureIntro.
+      + iSplit.
+        { rewrite interp_type_unfold.
+          by iApply hA.
+        }
+        rewrite interp_type_unfold.
+        by iApply hB.
+    - destruct (decide (n < length (map (λ ty, interp_type ty env) fargs))) as [hlt | hge]. 
+      + assert (hlt2: n < length fargs) by now rewrite map_length in hlt.
+        apply interp_generic_bound in hlt as [i [hin hi]].
+        rewrite -!interp_type_unfold hi /=.
+        apply lookup_lt_is_Some_2 in hlt2 as [ty hty].
+        by rewrite hty -hi /= interp_generic_unfold /interp_generic list_lookup_fmap hty.
+      + rewrite -!interp_type_unfold interp_generic_not_bound /=; last by apply not_lt.
+        rewrite map_length in hge.
+        rewrite lookup_ge_None_2 /=; last by apply not_lt.
+        by rewrite interp_type_unfold.
   Qed.
-   *)
 
   (* #hyp *)
   Global Instance interp_type_persistent :
@@ -611,38 +568,38 @@ lookup_lt_is_Some_2:
   Proof.
     induction 1 as [A | A B hext | | | | A | A B| A B | A B C h0 hi0 h1 hi1
         | A B | A B | A B C h0 hi0 h1 hi1 | A | A B C h0 hi0 h1 hi1 | cname targs ];
-    move => env v /=.
+    move => env v.
     - rewrite /interp_mixed.
-      elim: A v => //=.
+      elim: A v => //.
       + move => v; iIntros "h"; by repeat iLeft.
       + move => v; iIntros "h"; by iLeft; iRight; iLeft.
       + move => v; by rewrite /interp_nothing; iIntros "h".
-      + move => cname targs v.
+      + move => cname targs _ v.
         iIntros "h".
         iLeft; iRight; iRight.
         iExists cname, _; by iApply inherits_is_inclusion. 
       + move => v; iIntros "h"; by iRight.
       + move => v; by iIntros "h"; iLeft.
-      + move => s hs t ht v.
+      + move => s t hs ht v.
         rewrite /interp_union.
         iIntros "h".
         iDestruct "h" as "[ h | h ]"; first by iApply hs.
         by iApply ht.
-      + move => s hs t ht v.
+      + move => s t hs ht v.
         rewrite /interp_inter.
         iIntros "h".
         iDestruct "h" as "[? _]"; by iApply hs.
-      + move => tvar v.
+      + move => n v.
         rewrite /interp_generic.
         iIntros "hv".
         destruct env as [env henv] => /=.
         rewrite Forall_forall in henv.
-        destruct (decide (tvar < length env)) as [hlt | hge].
+        destruct (decide (n < length env)) as [hlt | hge].
         * iApply henv; last done.
           apply lookup_lt_is_Some_2 in hlt as [ t ht ].
-          rewrite ht /=.
+          rewrite /interp_generic ht /=.
           by apply elem_of_list_lookup_2 in ht.
-        * rewrite lookup_ge_None_2 /=; last by apply not_lt.
+        * rewrite /interp_generic lookup_ge_None_2 /=; last by apply not_lt.
           done.
       + move => cname v;
         rewrite /interp_ex.

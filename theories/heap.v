@@ -72,6 +72,16 @@ Section sem_heap.
     by apply _.
   Qed.
 
+  Lemma mapsto_proper l t iFs0 iFs1 :
+    iFs0 ≡ iFs1 →
+    mapsto l t iFs0 ≡ mapsto l t iFs1.
+  Proof.
+    move => heq.
+    rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
+    rewrite gmap_view_frag_proper; first done.
+    by f_equiv.
+  Qed.
+
   Lemma sem_heap_own_valid_2 sh l t iFs:
     own γ (gmap_view_auth (DfracOwn 1) sh) -∗
     l ↦ (t, iFs) -∗

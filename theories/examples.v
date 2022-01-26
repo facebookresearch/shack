@@ -39,6 +39,7 @@ Definition BoxIntGet := {|
 Definition BoxInt := {|
   classname := "BoxInt";
   superclass := None;
+  generics := 0;
   classfields := {["$data" := IntT]};
   classmethods := <["set" := BoxIntSet]>{["get" := BoxIntGet]};
 |}.
@@ -54,7 +55,7 @@ Definition BoxInt := {|
  * }
  *)
 Definition ProgramBody :=
-   SeqC (NewC "$box" "BoxInt" {["$data" := IntE 32]})
+   SeqC (NewC "$box" "BoxInt" [] {["$data" := IntE 32]})
   (SeqC (CallC "$tmp" (VarE "$box") "get" ∅)
   (SeqC (LetC "$tmp" (OpE PlusO (VarE "$tmp") (IntE 20)))
   (SeqC (CallC "$_" (VarE "$box") "set"
@@ -187,7 +188,7 @@ Qed.
 Definition final_lty lty : local_tys :=
    <["$tmp":=IntT]>
   (<["$_" := NullT]>
-  (<["$box":=ClassT "BoxInt"]> lty)).
+  (<["$box":=ClassT "BoxInt" []]> lty)).
 
 Lemma Main_ty lty :
   cmd_has_ty lty ProgramBody (final_lty lty).
@@ -285,9 +286,9 @@ Proof.
       econstructor.
       * constructor.
         by rewrite lookup_insert.
+      * by eauto.
       * constructor.
         by rewrite lookup_insert_ne.
-      * by eauto.
     + rewrite /wf_mdef_ty /=.
       rewrite lookup_insert_Some in h.
       destruct h as [[<- <-]|[hne hin]].
@@ -313,7 +314,7 @@ Proof.
   apply (@step_updN_soundness sem_heapΣ n).
   iMod sem_heap_init as (Hheap) "Hemp".
   iModIntro.
-  iDestruct ((cmd_adequacy _ _ _ wf ht _ _ _ he) with "Hemp") as "H" => /=.
+  iDestruct ((cmd_adequacy interp_env_empty _ _ _ wf ht _ _ _ he) with "Hemp") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh Hl]".

@@ -35,24 +35,23 @@ Inductive value : Set :=
   | LocV (ℓ : loc).
 Local Instance value_inhabited : Inhabited value := populate NullV.
 
-Inductive lang_ty :=
-  | IntT
-  | BoolT
-  | NothingT
-  | MixedT
-  | ClassT (cname: tag) (targs: list lang_ty)
-  | NullT
-  | NonNullT
-  | UnionT (s t: lang_ty)
-  | InterT (s t: lang_ty)
-  | GenT (n: nat)
-  | ExT (cname: tag) (* Ext C == ∃Ti, ClassT C Ti *) 
-.
-
 Section nested_ind.
-  (* TODO: use Local Unset Elimination Schemes. and rename this one
-   * lang_ty_ind.
-   *)
+  Local Unset Elimination Schemes.
+
+  Inductive lang_ty :=
+    | IntT
+    | BoolT
+    | NothingT
+    | MixedT
+    | ClassT (cname: tag) (targs: list lang_ty)
+    | NullT
+    | NonNullT
+    | UnionT (s t: lang_ty)
+    | InterT (s t: lang_ty)
+    | GenT (n: nat)
+    | ExT (cname: tag) (* Ext C == ∃Ti, ClassT C Ti *) 
+  .
+
   Variable P : lang_ty -> Prop.
   Hypothesis case_IntT : P IntT.
   Hypothesis case_BoolT : P BoolT.
@@ -66,7 +65,7 @@ Section nested_ind.
   Hypothesis case_GenT: ∀ n, P (GenT n).
   Hypothesis case_ExT: ∀ cname, P (ExT cname).
 
-  Fixpoint lang_ty_ind' (t : lang_ty) :=
+  Fixpoint lang_ty_ind (t : lang_ty) :=
     match t with
     | IntT => case_IntT
     | BoolT => case_BoolT
@@ -76,24 +75,25 @@ Section nested_ind.
         let H := (fix fold (xs : list lang_ty) : Forall P xs :=
           match xs with
           | nil => List.Forall_nil _
-          | x :: xs => List.Forall_cons _ x xs (lang_ty_ind' x) (fold xs)
+          | x :: xs => List.Forall_cons _ x xs (lang_ty_ind x) (fold xs)
           end) targs in
         case_ClassT cname targs H
     | NullT => case_NullT
     | NonNullT => case_NonNullT
-    | UnionT s t => case_UnionT s t (lang_ty_ind' s) (lang_ty_ind' t)
-    | InterT s t => case_InterT s t (lang_ty_ind' s) (lang_ty_ind' t)
+    | UnionT s t => case_UnionT s t (lang_ty_ind s) (lang_ty_ind t)
+    | InterT s t => case_InterT s t (lang_ty_ind s) (lang_ty_ind t)
     | GenT n => case_GenT n
     | ExT cname => case_ExT cname
     end.
 End nested_ind.
 
-Fixpoint subst (targs:list lang_ty) (ty: lang_ty): lang_ty :=
+(* Generics must be always bound *)
+Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
   match ty with
-  | ClassT cname cargs => ClassT cname (List.map (subst targs) cargs)
-  | UnionT s t => UnionT (subst targs s) (subst targs t)
-  | InterT s t => InterT (subst targs s) (subst targs t)
-  | GenT n => default ty (targs !! n)
+  | ClassT cname cargs => ClassT cname (map (subst_ty targs) cargs)
+  | UnionT s t => UnionT (subst_ty targs s) (subst_ty targs t)
+  | InterT s t => InterT (subst_ty targs s) (subst_ty targs t)
+  | GenT n => default NothingT (targs !! n)
   | ExT _ | IntT | BoolT | NothingT | MixedT | NullT | NonNullT => ty
   end.
 
@@ -525,11 +525,11 @@ Section ProgDef.
       | GetTy: ∀ lty lhs recv t targs name fty,
           expr_has_ty lty recv (ClassT t targs) →
           has_field name fty t →
-          cmd_has_ty lty (GetC lhs recv name) (<[lhs := subst targs fty]>lty)
+          cmd_has_ty lty (GetC lhs recv name) (<[lhs := subst_ty targs fty]>lty)
       | SetTy: ∀ lty recv fld rhs fty t targs,
           expr_has_ty lty recv (ClassT t targs) →
           has_field fld fty t →
-          expr_has_ty lty rhs (subst targs fty) →
+          expr_has_ty lty rhs (subst_ty targs fty) →
           cmd_has_ty lty (SetC recv fld rhs) lty
       | NewTy: ∀ lty lhs t targs args fields,
           has_fields t fields →
@@ -537,7 +537,7 @@ Section ProgDef.
           (∀ f fty arg,
           fields !! f = Some fty →
           args !! f = Some arg →
-          expr_has_ty lty arg (subst targs fty)) →
+          expr_has_ty lty arg (subst_ty targs fty)) →
           cmd_has_ty lty (NewC lhs t targs args) (<[ lhs := ClassT t targs]>lty)
       | CallTy: ∀ lty lhs recv t targs name mdef args,
           expr_has_ty lty recv (ClassT t targs) →
@@ -546,8 +546,8 @@ Section ProgDef.
           (∀ x ty arg,
           mdef.(methodargs) !! x = Some ty →
           args !! x = Some arg →
-          expr_has_ty lty arg (subst targs ty)) →
-          cmd_has_ty lty (CallC lhs recv name args) (<[lhs := subst targs mdef.(methodrettype)]>lty)
+          expr_has_ty lty arg (subst_ty targs ty)) →
+          cmd_has_ty lty (CallC lhs recv name args) (<[lhs := subst_ty targs mdef.(methodrettype)]>lty)
       | SubTy: ∀ lty c rty rty',
           rty' <:< rty →
           cmd_has_ty lty c rty' →
@@ -565,8 +565,8 @@ Section ProgDef.
       (∀ x ty arg,
       mdef.(methodargs) !! x = Some ty →
       args !! x = Some arg →
-      ∃ ty', ty' <: subst targs ty ∧ expr_has_ty lty arg ty') →
-      cmd_has_ty lty (CallC lhs recv name args) (<[lhs := subst targs mdef.(methodrettype)]>lty).
+      ∃ ty', ty' <: subst_ty targs ty ∧ expr_has_ty lty arg ty') →
+      cmd_has_ty lty (CallC lhs recv name args) (<[lhs := subst_ty targs mdef.(methodrettype)]>lty).
     Proof.
       move => lty lhs recv t targs name mdef args hrecv hmdef hdom hargs.
       econstructor; [done | done | done | ].
@@ -582,8 +582,8 @@ Section ProgDef.
       (∀ x ty arg,
       mdef.(methodargs) !! x = Some ty →
       args !! x = Some arg →
-      ∃ ty', ty' <: subst targs ty ∧ expr_has_ty lty arg ty') →
-      subst targs mdef.(methodrettype) <: ret →
+      ∃ ty', ty' <: subst_ty targs ty ∧ expr_has_ty lty arg ty') →
+      subst_ty targs mdef.(methodrettype) <: ret →
       cmd_has_ty lty (CallC lhs recv name args) (<[lhs := ret]>lty).
     Proof.
       move =>lty lhs ?????? ret hrecv hm hdom hargs hret.

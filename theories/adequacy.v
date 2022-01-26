@@ -459,16 +459,16 @@ Section proofs.
       iDestruct ("Hv" $! name fty hfield) as (w) "[%hw hi]".
       rewrite H7 in hw; case: hw => ->.
       iNext. iApply interp_local_tys_update; first done.
-      (* rewrite interp_type_map_go. *)
-
+      by rewrite interp_type_subst.
     - (* SetC *) inv hc.
       iIntros "[Hh #Hle]" => /=.
       iSplitL; last done.
-      iDestruct (expr_adequacy recv with "Hle") as "#Hrecv" => //.
-      iDestruct (expr_adequacy rhs with "Hle") as "#Hrhs" => //.
+      iDestruct (expr_adequacy env recv with "Hle") as "#Hrecv" => //.
+      iDestruct (expr_adequacy env rhs with "Hle") as "#Hrhs" => //.
       iDestruct (heap_models_lookup with "Hh Hrecv") as (fields) "(Hh&Ht&?)"; first done.
       iDestruct "Ht" as %[? ?].
-      by iApply (heap_models_update with "Hh").
+      iApply (heap_models_update with "Hh") => //.
+      by rewrite interp_type_subst.
     - (* NewC *) inv hc. iIntros "[Hh #Hle]".
       (* we need one modality to update the
          semantic heap *)
@@ -479,13 +479,17 @@ Section proofs.
         by rewrite Hdom not_elem_of_dom.
       }
       iMod ((sem_heap_own_update new) with "H●") as "[H● H◯]" => //; first by
-        apply (sem_heap_view_alloc _ new t (interp_fields interp_type fields)).
+        apply (sem_heap_view_alloc _ new t (interp_fields (map (λ ty, interp_type ty env) targs) fields interp_type)).
       iIntros "!> !>". (* kill the modalities *)
       iDestruct "H◯" as "#H◯".
-      iAssert (interp_type (ClassT t) (LocV new)) with "[]" as "#Hl".
+      iAssert (interp_type (ClassT t targs) env (LocV new)) with "[]" as "#Hl".
       { rewrite interp_type_unfold /=.
         iExists _, _, _.
-        by iSplit.
+        iSplit; first done.
+        rewrite mapsto_proper; first done.
+        rewrite interp_fields_env_ext; first done.
+        apply list_fmap_equiv_ext => x v.
+        by rewrite interp_type_unfold.
       }
       iSplitL; last first.
       by iApply interp_local_tys_update.
@@ -497,14 +501,14 @@ Section proofs.
         iSplitR; first done.
         rewrite /heap_models_fields.
         iSplitR.
-        { 
-          apply dom_map_args in H6.
-          by rewrite dom_interp_fields H6 -hdom.
+        {
+          apply dom_map_args in H7.
+          by rewrite dom_interp_fields H7 -hdom.
         }
         iIntros (f iF) "hiF".
         iAssert (⌜f ∈ dom stringset fields⌝)%I as "%hfield".
         {
-          rewrite -dom_interp_fields elem_of_dom.
+          rewrite -(dom_interp_fields (map (λ ty : lang_ty, interp_type ty env) targs)) elem_of_dom.
           rewrite /interp_fields.
           rewrite !lookup_fmap.
           by iRewrite "hiF".
@@ -518,8 +522,8 @@ Section proofs.
         assert (h1: is_Some (vargs !! f)).
         {
           apply elem_of_dom.
-          apply dom_map_args in H6.
-          by rewrite H6 -hdom.
+          apply dom_map_args in H7.
+          by rewrite H7 -hdom.
         }
         destruct h1 as [v0 hv0].
         assert (h2: is_Some (fields !! f)) by (by apply elem_of_dom).
@@ -527,20 +531,23 @@ Section proofs.
         iExists v0; iSplitR; first done.
         rewrite /interp_fields lookup_fmap.
         assert (heval0: expr_eval le a0 = Some v0).
-        { rewrite (map_args_lookup _ _ _ args vargs H6 f) in hv0.
+        { rewrite (map_args_lookup _ _ _ args vargs H7 f) in hv0.
           by rewrite ha0 in hv0.
         }
-        assert (hty0: expr_has_ty lty a0 fty) by (by apply harg with f).
+        assert (hty0: expr_has_ty lty a0 (subst_ty targs fty)) by (by apply harg with f).
         rewrite hty /= option_equivI later_equivI.
         iNext.
         rewrite discrete_fun_equivI.
         iSpecialize ("hiF" $! v0).
         iRewrite -"hiF".
-        by iDestruct (expr_adequacy a0 with "Hle") as "#Ha0".
+        iDestruct (expr_adequacy _ a0 with "Hle") as "#Ha0" => //.
+        by rewrite interp_type_subst.
       + rewrite lookup_insert_ne; last done.
         by iApply "Hh".
     - (* CallC *) inv hc. iIntros "[Hh #Hle]".
-      assert (wfbody: ∃B, wf_mdef_ty B mdef0 ∧ inherits t0 B).
+      (* TODO: needs to find the right cdef where mdef0 is located *)
+      (*
+      assert (wfbody: ∃B, wf_mdef_ty B (gen_targs (generics cdef)) mdef0 ∧ inherits t0 B).
       { destruct wfΔ as [? ? hbodies].
         rewrite map_Forall_lookup in hbodies.
         apply has_method_from in H8.
@@ -607,13 +614,18 @@ Section proofs.
       destruct hincl as [? [? hret']].
       iApply subtype_is_inclusion; first by apply hret'.
       by iDestruct (expr_adequacy (methodret mdef0) with "Hle2") as "#Hret".
+      *) admit.
     - (* Subtyping *) 
       iIntros "H". iSpecialize ("IHty" with "[//] H").
       iApply updN_mono_I; last done.
       iIntros "[Hh #Hrty]". iFrame.
-      iDestruct (interp_local_tys_is_inclusion with "Hrty") as "Hrty'"; first done.
+      iDestruct (interp_local_tys_is_inclusion with "Hrty") as "Hrty'"; [ | done | ].
+      { rewrite Forall_forall => i hi v.
+        by apply _.
+      }
       by iApply "Hrty'".
     - (* CondTagC *) inv hc.
+      (* TODO: need inversion lemmas
       + iIntros "H". iApply ("IHty" with "[//]").
         clear H6.
         destruct H5 as (l & hl & t' & fields & hlt & hinherits).
@@ -633,18 +645,19 @@ Section proofs.
         }
         by iApply "Hle".
       + by iApply updN_intro.
-  Qed.
+      *) admit. admit.
+  Admitted.
+  (* Qed. *)
 
-  Lemma cmd_adequacy lty cmd lty' :
+  Lemma cmd_adequacy (env: interp_env) lty cmd lty' :
     wf_cdefs Δ →
     cmd_has_ty lty cmd lty' →
     ∀ st st' n, cmd_eval st cmd st' n →
-    heap_models st.2 ∗ interp_local_tys lty st.1 -∗ |=▷^n
-        heap_models st'.2 ∗ interp_local_tys lty' st'.1.
+    heap_models st.2 ∗ interp_local_tys env lty st.1 -∗ |=▷^n
+        heap_models st'.2 ∗ interp_local_tys env lty' st'.1.
   Proof.
     move => ? hty ??? hc.
-    iApply cmd_adequacy_.
-    done.
+    iApply cmd_adequacy_; first done.
     by iPureIntro.
     by iPureIntro.
   Qed.
@@ -656,7 +669,7 @@ Print Assumptions cmd_adequacy.
 Lemma sem_heap_init
   `{PDC: ProgDefContext}
   `{!sem_heapGpreS Σ}:
-  ⊢@{iPropI Σ} |==> ∃ _: sem_heapGS Σ, (heap_models ∅ ∗ interp_local_tys ∅ ∅).
+  ⊢@{iPropI Σ} |==> ∃ _: sem_heapGS Σ, (heap_models ∅ ∗ interp_local_tys [] ∅ ∅).
 Proof.
   iMod (own_alloc (gmap_view_auth (DfracOwn 1) ∅)) as (γI) "HI";
     first by apply gmap_view_auth_valid.
