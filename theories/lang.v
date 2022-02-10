@@ -489,32 +489,31 @@ Section ProgDef.
     exists B; by eauto.
   Qed.
 
-  Inductive has_field (fname: string) : tag -> lang_ty → list lang_ty → Prop :=
+  Inductive has_field (fname: string) : tag -> lang_ty → Prop :=
     | HasField tag cdef typ:
         Δ !! tag = Some cdef →
         cdef.(classfields) !! fname = Some typ →
-        has_field fname tag typ (gen_targs cdef.(generics))
-    | InheritsField tag targs parent inst cdef typ:
+        has_field fname tag typ
+    | InheritsField tag targs parent cdef typ:
         Δ !! tag = Some cdef →
         cdef.(classfields) !! fname = None →
         cdef.(superclass) = Some (parent, targs) →
-        has_field fname parent typ inst →
-        has_field fname tag typ (subst_ty targs <$> inst)
+        has_field fname parent typ →
+        has_field fname tag (subst_ty targs typ)
   .
 
   Hint Constructors has_field : core.
 
-  Lemma has_field_fun fname A typ σ:
-    has_field fname A typ σ →
-    ∀ typ' σ', has_field fname A typ' σ' →
-    typ = typ' ∧ σ = σ'.
+  Lemma has_field_fun fname A typ:
+    has_field fname A typ →
+    ∀ typ', has_field fname A typ' →
+    typ = typ'.
   Proof.
     induction 1 as [ tag cdef typ hΔ hf
-      | tag targs parent inst cdef typ hΔ hf hs h hi ] => typ' σ' h'.
+      | tag targs parent cdef typ hΔ hf hs h hi ] => typ' h'.
     - inv h'.
       + rw_inj hΔ H.
-        rw_inj hf H0.
-        done.
+        by rw_inj hf H0.
       + rw_inj hΔ H.
         rewrite hf in H0; discriminate.
     - inv h'.
@@ -522,44 +521,34 @@ Section ProgDef.
         rewrite hf in H0; discriminate.
       + rw_inj hΔ H.
         rw_inj hs H1.
-        by apply hi in H2 as [-> ->].
+        by rewrite (hi _ H2).
   Qed.
 
   (* A class cannot redeclare a field if it is present in
    * any of its parent definition.
    *)
   Definition wf_cdef_fields cdef : Prop :=
-    ∀ f fty σ super inst,
+    ∀ f fty super inst,
     cdef.(superclass) = Some (super, inst) →
-    has_field f super fty σ →
+    has_field f super fty →
     cdef.(classfields) !! f = None.
 
   Definition wf_cdef_fields_bounded cdef : Prop :=
     map_Forall (λ _fname, bounded cdef.(generics)) cdef.(classfields).
 
-  (*
-  Lemma has_field_extends_using fname A typ finst:
+  Lemma has_field_extends_using f B typ:
     map_Forall (λ _cname, wf_cdef_fields) Δ →
-    has_field fname A typ finst →
-    ∀ B σB typ' finst',
+    has_field f B typ →
+    ∀ A σB,
     extends_using A B σB →
-    has_field fname B typ' finst' →
-    (typ = typ' ∧ finst = subst_ty σB <$> finst').
+    has_field f A (subst_ty σB typ).
   Proof.
-    move => hwf.
-    induction 1 as [ tag cdef typ hΔ hf
-      | tag targs parent inst cdef typ hΔ hf hs h hi ] => B σB typ' finst' hext hB.
-    - rewrite map_Forall_lookup in hwf.
-      inv hext.
-      rewrite hΔ in H; injection H; intros; subst; clear H.
-      apply hwf in hΔ.
-      by rewrite (hΔ _ _ _ _ _ H0 hB) in hf.
-    - inv hext.
-      rewrite hΔ in H; injection H; intros; subst; clear H.
-      rewrite hs in H0; injection H0; intros; subst; clear H0.
-      by apply (has_field_fun _ _ _ _ h) in hB as [-> ->].
+    move => hwf hf A σB hext.
+    rewrite map_Forall_lookup in hwf.
+    inv hext.
+    eapply InheritsField => //.
+    by eapply hwf.
   Qed.
-  *)
 
   (* Naive method lookup: methods are unique. *)
   Inductive has_method (mname: string) : methodDef → tag → Prop :=
@@ -650,11 +639,8 @@ Section ProgDef.
     cdef.(classmethods) !! m = Some mdef →
     mdef_incl mdef superdef.
 
-  Definition has_fields A (fields: stringmap (lang_ty * list lang_ty)) : Prop :=
-    ∀ fname typ inst, has_field fname A typ inst ↔ fields !! fname = Some (typ, inst).
-
-  Definition lift_fty (σ: list lang_ty) (fty: lang_ty * list lang_ty) :=
-    (fty.1, subst_ty σ <$> fty.2).
+  Definition has_fields A (fields: stringmap lang_ty) : Prop :=
+    ∀ fname typ, has_field fname A typ ↔ fields !! fname = Some typ.
 
   (*
   Lemma has_method_fun: ∀ A name mdef0 mdef1,
@@ -680,27 +666,27 @@ Section ProgDef.
   Lemma has_field_inherits :
     map_Forall (fun _ => wf_cdef_fields) Δ →
     ∀ A B σ, inherits_using A B σ → 
-    ∀ f fty σf, has_field f B fty σf → has_field f A fty (subst_ty σ <$> σf).
+    ∀ f fty, has_field f B fty → has_field f A (subst_ty σ fty).
   Proof.
     move => wfΔ A B σ h.
-    induction h as [ A B σ hext | A B σB C σC hAB hiAB hBC hiBC]; move => f fty σf hf.
+    induction h as [ A B σ hext | A B σB C σC hAB hiAB hBC hiBC]; move => f fty hf.
     - inv hext.
-      econstructor => //.
+      eapply InheritsField => //.
       apply wfΔ in H.
       by eapply H.
     - apply hiBC in hf.
       apply hiAB in hf.
-      by rewrite -map_subst_ty_subst.
+      by rewrite -subst_ty_subst.
   Qed.
 
   Lemma has_fields_inherits :
     map_Forall (fun _ => wf_cdef_fields) Δ →
     ∀ A B σ, inherits_using A B σ → 
     ∀ Afields Bfields, has_fields A Afields → has_fields B Bfields →
-    ∀ k fty σf, Bfields !! k = Some (fty, σf) →
-    Afields !! k = Some (fty, subst_ty σ <$> σf).
+    ∀ k fty, Bfields !! k = Some fty →
+    Afields !! k = Some (subst_ty σ fty).
   Proof.
-    move => wfΔ A B σ hin Afields Bfields hA hB k fty σf hk.
+    move => wfΔ A B σ hin Afields Bfields hA hB k fty hk.
     apply hB in hk.
     apply has_field_inherits with (A := A) (σ := σ) in hk => //.
     by apply hA.
@@ -793,14 +779,14 @@ Section ProgDef.
         cmd_has_ty lty1 thn lty2 →
         cmd_has_ty lty1 els lty2 →
         cmd_has_ty lty1 (IfC cond thn els) lty2
-    | GetTy: ∀ lty lhs recv t σ σf name fty,
+    | GetTy: ∀ lty lhs recv t σ name fty,
         expr_has_ty lty recv (ClassT t σ) →
-        has_field name t fty σf →
-        cmd_has_ty lty (GetC lhs recv name) (<[lhs := subst_ty σ (subst_ty σf fty)]>lty)
-    | SetTy: ∀ lty recv fld rhs fty σf t σ,
+        has_field name t fty →
+        cmd_has_ty lty (GetC lhs recv name) (<[lhs := subst_ty σ fty]>lty)
+    | SetTy: ∀ lty recv fld rhs fty t σ,
         expr_has_ty lty recv (ClassT t σ) →
-        has_field fld t fty σf →
-        expr_has_ty lty rhs (subst_ty σ (subst_ty σf fty)) →
+        has_field fld t fty →
+        expr_has_ty lty rhs (subst_ty σ fty) →
         cmd_has_ty lty (SetC recv fld rhs) lty
         (*
     | NewTy: ∀ lty lhs t targs args fields (*cdef*),

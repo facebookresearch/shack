@@ -106,64 +106,38 @@ Section proofs.
      apply _.
    Qed.
 
-  Definition interp_fields (σi: list (interp Σ)) (σ: list lang_ty) (ftys: stringmap (lang_ty * list lang_ty)) (rec: ty_interpO) :
-    gmapO string (laterO (sem_typeO Σ)) :=
-    let f := λ (typinst: lang_ty * list lang_ty), Next (interp_car (rec (subst_ty σ (subst_ty typinst.2 typinst.1)) σi)) in 
-    @fmap _ _ _ (later (sem_typeO Σ)) f ftys
-  .
+  Definition interp_fields
+    (σi: list (interp Σ))
+    (C: tag)
+    σC
+    (fields: stringmap lang_ty)
+    (ifields: gmapO string (laterO (sem_typeO Σ)))
+    (rec: ty_interpO) : iProp Σ :=
+    (⌜dom stringset fields = dom _ ifields⌝ ∗
+    ∀ f ty, ⌜has_field f C ty⌝ -∗ ifields !! f ≡ Some (Next (interp_car (rec (subst_ty σC ty) σi))))%I.
 
-  Lemma interp_fields_env σi0 σi1 σ ftys (rec: ty_interpO):
-    (∀ s ty σf, ftys !! s = Some (ty, σf) → rec (subst_ty σ (subst_ty σf ty)) σi0 ≡ rec (subst_ty σ (subst_ty σf ty)) σi1) →
-    σi0 ≡ σi1 →
-    interp_fields σi0 σ ftys rec ≡ interp_fields σi1 σ ftys rec.
-  Proof.
-    rewrite /interp_fields => hrec henv.
-    induction ftys as [| s [ty σf] ftys Hs IH] using map_ind; first by constructor.
-    apply map_fmap_equiv_ext => x [ty' σf'] htx /=.
-    eapply hrec.
-    by apply htx.
-  Qed.
-
-  Global Instance interp_fields_contractive σ ftys σi: Contractive (interp_fields σi σ ftys).
-  Proof.
-    rewrite /interp_fields => n i1 i2 hdist.
-    apply gmap_fmap_ne_ext => k ty hin.
-    f_contractive; simpl.
-    apply interp_car_ne2.
-    by f_equiv.
-  Qed.
-
-  Global Instance interp_fields_ne ftys σ (rec: ty_interpO):
-    NonExpansive (λ σi, interp_fields σi σ ftys rec).
-  Proof.
-    rewrite /interp_fields => n l1 l2 h f.
-    f_equiv.
-    apply gmap_fmap_ne_ext => k ty hin.
-    f_equiv.
-    by apply ty_interpO_ne.
-  Qed.
-
-  Definition interp_class C (σi: list (interp Σ)) (rec : ty_interpO) : interp Σ :=
+  Definition interp_class C σC (σi: list (interp Σ)) (rec : ty_interpO) : interp Σ :=
     Interp (
       λ (w : value),
-      (∃ ℓ t σ (fields:stringmap (lang_ty * list lang_ty)),
+      (∃ ℓ t (fields: stringmap lang_ty) (ifields: gmapO string (laterO (sem_typeO Σ))),
       ⌜w = LocV ℓ ∧ inherits t C ∧ has_fields t fields⌝ ∗
-      (ℓ ↦ (t , σ, interp_fields σi σ fields rec)))%I
+      interp_fields σi C σC fields ifields rec ∗
+      (ℓ ↦ (t, ifields)))%I
     ).
 
-  Definition interp_ex (cname: tag) (rec: ty_interpO): interp Σ :=
-    Interp (λ (w: value), (∃ σi, interp_class cname σi rec w)%I).
+  Definition interp_ex σi (cname: tag) (rec: ty_interpO): interp Σ :=
+    Interp (λ (w: value), (∃ σc, interp_class cname σc σi rec w)%I).
 
-  Definition interp_nonnull (rec : ty_interpO) : interp Σ :=
+  Definition interp_nonnull σi (rec : ty_interpO) : interp Σ :=
     Interp (
       λ (v : value),
       ((interp_int v) ∨
       (interp_bool v) ∨
-      (∃ t σi, interp_class t σi rec v))%I
+      (∃ t σt, interp_class t σt σi rec v))%I
     ).
 
-  Definition interp_mixed (rec: ty_interpO) : interp Σ :=
-    Interp (λ (v: value), (interp_nonnull rec v ∨ interp_null v)%I).
+  Definition interp_mixed σi (rec: ty_interpO) : interp Σ :=
+    Interp (λ (v: value), (interp_nonnull σi rec v ∨ interp_null v)%I).
 
   Definition interp_generic (σi: list (interpO Σ)) (tv: nat) : interp Σ :=
     default interp_nothing (σi !! tv).
@@ -182,44 +156,42 @@ Section proofs.
       | IntT => interp_int
       | BoolT => interp_bool
       | NothingT => interp_nothing
-      | MixedT => interp_mixed rec
-      | ClassT A _ =>
-          interp_class A σi rec
+      | MixedT => interp_mixed σi rec
+      | ClassT A σA => interp_class A σA σi rec
       | NullT => interp_null
-      | NonNullT => interp_nonnull rec
+      | NonNullT => interp_nonnull σi rec
       | UnionT A B => interp_union (go A) (go B)
       | InterT A B => interp_inter (go A) (go B)
       | GenT n => interp_generic σi n
-      | ExT cname => interp_ex cname rec
+      | ExT cname => interp_ex σi cname rec
       end.
   End interp_type_pre_rec.
 
-  Global Instance interp_class_ne cname (rec: ty_interpO) :
-    NonExpansive (λ σi, interp_class cname σi rec).
+  Global Instance interp_class_ne cname σc (rec: ty_interpO) :
+    NonExpansive (λ σi, interp_class cname σc σi rec).
   Proof.
     move => n x y h.
     rewrite /interp_class => v.
     rewrite /interp_fun !interp_car_simpl.
-    do 7 f_equiv.
-    rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
-    do 6 f_equiv.
-    by apply interp_fields_ne.
+    do 9 f_equiv.
+    rewrite /interp_fields.
+    do 10 f_equiv.
+    by apply ty_interpO_ne.
   Qed.
 
   Local Instance go_ne (rec: ty_interpO) (ty: lang_ty) :
     NonExpansive (λ σi, go σi rec ty).
   Proof.
     induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i | cname ] => //= n x y h.
+    - rewrite /interp_mixed => v.
+      rewrite /interp_fun !interp_car_simpl.
+      do 7 f_equiv.
+      by apply interp_class_ne.
     - by apply interp_class_ne.
-      (* rewrite Forall_forall in hi. *)
-      (* induction σ as [ | hd σ hσ] => //=. *)
-      (* f_equiv. *)
-      (* { apply hi; last done. *)
-      (*   by constructor. *)
-      (* } *)
-      (* apply hσ => ? hIn. *)
-      (* apply hi. *)
-      (* now constructor. *)
+    - rewrite /interp_nonnull => v.
+      rewrite /interp_fun !interp_car_simpl.
+      do 6 f_equiv.
+      by apply interp_class_ne.
     - rewrite /interp_union => v.
       rewrite /interp_fun !interp_car_simpl.
       f_equiv.
@@ -237,6 +209,10 @@ Section proofs.
       case: i hi => [ | i ] hi //=.
       apply:  hi; first done.
       by lia.
+    - rewrite /interp_ex => v.
+      rewrite /interp_fun !interp_car_simpl.
+      do 3 f_equiv.
+      by apply interp_class_ne.
   Qed.
 
   (* TODO: find a better name for go *)
@@ -247,22 +223,24 @@ Section proofs.
     ∀ t σi v, Persistent (interp_type_pre rec t σi v).
   Proof. by move => ???; apply _. Qed.
 
-
-  Global Instance interp_class_contractive cname σi:
-    Contractive (interp_class cname σi). 
+  Global Instance interp_class_contractive cname σc σi:
+    Contractive (interp_class cname σc σi). 
   Proof.
     rewrite /interp_class => n i1 i2 hdist v.
     rewrite /interp_fun !interp_car_simpl.
     f_equiv ; intro l.
     f_equiv; intro t.
     f_equiv; intro fields.
-    f_equiv.
-    rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
-    do 6 f_equiv.
-    by f_contractive.
+    f_equiv; intro ifields.
+    do 2 f_equiv.
+    rewrite /interp_fields.
+    do 8 f_equiv.
+    f_contractive.
+    apply interp_car_ne2.
+    by f_equiv.
   Qed.
 
-  Global Instance interp_nonnull_contractive : Contractive interp_nonnull.
+  Global Instance interp_nonnull_contractive σi: Contractive (interp_nonnull σi).
   Proof.
     rewrite /interp_nonnull => n i1 i2 hdist v.
     rewrite /interp_fun !interp_car_simpl.
@@ -284,17 +262,6 @@ Section proofs.
       f_equiv.
       revert v; by apply interp_nonnull_contractive.
     - by apply interp_class_contractive.
-      (* transitivity (interp_class cname (map (go σi rec2) σ) rec1 v). *)
-      (* + revert v; apply interp_class_ne. *)
-      (*   (1* copied from _ne proof *1) *)  
-      (*   rewrite Forall_forall in hi. *)
-      (*   induction σ as [ | hd σ hσ] => //=. *)
-      (*   f_equiv. *)
-      (*   { apply hi.  by constructor. } *)
-      (*   apply hσ => ? hIn. *)
-      (*   apply hi. *)
-      (*   now constructor. *)
-      (* + revert v; by apply interp_class_contractive. *)
     - by apply interp_nonnull_contractive.
     - solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
@@ -312,7 +279,7 @@ Section proofs.
   Record interp_env := InterpEnv {
     interp_env_car :> list (interpO Σ);
     interp_env_as_mixed:
-      Forall (λ (e: interp Σ), ∀ v, e v -∗ interp_mixed interp_type v) interp_env_car
+      Forall (λ (e: interp Σ), ∀ v, e v -∗ interp_mixed interp_env_car interp_type v) interp_env_car
   }.
 
   Definition interp_env_empty : interp_env := InterpEnv [] (Forall_nil_2 _).
@@ -334,8 +301,7 @@ Section proofs.
 
   Lemma interp_class_unfold σi A σA v:
     interp_type (ClassT A σA) σi v ⊣⊢
-    (* interp_class A (map (go σi interp_type) σA) interp_type v. *)
-    interp_class A σi interp_type v.
+    interp_class A σA σi interp_type v.
   Proof. by rewrite interp_type_unfold. Qed.
 
   Lemma interp_union_unfold σi A B v:
@@ -373,15 +339,15 @@ Section proofs.
     interp_type ty σi0 v ≡ interp_type ty σi1 v.
   Proof.  by intros H; rewrite H. Qed.
 
-  Lemma interp_fields_env_ext σi0 σi1 σ ftys:
-    σi0 ≡ σi1 →
-    interp_fields σi0 σ ftys interp_type ≡ interp_fields σi0 σ ftys interp_type.
-  Proof.
-    move => henv.
-    apply interp_fields_env; last done.
-    move => s ty σf hin v.
-    by rewrite interp_type_env_ext.
-  Qed.
+  (* Lemma interp_fields_env_ext σi0 σi1 σ ftys: *)
+  (*   σi0 ≡ σi1 → *)
+  (*   interp_fields σi0 σ ftys interp_type ≡ interp_fields σi0 σ ftys interp_type. *)
+  (* Proof. *)
+  (*   move => henv. *)
+  (*   apply interp_fields_env; last done. *)
+  (*   move => s ty σf hin v. *)
+  (*   by rewrite interp_type_env_ext. *)
+  (* Qed. *)
 
   Lemma interp_type_map_go fty σi targs v:
     interp_type fty (map (go σi interp_type) targs) v ⊣⊢
@@ -496,9 +462,9 @@ Section proofs.
     by apply _.
   Qed.
 
-  Lemma dom_interp_fields σi σ fields:
-    dom stringset (interp_fields σi σ fields interp_type) ≡ dom _ fields.
-  Proof. by rewrite /interp_fields dom_fmap. Qed.
+  (* Lemma dom_interp_fields σi σ fields: *)
+  (*   dom stringset (interp_fields σi σ fields interp_type) ≡ dom _ fields. *)
+  (* Proof. by rewrite /interp_fields dom_fmap. Qed. *)
 
   (*
   Lemma inherits_is_inclusion:
@@ -534,31 +500,42 @@ Section proofs.
   Qed.
 
   Lemma extends_using_is_inclusion:
+    map_Forall (λ _cname, wf_cdef_fields) Δ →
     ∀ A B σB, extends_using A B σB →
     ∀ σi v σA, interp_type (ClassT A σA) σi v -∗
     interp_type (ClassT B (subst_ty σA <$> σB)) σi v.
   Proof.
-    move => A B σB hext σi v σA.
+    move => hwf A B σB hext σi v σA.
     rewrite !interp_type_unfold /=.
     iIntros "h".
-    iDestruct "h" as (ℓ t σ fields) "[%h hsem]".
+    iDestruct "h" as (ℓ t fields ifields) "[%h hsem]".
     destruct h as [-> [hin hfields]].
-    iExists ℓ, t, σ, fields. 
+    rewrite /interp_fields.
+    iDestruct "hsem" as "[[%hdom hsem] hl]".
+    iExists ℓ, t, fields, ifields. 
     iSplit.
     { iPureIntro; split; first done.
       split; last done.
       by eapply inherits_extends_using.
     }
-    done.
+    iSplit; last done.
+    iSplit; first by iPureIntro.
+    iIntros (f ty) "%hf".
+    assert (hfield: has_field f A (subst_ty σB ty)) by (eapply has_field_extends_using => //).
+    iSpecialize ("hsem" $! f (subst_ty σB ty) hfield).
+    iRewrite "hsem".
+    by rewrite subst_ty_subst.
   Qed.
 
   (* A <: B → ΦA ⊂ ΦB *)
   Theorem subtype_is_inclusion_aux:
+    map_Forall (λ _cname, wf_cdef_fields) Δ →
     ∀ (A B: lang_ty), A <: B →
     ∀ (env: interp_env) v,
     interp_type_pre interp_type A env v -∗
     interp_type_pre interp_type B env v.
   Proof.
+    move => hwf.
     induction 1 as [A | A σA B σB hext | | | | A | A B| A B | A B C h0 hi0 h1 hi1
         | A B | A B | A B C h0 hi0 h1 hi1 | A | A B C h0 hi0 h1 hi1 | cname targs ];
     move => env v.
@@ -570,8 +547,7 @@ Section proofs.
       + move => cname targs _ v.
         iIntros "h".
         iLeft; iRight; iRight.
-        iExists cname, env.
-        done.
+        by iExists cname, targs.
       + move => v; iIntros "h"; by iRight.
       + move => v; by iIntros "h"; iLeft.
       + move => s t hs ht v.
@@ -631,27 +607,29 @@ Section proofs.
   Qed.
 
   Theorem subtype_is_inclusion:
+    map_Forall (λ _cname, wf_cdef_fields) Δ →
     ∀ A B, A <: B →
     ∀ (env: interp_env),
     ∀ v, interp_type A env v -∗ interp_type B env v.
   Proof.
-    move => A B hAB env v.
+    move => hwf A B hAB env v.
     rewrite !interp_type_unfold.
     by iApply subtype_is_inclusion_aux.
   Qed.
 
   Definition interp_local_tys
-    env (lty : local_tys) (le : local_env) : iProp Σ :=
+    σi (lty : local_tys) (le : local_env) : iProp Σ :=
     (∀ v ty, ⌜lty !! v = Some ty⌝ -∗
-    ∃ val, ⌜le !! v = Some val⌝ ∗ interp_type ty env val)%I.
+    ∃ val, ⌜le !! v = Some val⌝ ∗ interp_type ty σi val)%I.
 
-  Lemma interp_local_tys_is_inclusion (env: interp_env)  lty rty le:
-    Forall (λ (i: interp Σ), ∀ v, Persistent (i v)) env →
+  Lemma interp_local_tys_is_inclusion (σi: interp_env)  lty rty le:
+    map_Forall (λ _cname, wf_cdef_fields) Δ →
+    Forall (λ (i: interp Σ), ∀ v, Persistent (i v)) σi →
     lty <:< rty →
-    interp_local_tys env lty le -∗
-    interp_local_tys env rty le.
+    interp_local_tys σi lty le -∗
+    interp_local_tys σi rty le.
   Proof.
-    move => hpers hsub; iIntros "Hle" (v ty) "%Hv".
+    move => hwf hpers hsub; iIntros "Hle" (v ty) "%Hv".
     apply hsub in Hv as (B & hB & hsubB).
     iDestruct ("Hle" $! v B hB) as (val) "[%Hv' #H]".
     iExists val; iSplitR; first done.
