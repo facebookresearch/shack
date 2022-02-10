@@ -788,7 +788,6 @@ Section ProgDef.
         has_field fld t fty →
         expr_has_ty lty rhs (subst_ty σ fty) →
         cmd_has_ty lty (SetC recv fld rhs) lty
-        (*
     | NewTy: ∀ lty lhs t targs args fields (*cdef*),
         (* Δ !! t = Some cdef → *)
         (* length targs = cdef.(generics) → (1* check constraints *1) *)
@@ -799,6 +798,7 @@ Section ProgDef.
         args !! f = Some arg →
         expr_has_ty lty arg (subst_ty targs fty)) →
         cmd_has_ty lty (NewC lhs t args) (<[lhs := ClassT t targs]>lty)
+        (*
     | CallTy: ∀ lty lhs recv t targs name mdef args (*cdef*),
         (* Δ !! t = Some cdef → *)
         (* length targs = cdef.(generics) → *)

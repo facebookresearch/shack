@@ -133,7 +133,7 @@ Section proofs.
       λ (v : value),
       ((interp_int v) ∨
       (interp_bool v) ∨
-      (∃ t σt, interp_class t σt σi rec v))%I
+      (∃ t, interp_ex σi t rec v))%I
     ).
 
   Definition interp_mixed σi (rec: ty_interpO) : interp Σ :=
@@ -167,7 +167,7 @@ Section proofs.
       end.
   End interp_type_pre_rec.
 
-  Global Instance interp_class_ne cname σc (rec: ty_interpO) :
+  Local Instance interp_class_ne cname σc (rec: ty_interpO) :
     NonExpansive (λ σi, interp_class cname σc σi rec).
   Proof.
     move => n x y h.
@@ -179,19 +179,36 @@ Section proofs.
     by apply ty_interpO_ne.
   Qed.
 
+  Local Instance interp_ex_ne cname (rec: ty_interpO) :
+    NonExpansive (λ σi, interp_ex σi cname rec).
+  Proof.
+    move => n x y h.
+    rewrite /interp_ex => v.
+    rewrite /interp_fun !interp_car_simpl.
+    do 3 f_equiv.
+    by apply interp_class_ne.
+  Qed.
+
+  Local Instance interp_nonnull_ne (rec: ty_interpO) :
+    NonExpansive (λ σi, interp_nonnull σi rec).
+  Proof.
+    move => n x y h.
+    rewrite /interp_nonnull => v.
+    rewrite /interp_fun !interp_car_simpl.
+    do 5 f_equiv.
+    by apply interp_ex_ne.
+  Qed.
+
   Local Instance go_ne (rec: ty_interpO) (ty: lang_ty) :
     NonExpansive (λ σi, go σi rec ty).
   Proof.
     induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i | cname ] => //= n x y h.
     - rewrite /interp_mixed => v.
       rewrite /interp_fun !interp_car_simpl.
-      do 7 f_equiv.
-      by apply interp_class_ne.
+      do 5 f_equiv.
+      by apply interp_ex_ne.
     - by apply interp_class_ne.
-    - rewrite /interp_nonnull => v.
-      rewrite /interp_fun !interp_car_simpl.
-      do 6 f_equiv.
-      by apply interp_class_ne.
+    - by apply interp_nonnull_ne.
     - rewrite /interp_union => v.
       rewrite /interp_fun !interp_car_simpl.
       f_equiv.
@@ -209,10 +226,7 @@ Section proofs.
       case: i hi => [ | i ] hi //=.
       apply:  hi; first done.
       by lia.
-    - rewrite /interp_ex => v.
-      rewrite /interp_fun !interp_car_simpl.
-      do 3 f_equiv.
-      by apply interp_class_ne.
+    - by apply interp_ex_ne.
   Qed.
 
   (* TODO: find a better name for go *)
@@ -240,13 +254,20 @@ Section proofs.
     by f_equiv.
   Qed.
 
+  Global Instance interp_ex_contractive σi cname: Contractive (interp_ex σi cname).
+  Proof.
+    rewrite /interp_ex => n i1 i2 hdist v.
+    rewrite /interp_fun !interp_car_simpl.
+    do 2 f_equiv.
+    by apply interp_class_contractive.
+  Qed.
+
   Global Instance interp_nonnull_contractive σi: Contractive (interp_nonnull σi).
   Proof.
     rewrite /interp_nonnull => n i1 i2 hdist v.
     rewrite /interp_fun !interp_car_simpl.
-    do 6 f_equiv.
-    revert v.
-    by apply interp_class_contractive.
+    do 4 f_equiv.
+    by apply interp_ex_contractive.
   Qed.
 
   (* we cannot use solve_contractive out of the box because of
@@ -265,10 +286,7 @@ Section proofs.
     - by apply interp_nonnull_contractive.
     - solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
-    - rewrite /interp_ex => v.
-      rewrite /interp_fun !interp_car_simpl.
-      do 2 f_equiv.
-      by revert v; apply interp_class_contractive.
+    - by apply interp_ex_contractive.
   Qed.
 
   (* the interpretation of types can now be
@@ -291,6 +309,7 @@ Section proofs.
     apply (fixpoint_unfold interp_type_pre ty σi v).
   Qed.
 
+  (* Not sure we need all that, trim later TODO *)
   Lemma interp_type_equiv (σi: list (interpO Σ)) (ty : lang_ty):
     interp_type ty σi ≡ interp_type_pre interp_type ty σi.
   Proof. by move => v; rewrite interp_type_unfold. Qed.
@@ -298,6 +317,19 @@ Section proofs.
   Lemma interp_generic_equiv σi n:
     interp_type (GenT n) σi ≡ interp_generic σi n.
   Proof. move => w; by rewrite interp_type_unfold. Qed.
+
+  Lemma interp_ex_unfold σi t v:
+    interp_type (ExT t) σi v ⊣⊢ interp_ex σi t interp_type v.
+  Proof. by rewrite interp_type_unfold /= /interp_ex /=. Qed.
+
+  Lemma interp_nonnull_unfold σi v:
+    interp_type NonNullT σi v ⊣⊢
+      (interp_int v) ∨ (interp_bool v) ∨ (∃ t, interp_ex σi t interp_type v)%I.
+  Proof. by rewrite interp_type_unfold /= /interp_nonnull /=. Qed.
+
+  Lemma interp_mixed_unfold σi v:
+    interp_type MixedT σi v ⊣⊢ interp_nonnull σi interp_type v ∨ interp_null v.
+  Proof. by rewrite interp_type_unfold /interp_mixed /=. Qed.
 
   Lemma interp_class_unfold σi A σA v:
     interp_type (ClassT A σA) σi v ⊣⊢
