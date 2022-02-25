@@ -13,6 +13,7 @@ From iris.algebra.lib Require Import gmap_view.
 From shack Require Import lang heap modality interp adequacy.
 
 (* TODO: we don't have void atm so I'm using null ;) *)
+
 (* Definition of class Box<T>:
  * class Box<T> {
  *   T $data;
@@ -594,6 +595,9 @@ Proof.
         by constructor.
 Qed.
 
+(* Director level theorem: every execution that should produce an int
+ * actually produces an int.
+ *)
 Theorem int_adequacy cmd st lty n:
   cmd_eval (∅, ∅) cmd st n →
   cmd_has_ty ∅ cmd lty →

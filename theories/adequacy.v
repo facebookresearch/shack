@@ -33,26 +33,6 @@ Section proofs.
     ∀ f (iF: sem_typeO Σ),
     iFs !! f ≡ Some (Next iF) -∗ ∃ v, (⌜vs !! f = Some v⌝ ∗ ▷iF v).
 
-  Lemma heap_models_fields_ext_L: ∀ iFs iFs' vs,
-    iFs ≡ iFs' -∗ heap_models_fields iFs vs -∗ heap_models_fields iFs' vs.
-  Proof.
-    move => iFs iFs' vs.
-    iIntros "heq h".
-    rewrite /heap_models_fields.
-    iDestruct "h" as "[%hdom h]".
-    iSplit.
-    { rewrite gmap_equivI.
-      fold_leibniz.
-      rewrite set_eq hdom.
-      iIntros (s).
-      rewrite !elem_of_dom.
-      by iRewrite ("heq" $! s).
-    }
-    iIntros (f iF) "hiF".
-    iApply "h".
-    by iRewrite "heq".
-  Qed.
-
   Definition heap_models (h : heap) : iProp Σ :=
     ∃ (sh: gmap loc (prodO tagO (gmapO string (laterO (sem_typeO Σ))))),
     own γ (gmap_view_auth (DfracOwn 1) sh) ∗ ⌜dom (gset loc) sh = dom _ h⌝ ∗
@@ -127,45 +107,6 @@ Section proofs.
     iDestruct "H" as %[[<- <-]|[??]].
     - iExists _. rewrite lookup_insert. by iSplit.
     - rewrite lookup_insert_ne; last done. by iApply "Hi".
-  Qed.
-
-  Lemma interp_local_tys_weaken_ty (σi: interp_env) v A B lty lty' le:
-    map_Forall (λ _cname, wf_cdef_fields) Δ →
-    map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    lty !! v = Some A →
-    lty' !! v = Some B →
-    (∀ w, v ≠ w → lty !! w = lty' !! w) →
-    A <: B →
-    interp_local_tys σi lty le -∗
-    interp_local_tys σi lty' le.
-  Proof.
-    move => ??? hin1 hin2 hs hAB; iIntros "H".
-    rewrite /interp_local_tys.
-    iIntros (w ty) "%Hin".
-    destruct (decide (v = w)) as [<- | hne].
-    - rewrite hin2 in Hin; case: Hin => <-.
-      iSpecialize ("H" $! v A).
-      iDestruct ("H" with "[//]") as (val) "[%Hin #h]".
-      iExists val; iSplitR; first done.
-      by iApply subtype_is_inclusion.
-    - iSpecialize ("H" $! w ty).
-      rewrite -hs in Hin => //.
-      iDestruct ("H" with "[//]") as (val) "[%Hin' #h]".
-      iExists val; by iSplitR.
-  Qed.
-
-  Lemma interp_local_tys_subset_eq σi lty lty' le:
-    lty' ⊆ lty →
-    interp_local_tys σi lty le -∗
-    interp_local_tys σi lty' le.
-  Proof.
-    move => hs; iIntros "H" (w ty) "%Hle".
-    iSpecialize ("H" $! w ty).
-    rewrite (lookup_weaken _ _ w ty Hle hs).
-    iDestruct ("H" with "[//]") as (val) "[%hw H]".
-    iExists val.
-    by rewrite hw; iSplit.
   Qed.
 
   Lemma interp_local_tys_list (σi:interp_env) lty le targs args vargs:
@@ -342,7 +283,7 @@ Section proofs.
       + iApply expr_adequacy => //; by apply wfΔ.
     - (* NewC *) inv hc.
       iIntros "[Hh #Hle]"; simpl.
-      (* we need one modality to emantic heap *)
+      (* we need one modality to semantic heap *)
       iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
       assert (hnew: sh !! new = None).
       { apply (not_elem_of_dom (D:=gset loc)).
@@ -427,7 +368,6 @@ Section proofs.
       iDestruct (expr_adequacy _ a0 with "Hle") as "#Ha0" => //; by apply wfΔ.
     - (* CallC *) inv hc; simpl.
       destruct wfΔ.
-    
       (* Get inherits relation between dynamic tag and static tag *)
       iIntros "[Hh #Hle]".
       iDestruct (expr_adequacy _ recv with "Hle") as "#Hrecv" => //.
@@ -441,20 +381,17 @@ Section proofs.
       rewrite option_equivI prod_equivI /=.
       iDestruct "HΦ" as "[%Ht HΦ]".
       fold_leibniz; subst.
-
+      (* both static and dynamic classes actually exists in Δ *)
       assert (ht1: is_Some (Δ !! t1)).
       { apply has_method_from_def in H7 as (? & ? & ? & ? & _ & [? [hin ?]]) => //.
         by apply inherits_using_wf in hin as (? & ? & ht1 & _).
       }
-
       assert (ht : is_Some (Δ !! t)).
       { apply inherits_using_wf in hσin => //.
         by destruct hσin as (? & ? & _ & -> & _).
       }
       destruct ht as [ def ht ].
-
       destruct ht1 as [ def1 ht1 ].
-
       (* Get method inclusion information between mdef0 and mdef *)
       destruct (has_method_ordered _ _ _ _ _ _ _ _
         wf_extends_wf wf_override wf_parent wf_methods_bounded
@@ -462,27 +399,19 @@ Section proofs.
       as (σmin & σot1 & σot & odef0 & odef & omdef0 & omdef &
          hσeq & ho1 & ho & hom1 & hom & hino & hin1 & hin &
          _ & ? & heq0 & heq1 & hincl0 & hincl1).
-
-      (* Getting body/ret of static method is well typed *)
-      (* assert (hrecv' := hrecv). *)
-      (* apply has_method_wt with (name0 := name) (orig1 := orig) (mdef1 := mdef) in hrecv' => //. *)
-      (* destruct hrecv' as [rty [hbody hret]]. *)
-
       (* Get location of the definition of the dynamic method mdef0 *)
       destruct (has_method_from_def _ _ _ _  wf_parent wf_methods_bounded H7) as
         (odef0' & mdef0_orig & ho0 & hm0 & hmorig0 & [σ0 [hin0 ->]]).
       rewrite ho0 in ho1; injection ho1; intros; subst; clear ho1.
       rewrite subst_mdef_body in H11.
       rewrite subst_mdef_ret in H12.
-
       (* Get some type info about dynamic method mdef0 *)
       assert (hwf0 := hin0).
       eapply wf_mdef_ty_inherits in hwf0 => //; last first.
       { apply wf_mdefs in ho0.
         by apply ho0 in hm0.
       }
-      
-      (* Random helpers *)
+      (* Random helpers statements *)
       assert (bounded (length σ0) (methodrettype mdef0_orig)).
       { assert (ho0' := ho0).
         apply wf_methods_bounded in ho0'.
@@ -518,14 +447,14 @@ Section proofs.
       { inv hwfσt.
         by simplify_eq.
       }
-
       assert (Forall wf_ty σt) by (by apply wf_ty_class_inv in hwfσt).
       assert (hwfot1: Forall wf_ty σot1).
       { apply inherits_using_wf in hin1 => //.
         by repeat destruct hin1 as [? hin1].
       }
-
-      (* add runtime type args into the mix *)
+      (* specialize the typing judgement of the method by adding the
+       * runtime type substitution.
+       *)
       assert (hwf1: wf_mdef_ty (ClassT t1 σt) (subst_ty σt <$> σ0) mdef0_orig).
       { destruct hwf0 as [rty0 [hbody0 hret0]].
         exists (subst_ty σt <$> rty0); split; last first.
@@ -552,11 +481,10 @@ Section proofs.
             by apply hargs in hk.
       }
       destruct hwf1 as [rty1 [hbody1 hret1]].
-
+      (* manual clean up *)
       rewrite hm0 in hom1; injection hom1; intros; subst; clear hom1.
       replace σ0 with σot1 in *; last by eapply inherits_using_fun.
       clear hin0.
-
       assert (wfbody:
         map_Forall (λ _ : string, wf_ty)
           (<["$this":=ClassT t1 σt]> (subst_ty (subst_ty σt <$> σot1) <$> methodargs omdef0))
@@ -577,7 +505,7 @@ Section proofs.
           apply ho0' in hm0.
           by apply hm0 in hx.
       }
-      (* Use the induction hypothesis *)
+      (* Time ot use the induction hypothesis *)
       iModIntro; iNext.
       iSpecialize ("IH" $! _ _ _ wfbody hbody1 σi _ _ _ H11); simpl.
       iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
@@ -782,6 +710,9 @@ End proofs.
 
 Print Assumptions cmd_adequacy.
 
+(* Critical lemma to generate the initial iris state and boot strap
+ * all the reasoning.
+ *)
 Lemma sem_heap_init
   `{PDC: ProgDefContext}
   `{!sem_heapGpreS Σ}:

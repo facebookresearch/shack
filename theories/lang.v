@@ -11,9 +11,6 @@ From iris.proofmode Require Import tactics.
 (* Helper tactics *)
 Ltac inv H := inversion H; subst; clear H.
 
-(* GLOBAL TODO: remove some rewrite map_Forall_lookup that might not be
- * necessary *)
-
 Definition tag := string.
 
 Local Instance tag_equiv : Equiv tag := fun s0 s1 => String.eqb s0 s1 = true.
@@ -90,7 +87,9 @@ Section nested_ind.
     end.
 End nested_ind.
 
-(* Not used yet *)
+(* A type is bounded by n if any generic that might be
+ * present in it is < n
+ *)
 Inductive bounded (n: nat) : lang_ty → Prop :=
   | ClassIsBounded cname targs :
       Forall (bounded n) targs → bounded n (ClassT cname targs)
@@ -111,7 +110,7 @@ Inductive bounded (n: nat) : lang_ty → Prop :=
 
 Global Hint Constructors bounded : core.
 
-(* Generics must be always bound *)
+(* To be used with `bounded`: Generics must be always bound *)
 Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
   match ty with
   | ClassT cname cargs => ClassT cname (subst_ty targs <$> cargs)
@@ -120,27 +119,6 @@ Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
   | GenT n => default ty (targs !! n)
   | ExT _ | IntT | BoolT | NothingT | MixedT | NullT | NonNullT => ty
   end.
-
-Lemma subst_ty_nil ty : subst_ty [] ty = ty.
-Proof.
-  induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | n | cname ] => //=.
-  - rewrite Forall_forall in hi.
-    f_equal.
-    induction targs as [ | hd tl hi2] => //=.
-    f_equal.
-    + apply hi; by constructor.
-    + apply hi2 => h hin.
-      apply hi; by constructor.
-  - by rewrite hs ht.
-  - by rewrite hs ht.
-Qed.
-
-Lemma fmap_subst_ty_nil (σ: stringmap lang_ty): subst_ty [] <$> σ = σ.
-Proof.
-  induction σ as [| s ty ftys Hs IH] using map_ind; first by rewrite fmap_empty.
-  by rewrite fmap_insert subst_ty_nil IH.
-Qed.
 
 Lemma subst_ty_subst ty l k:
   bounded (length k) ty →
@@ -274,13 +252,6 @@ Proof. by []. Qed.
 Lemma subst_mdef_ret mdef σ: methodret (subst_mdef σ mdef) = methodret mdef.
 Proof. by []. Qed.
 
-Lemma subst_mdef_nil mdef : subst_mdef [] mdef = mdef.
-Proof.
- rewrite /subst_mdef fmap_subst_ty_nil subst_ty_nil.
- by case mdef.
-Qed.
-
-(* Wf defintions on the source *)
 Definition mdef_bounded n mdef : Prop :=
   map_Forall (λ _argname, bounded n) mdef.(methodargs) ∧ bounded n mdef.(methodrettype).
 
@@ -327,18 +298,8 @@ Proof.
   by rewrite /gen_targs list_lookup_fmap lookup_seq_lt.
 Qed.
 
-Lemma lookup_gen_targs_ge :
-  ∀ n pos, pos ≥ n → gen_targs n !! pos = None.
-Proof.
-  move => n pos h.
-  by rewrite /gen_targs list_lookup_fmap lookup_seq_ge.
-Qed.
-
 Lemma length_gen_targs n : length (gen_targs n) = n.
 Proof. by rewrite /gen_targs map_length seq_length. Qed.
-
-Corollary gen_targs_O : gen_targs 0 = [].
-Proof. done. Qed.
 
 Lemma subst_ty_id n ty:
   bounded n ty →
@@ -410,7 +371,7 @@ Proof.
     by elim hk.
 Qed.
 
-Lemma subst_mdef_gen_targs_is_bounded n mdef :
+Lemma subst_mdef_gen_targs n mdef :
   mdef_bounded n mdef →
   subst_mdef (gen_targs n) mdef = mdef.
 Proof.
@@ -439,10 +400,13 @@ Qed.
 Class ProgDefContext := { Δ : stringmap classDef }.
 
 Section ProgDef.
-
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
 
+  (* A type is well-formed w.r.t. Δ if all classes are
+   * defined in Δ, substitution applied to classes have the
+   * correct length, and they are all made of well-formed types.
+   *)
   Inductive wf_ty : lang_ty → Prop :=
     | WfInt : wf_ty IntT
     | WfBool : wf_ty BoolT
@@ -515,6 +479,12 @@ Section ProgDef.
     by constructor.
   Qed.
 
+  (* A class definition 'parent' information is valid
+   * if the parent class actually exists, and the subsitution is:
+   * - of the right length (must capture all generics of the parent class)
+   * - bounded by the current class (must only mention generics of the current class)
+   * - be well-formed.
+   *)
   Definition wf_cdef_parent (prog: stringmap classDef) cdef : Prop :=
     match cdef.(superclass) with
     | None => True
@@ -556,17 +526,7 @@ Section ProgDef.
     destruct H as (pdef & h & hlen & hσ & hf).
     by exists cdef, pdef.
   Qed.
-    
-  Inductive extends: tag → tag → Prop :=
-    | Extends A B cdef σB:
-        Δ !! A = Some cdef →
-        cdef.(superclass) = Some (B, σB) →
-        extends A B.
-
-  Hint Constructors extends : core.
-
-  Definition inherits := rtc extends.
-
+   
   Inductive inherits_using : tag → tag → list lang_ty → Prop :=
     | InheritsRefl A adef:
         Δ !! A = Some adef →
@@ -644,12 +604,26 @@ Section ProgDef.
       by rewrite hlen0.
   Qed.
 
+  (* Stripped version of extends_using/inherits_using, mostly for
+   * evaluation when we don't care about the generics.
+   *) 
+  Inductive extends: tag → tag → Prop :=
+    | Extends A B cdef σB:
+        Δ !! A = Some cdef →
+        cdef.(superclass) = Some (B, σB) →
+        extends A B.
+
+  Hint Constructors extends : core.
+  Definition inherits := rtc extends.
+
   (* Our class inheritance tree/forest doesn't have cycles. Which means
    * inherits A B → inherits B A → A = B.
    *)
   Definition wf_no_cycle (prog: stringmap classDef) :=
-    ∀ A B σ σ', inherits_using A B σ → inherits_using B A σ' → A = B ∧σ = σ'.
+    ∀ A B σ σ', inherits_using A B σ → inherits_using B A σ' → A = B ∧ σ = σ'.
 
+  (* if A inherits B and A inherits C,
+   * then either B inherits C or C inherits B *)
   Lemma inherits_using_chain A B σ:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     inherits_using A B σ →
@@ -782,39 +756,9 @@ Section ProgDef.
         apply hi in H2; by subst.
   Qed.
 
-  Lemma inherits_to_using A B:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    is_Some (Δ !! A) →
-    inherits A B → ∃ σ, inherits_using A B σ.
-  Proof.
-    move => /map_Forall_lookup hp h.
-    induction 1 as [ x | s t u hst htu hi ].
-    - destruct h as [ xdef h ].
-      exists (gen_targs xdef.(generics)); by constructor.
-    - inv hst.
-      assert (ht: is_Some (Δ !! t)).
-      {
-        apply hp in H.
-        rewrite /wf_cdef_parent H0 in H.
-        by destruct H as [tdef [-> _]].
-      }
-      apply hi in ht as [σ ht].
-      exists (subst_ty σB <$> σ).
-      eapply InheritsTrans; last done.
-      by econstructor.
-  Qed.
-
-  Lemma inherits_erase A B σ: inherits_using A B σ → inherits A B.
-  Proof.
-    induction 1 as [ A adef | A B σ hext | A B σ C σC hext h hi ] => //.
-    - inv hext.
-      econstructor; last done.
-      by econstructor.
-    - econstructor; last done.
-      inv hext.
-      by econstructor.
-  Qed.
-
+  (* Type well-formdness is mostly introduced to be able to define
+   * subtyping rule correctly, like unions.
+   *)
   Inductive subtype : lang_ty → lang_ty → Prop :=
     | SubMixed : ∀ ty, subtype ty MixedT
     | SubClass : ∀ A σA B σB adef,
@@ -898,7 +842,7 @@ Section ProgDef.
     - econstructor; by eauto.
   Qed.
 
-  (* Derived rules *)
+  (* Sanity checks: Some derived rules *)
   Lemma subtype_union_comm : ∀ A B,
     wf_ty A → wf_ty B →
     (UnionT A B) <: (UnionT B A).
@@ -927,6 +871,7 @@ Section ProgDef.
     (InterT (InterT A B) C) <: (InterT A (InterT B C)).
   Proof. by eauto. Qed.
 
+  (* Generalized version of SubClass to any inheritance sequence *)
   Lemma subtype_inherits_using A B σ σA adef:
     map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
     Δ !! A = Some adef →
@@ -951,8 +896,10 @@ Section ProgDef.
       by rewrite map_length.
   Qed.
 
+  (* Typing contexts *)
   Definition local_tys := stringmap lang_ty.
 
+  (* Subtype / Inclusion of typing contexts *)
   Definition lty_sub (lty rty: local_tys) :=
     ∀ k A, rty !! k = Some A → ∃ B, lty !! k = Some B ∧ B <: A.
 
@@ -1011,21 +958,10 @@ Section ProgDef.
     by apply subtype_subst.
   Qed.
 
-  (* Not sure it is useful *)
-  Lemma lty_sub_wf lty rty:
-    map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
-    lty <:< rty →
-    map_Forall (λ _, wf_ty) lty →
-    map_Forall (λ _, wf_ty) rty.
-  Proof.
-    move => hp.
-    rewrite !map_Forall_lookup => hsub h k ty hk.
-    apply hsub in hk.
-    destruct hk as [ty' [ hk hsub']].
-    apply subtype_wf with ty' => //.
-    by apply h in hk.
-  Qed.
-
+  (* has_field f C fty means that class C defines or inherits a field f
+   * of type fty. The type is substituted accordingly so it can be
+   * interpreted in C directly.
+   *)
   Inductive has_field (fname: string) : tag -> lang_ty → Prop :=
     | HasField tag cdef typ:
         Δ !! tag = Some cdef →
@@ -1041,6 +977,7 @@ Section ProgDef.
 
   Hint Constructors has_field : core.
 
+  (* has_field is a functional relation *)
   Lemma has_field_fun fname A typ:
     has_field fname A typ →
     ∀ typ', has_field fname A typ' →
@@ -1055,8 +992,9 @@ Section ProgDef.
         by rewrite (hi _ H2).
   Qed.
 
-  (* A class cannot redeclare a field if it is present in
+  (* A class cannot redeclare a field if it is already present in
    * any of its parent definition.
+   * (No field override)
    *)
   Definition wf_cdef_fields cdef : Prop :=
     ∀ f fty super inst,
@@ -1064,9 +1002,11 @@ Section ProgDef.
     has_field f super fty →
     cdef.(classfields) !! f = None.
 
+  (* All field types in a class must be bounded by the class generics *)
   Definition wf_cdef_fields_bounded cdef : Prop :=
     map_Forall (λ _fname, bounded cdef.(generics)) cdef.(classfields).
 
+  (* All field types in a class must be well-formed *)
   Definition wf_cdef_fields_wf cdef : Prop :=
     map_Forall (λ _fname, wf_ty) cdef.(classfields). 
 
@@ -1087,6 +1027,9 @@ Section ProgDef.
       by destruct hΔ as (pdef & ? & ? & htargs & _).
   Qed.
 
+  (* If a class has a field f, then any subclass will inherit it,
+   * with the right substituted type.
+   *)
   Lemma has_field_extends_using f B typ:
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     has_field f B typ →
@@ -1121,6 +1064,7 @@ Section ProgDef.
       by eapply bounded_subst.
   Qed.
 
+  (* like has_field_extends_using, for any chain of inheritance. *)
   Lemma has_field_inherits_using f B typ:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, wf_cdef_fields) Δ →
@@ -1147,8 +1091,17 @@ Section ProgDef.
       by rewrite h.
   Qed.
 
-  (* Method look returning a instantiated method def and the
-   * tag where the method was defined.
+  (* Helper predicate to collect all fields of a given class, as a map *)
+  Definition has_fields A (fields: stringmap lang_ty) : Prop :=
+    ∀ fname typ, has_field fname A typ ↔ fields !! fname = Some typ.
+
+  (* has_method m C orig mdef means that class C inherits a method m,
+   * described by the methodDef mdef.
+   *
+   * The method is declared in class orig (which can be C).
+   * mdef is substituted accordingly to be interpreted in the class C.
+   * 
+   * Note that we do support method override (see mdef_incl below).
    *)
   Inductive has_method (mname: string) : tag → tag → methodDef → Prop :=
     | HasMethod tag cdef mdef:
@@ -1165,10 +1118,14 @@ Section ProgDef.
 
   Hint Constructors has_method : code.
 
+  (* a method is well-formed if the type of all its arguments, and its
+   * return type are well-formed.
+   *)
   Definition mdef_wf mdef : Prop :=
     map_Forall (λ _mname, wf_ty) mdef.(methodargs) ∧
     wf_ty mdef.(methodrettype).
 
+  (* all method of a class are well-formed *)
   Definition wf_cdef_methods_wf cdef : Prop :=
     map_Forall (λ _mname, mdef_wf) cdef.(classmethods).
 
@@ -1255,10 +1212,7 @@ Section ProgDef.
     by eapply hargs.
   Qed.
 
-
-  Definition has_fields A (fields: stringmap lang_ty) : Prop :=
-    ∀ fname typ, has_field fname A typ ↔ fields !! fname = Some typ.
-
+  (* has_method is a functional relation *)
   Lemma has_method_fun: ∀ A name mdef0 mdef1 orig0 orig1,
     has_method name A orig0 mdef0 → has_method name A orig1 mdef1 →
     orig0 = orig1 ∧ mdef0 = mdef1.
@@ -1273,6 +1227,7 @@ Section ProgDef.
         apply hi in H2 as []; by subst.
   Qed.
 
+  (* any redeclared method must correctly override its parent methods *)
   Definition wf_method_override (prog: stringmap classDef) :=
     ∀ A B adef bdef m σ mA mB,
     prog !! A = Some adef →
@@ -1282,6 +1237,12 @@ Section ProgDef.
     bdef.(classmethods) !! m = Some mB →
     mdef_incl mA (subst_mdef σ mB).
 
+  (* Helper lemma that gives all the relevant info from a has_method
+   * statement:
+   * - the class where it was originall defined
+   * - the substitutions needed to interpret it in A, or in its original
+   *   location.
+   *)
   Lemma has_method_from_def A m orig mdef:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, cdef_methods_bounded) Δ →
@@ -1296,7 +1257,7 @@ Section ProgDef.
     induction 1 as [ A adef mdef hΔ hm | A parent orig σ cdef mdef hΔ hm hs h hi ].
     - exists adef, mdef; repeat split => //; first by econstructor.
       exists (gen_targs adef.(generics)); split; first by constructor.
-      rewrite subst_mdef_gen_targs_is_bounded //.
+      rewrite subst_mdef_gen_targs //.
       apply hmb in hΔ.
       by apply hΔ in hm.
     - destruct hi as (odef & omdef & ho & hom & hdef & [σo [hin ->]]).
@@ -1314,6 +1275,9 @@ Section ProgDef.
       by rewrite hlen.
   Qed.
 
+  (* Helper lemma: If A inherits a method m from class orig, and
+   * A <: B <: orig, then B must also inherits method m from orig.
+   *)
   Lemma has_method_below_orig A m orig mdef:
     wf_no_cycle Δ →
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
@@ -1333,7 +1297,7 @@ Section ProgDef.
       apply inherits_using_refl in hAB as [ ? [? ->]] => // ; simplify_eq.
       exists cdef, mdef, mdef; repeat split => //.
       + by econstructor.
-      + rewrite subst_mdef_gen_targs_is_bounded //.
+      + rewrite subst_mdef_gen_targs //.
         rewrite map_Forall_lookup in hb.
         apply hb in hΔ.
         by apply hΔ in hm.
@@ -1364,6 +1328,11 @@ Section ProgDef.
         by exists odef, mdefo, (subst_mdef σB mdefo).
   Qed.
 
+  (* Key lemma for adequacy of method call:
+   * if A <: B and they both have a method m (from resp. origA, origB), then
+   * the origins must be ordered in the same way, meaning origA <: origB.
+   * This implies some relations on all the inheritance substitution.
+   *)
   Lemma has_method_ordered A B σ m origA mdefA origB mdefB:
     wf_no_cycle Δ →
     wf_method_override Δ →
@@ -1565,7 +1534,7 @@ Section ProgDef.
         expr_has_ty lty rhs (subst_ty σ fty) →
         cmd_has_ty lty (SetC recv fld rhs) lty
     | NewTy: ∀ lty lhs t targs args fields (*cdef*),
-        wf_ty (ClassT t targs) → (* TODO: discuss *)
+        wf_ty (ClassT t targs) →
         has_fields t fields →
         dom (gset string) fields = dom _ args →
         (∀ f fty arg,
@@ -1573,9 +1542,7 @@ Section ProgDef.
         args !! f = Some arg →
         expr_has_ty lty arg (subst_ty targs fty)) →
         cmd_has_ty lty (NewC lhs t args) (<[lhs := ClassT t targs]>lty)
-    | CallTy: ∀ lty lhs recv t targs name orig mdef args (*cdef*),
-        (* Δ !! t = Some cdef → *)
-        (* length targs = cdef.(generics) → *)
+    | CallTy: ∀ lty lhs recv t targs name orig mdef args,
         expr_has_ty lty recv (ClassT t targs) →
         has_method name t orig mdef →
         dom (gset string) mdef.(methodargs) = dom _ args →
@@ -1765,48 +1732,9 @@ Section ProgDef.
         by apply hwf0 in hin.
   Qed.
 
-  Definition subst_local_tys targs (lty: local_tys) : local_tys :=
-    (subst_ty targs) <$> lty.
-
-  Lemma dom_subst_local_tys targs lty :
-    dom stringset (subst_local_tys targs lty) = dom _ lty.
-  Proof. by rewrite /subst_local_tys dom_fmap_L. Qed.
-
-  Lemma lookup_subst_local_tys targs lty k:
-    (subst_local_tys targs lty) !! k = subst_ty targs <$> lty !! k.
-  Proof. by rewrite /subst_local_tys lookup_fmap. Qed.
-
-  Lemma lookup_subst_local_tys_Some targs lty k ty:
-    (subst_local_tys targs lty) !! k = Some ty →
-    ∃ ty', lty !! k = Some ty' ∧ ty = subst_ty targs ty'.
-  Proof.
-    rewrite lookup_subst_local_tys.
-    destruct (lty !! k) as [ ty' | ] eqn:h => //=.
-    case => <-.
-    by exists ty'.
-  Qed.
-
-  Lemma insert_subst_local_tys targs lhs ty lty:
-    subst_local_tys targs (<[lhs:=ty]> lty) =
-    <[lhs := subst_ty targs ty]>(subst_local_tys targs lty).
-  Proof. by rewrite /subst_local_tys fmap_insert. Qed.
-
-  Lemma subst_local_tys_gen_targs_is_bounded n lty:
-    map_Forall (λ _ ty, bounded n ty) lty →
-    subst_local_tys (gen_targs n) lty = lty.
-  Proof.
-    move => h.
-    apply map_eq => k.
-    rewrite lookup_subst_local_tys.
-    rewrite map_Forall_lookup in h.
-    destruct (lty !! k) as [ty | ] eqn:hty => //=.
-    rewrite hty.
-    apply h in hty.
-    by rewrite subst_ty_id.
-  Qed.
-
   (* Consider a class C<T0, ..., Tn>,
-     method bodies are checked under a generic env = [| T0, .., Tn |]
+   * method bodies must be well-formed under a generic substitution mapping
+   * Ti -> Ti.
    *)
   Definition wf_mdef_ty this σ mdef :=
     ∃ rty,
@@ -1819,6 +1747,11 @@ Section ProgDef.
     map_Forall (λ _mname mdef, wf_mdef_ty (ClassT cname σ) σ mdef) cdef.(classmethods)
   .
 
+  (* Collection of all program invariant (at the source level):
+   * - no cycle (we have a forest)
+   * - every type is well-formed/bounded
+   * - every substitution's domain/codomain is valid
+   *)
   Record wf_cdefs (prog: stringmap classDef) := {
     wf_extends_wf : wf_no_cycle prog;
     wf_parent : map_Forall (λ _cname, wf_cdef_parent prog) prog;
@@ -2004,61 +1937,6 @@ Section ProgDef.
       by apply hmdef_orig.
   Qed.
           
-  Lemma has_method_wt lty recv t σ name orig mdef:
-    map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
-    map_Forall (λ _ : string, wf_cdef_fields_wf) Δ →
-    map_Forall (λ _ : string, wf_cdef_fields_bounded) Δ →
-    map_Forall (λ _ : string, cdef_methods_bounded) Δ →
-    map_Forall (λ _cname, wf_cdef_methods_wf) Δ →
-    map_Forall cdef_wf_mdef_ty Δ →
-    map_Forall (λ _ : string, wf_ty) lty →
-    expr_has_ty lty recv (ClassT t σ) →
-    has_method name t orig mdef →
-    ∃ rty,
-    cmd_has_ty (<["$this" := ClassT t σ]>(subst_ty σ <$> mdef.(methodargs))) mdef.(methodbody) rty ∧
-    expr_has_ty rty mdef.(methodret) (subst_ty σ mdef.(methodrettype)).
-  Proof.
-    move => hp hfwf hfb hmb hmwf hwf hlty hrecv hhm.
-    assert (hhm' := hhm).
-    apply has_method_from_def in hhm' => //.
-    destruct hhm' as (odef & omdef & hodef & homdef & hm & [σ0 [hin ->]]).
-    assert (hdef: is_Some (Δ !! t)).
-    { apply inherits_using_wf in hin => //.
-      by destruct hin as (? & ? & -> & _).
-    }
-    destruct hdef as [def hdef].
-    destruct (wf_mdef_ty_inherits t orig σ0 name omdef orig odef def) as [rty [hbody hret]] => //.
-    { apply hwf in hodef.
-      by apply hodef in homdef.
-    }
-    apply expr_has_ty_wf in hrecv => //.
-    exists (subst_ty σ <$> rty); split.
-    - replace (ClassT t σ) with (subst_ty σ (ClassT t (gen_targs def.(generics)))); last first.
-      { rewrite /= subst_ty_gen_targs //.
-        inv hrecv.
-        by simplify_eq.
-      }
-      rewrite -fmap_insert.
-      apply wf_ty_class_inv in hrecv.
-      apply cmd_has_ty_subst => //.
-      rewrite map_Forall_lookup => x tx.
-      rewrite lookup_insert_Some.
-      case => [[? <-]|[? ]].
-      * econstructor => //; first by rewrite length_gen_targs.
-        by apply gen_targs_wf.
-      * rewrite /subst_mdef /= lookup_fmap_Some.
-        case => [ty [<- hx]].
-        apply wf_ty_subst.
-        { apply inherits_using_wf in hin => //.
-          by repeat destruct hin as [? hin].
-        }
-        apply hmwf in hodef.
-        apply hodef in homdef.
-        by apply homdef in hx.
-    - apply expr_has_ty_subst => //.
-      by apply wf_ty_class_inv in hrecv.
-  Qed.
-
   (* Big step reduction *)
   Definition primop_eval (op: primop) : Z → Z → value :=
     match op with
@@ -2173,8 +2051,8 @@ Section ProgDef.
     | LetEv: ∀ le h v e val,
         expr_eval le e = Some val →
         cmd_eval (le, h) (LetC v e) (<[v := val]> le, h) 0
-    (* targs are not stored in the heap: erased generics *)
     | NewEv: ∀ le h lhs new t args vargs,
+        (* targs are not stored in the heap: erased generics *)
         h !! new = None →
         map_args (expr_eval le) args = Some vargs →
         cmd_eval (le, h) (NewC lhs t args) (<[lhs := LocV new]>le, <[new := (t, vargs)]>h) 1

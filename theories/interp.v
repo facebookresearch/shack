@@ -80,6 +80,12 @@ Section proofs.
   Local Notation "lty <:< rty" := (@lty_sub _ lty rty) (at level 70, no associativity).
 
   (* now, let's interpret some types ! *)
+
+  (* Most interpretation functions are parametrized by σi: tvar -> interp.
+   * This environment is here to interpret generic types.
+   * We could only consider closed types and eagerly apply all top level
+   * substitution, but this way makes things a bit more compositional.
+   *)
   Definition interp_null : interp Σ :=
     Interp (λ(v: value), ⌜v = NullV⌝%I).
 
@@ -121,6 +127,9 @@ Section proofs.
       λ (w : value),
       (∃ ℓ t σ σt (fields: stringmap lang_ty) (ifields: gmapO string (laterO (sem_typeO Σ))),
       ⌜w = LocV ℓ ∧ inherits_using t C σ ∧ wf_ty (ClassT t σt) ∧ σC = subst_ty σt <$> σ ∧ has_fields t fields⌝ ∗
+      (* TODO: do we need both statements. The first one must imply the second
+       * one.
+       *)
       interp_fields σi t σt fields ifields rec ∗
       interp_fields σi C σC fields ifields rec ∗
       (ℓ ↦ (t, ifields)))%I
@@ -308,21 +317,13 @@ Section proofs.
 
   Definition interp_env_empty : interp_env := InterpEnv [] (Forall_nil_2 _).
 
+  (* Helper lemmas to control unfolding of some definitions *)
   Lemma interp_type_unfold (σi: list (interpO Σ)) (ty : lang_ty) (v : value) :
     interp_type ty σi v ⊣⊢ interp_type_pre interp_type ty σi v.
   Proof.
     rewrite {1}/interp_type.
     apply (fixpoint_unfold interp_type_pre ty σi v).
   Qed.
-
-  (* Not sure we need all that, trim later TODO *)
-  Lemma interp_type_equiv (σi: list (interpO Σ)) (ty : lang_ty):
-    interp_type ty σi ≡ interp_type_pre interp_type ty σi.
-  Proof. by move => v; rewrite interp_type_unfold. Qed.
-
-  Lemma interp_generic_equiv σi n:
-    interp_type (GenT n) σi ≡ interp_generic σi n.
-  Proof. move => w; by rewrite interp_type_unfold. Qed.
 
   Lemma interp_ex_unfold σi t v:
     interp_type (ExT t) σi v ⊣⊢ interp_ex σi t interp_type v.
@@ -364,123 +365,6 @@ Section proofs.
     - rewrite !interp_type_unfold; by iSplit.
   Qed.
 
-  Lemma interp_type_go σi ty :
-    go σi interp_type ty ≡ interp_type ty σi.
-  Proof.
-    move => v.
-    rewrite interp_type_unfold /=.
-    by elim: ty.
-  Qed.
-
-  Lemma interp_type_env_ext σi0 σi1 ty v:
-    σi0 ≡ σi1 →
-    interp_type ty σi0 v ≡ interp_type ty σi1 v.
-  Proof.  by intros H; rewrite H. Qed.
-
-  Lemma interp_type_map_go fty σi targs v:
-    interp_type fty (map (go σi interp_type) targs) v ⊣⊢
-    interp_type fty (map (λ ty : lang_ty, interp_type ty σi) targs) v.
-  Proof.
-    apply interp_type_env_ext.
-    apply list_fmap_equiv_ext => ty.
-    by apply interp_type_go.
-  Qed.
-
-  (* MOVE TO HELPER FILE / STDPP *)
-  Section fmap.
-    Context {A B : Type} (f : A → B).
-    Implicit Types l : list A.
-    Lemma list_fmap_equiv_ext_in `{!Equiv B} (g : A → B) l :
-      (∀ x, x ∈ l → f x ≡ g x) → f <$> l ≡ g <$> l.
-    Proof.
-      induction l as [ | hd tl hi] => h //=; first by constructor.
-      constructor.
-      - apply h; by constructor.
-      - apply hi => x hx; apply h; by constructor.
-    Qed.
-  End fmap.
-
-  Lemma interp_generic_bound n σi :
-    n < length σi →
-    ∃ i, σi !! n = Some i ∧  interp_type (GenT n) σi ≡ i.
-  Proof.
-    move => henv.
-    apply lookup_lt_is_Some_2 in henv.
-    destruct henv as [i hi]; exists i; split; first done.
-    move => w; by rewrite interp_type_unfold /= /interp_generic hi.
-  Qed.
-
-  (*
-  Lemma interp_type_subst fty fargs env:
-    interp_type fty (map (λ ty : lang_ty, interp_type ty env) fargs) ≡
-    interp_type (subst_ty fargs fty) env.
-  Proof.
-    move => w.
-    rewrite !interp_type_unfold.
-    revert w.
-    induction fty as [ | | | | cname targs htargs | | | A B hA hB | A B hA hB | n | cname ] => //= w.
-    - rewrite map_map.
-      rewrite Forall_forall in htargs.
-      iStartProof; iSplit; iIntros "H".
-      + iDestruct "H" as (l t fields) "[%H Hl]".
-        destruct H as [-> [hin hfs]].
-        iExists l, t, fields; iSplitR; first done.
-        iApply mapsto_proper; last done.
-        apply interp_fields_env; last first.
-        {
-          apply list_fmap_equiv_ext_in => ty hty.
-          rewrite !interp_type_go.
-          move => w.
-          by rewrite !interp_type_unfold htargs.
-        }
-        move => s ty hty w.
-        rewrite interp_type_map_go.
-        apply interp_type_env_ext.
-        apply list_fmap_equiv_ext_in => x hx v.
-        by rewrite interp_type_go !interp_type_unfold htargs.
-      + iDestruct "H" as (l t fields) "[%H Hl]".
-        destruct H as [-> [hin hfs]].
-        iExists l, t, fields; iSplitR; first done.
-        iApply mapsto_proper; last done.
-        apply interp_fields_env; last first.
-        { apply list_fmap_equiv_ext_in => ty hty.
-          rewrite !interp_type_go.
-          move => w.
-          by rewrite !interp_type_unfold htargs.
-        }
-        move => s ty hty w.
-        rewrite interp_type_map_go.
-        apply interp_type_env_ext.
-        apply list_fmap_equiv_ext_in => x hx v.
-        by rewrite interp_type_go !interp_type_unfold htargs.
-    - iStartProof; iSplit; iIntros "[H | H]".
-      + iLeft.
-        by iApply hA.
-      + iRight.
-        by iApply hB.
-      + iLeft.
-        by iApply hA.
-      + iRight.
-        by iApply hB.
-    - iStartProof; iSplit; iIntros "[HL HR]".
-      + iSplit; first by iApply hA.
-        by iApply hB.
-      + iSplit; first by iApply hA.
-        by iApply hB.
-    - destruct (decide (n < length (map (λ ty, interp_type ty env) fargs))) as [hlt | hge]. 
-      + assert (hlt2: n < length fargs) by now rewrite map_length in hlt.
-        apply interp_generic_bound in hlt as [i [hin hi]].
-        rewrite interp_generic_unfold in hi.
-        rewrite hi.
-        apply lookup_lt_is_Some_2 in hlt2 as [ty hty].
-        by rewrite hty -hi /interp_generic list_lookup_fmap hty /= interp_type_go.
-      + rewrite map_length in hge.
-        rewrite /interp_generic !lookup_ge_None_2 /= => //; last by apply not_lt.
-        rewrite map_length.
-        by apply not_lt.
-  Qed.
-   *)
-
   (* #hyp *)
   Global Instance interp_type_persistent :
     ∀ t σi v, Persistent (interp_type t σi v).
@@ -490,6 +374,9 @@ Section proofs.
     by apply _.
   Qed.
 
+  (* if class A<..> extends B<σB>, then for any valid substitution σA,
+   * [| A<σA> |] ⊆ [| B<σA o σB> |]
+   *)
   Lemma extends_using_is_inclusion:
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
@@ -540,7 +427,7 @@ Section proofs.
       by rewrite hlen.
   Qed.
 
-  (* A <: B → ΦA ⊂ ΦB *)
+  (* Main meat for A <: B → [|A|] ⊆ [|B|] *)
   Theorem subtype_is_inclusion_aux:
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
@@ -621,6 +508,7 @@ Section proofs.
       by iApply hi0.
   Qed.
 
+  (* A <: B → [|A|] ⊆ [|B|] *)
   Theorem subtype_is_inclusion:
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
@@ -634,6 +522,9 @@ Section proofs.
     by iApply subtype_is_inclusion_aux.
   Qed.
 
+  (* Specialized version for existential types. Will help during the
+   * proof of adequacy for runtime checks.
+   *)
   Theorem inherits_is_ex_inclusion:
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
@@ -677,29 +568,5 @@ Section proofs.
     iDestruct ("Hle" $! v B hB) as (val) "[%Hv' #H]".
     iExists val; iSplitR; first done.
     by iApply subtype_is_inclusion.
-  Qed.
-
-  Lemma inherits_using_interp_fields A σA B σB σi fields ifields:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    map_Forall (λ _cname, wf_cdef_fields) Δ →
-    map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
-    inherits_using A B σB →
-    interp_fields σi A σA fields ifields interp_type -∗
-    interp_fields σi B (subst_ty σA <$> σB) fields ifields interp_type.
-  Proof.
-    move => hp hfs hfsb hin.
-    rewrite /interp_fields.
-    iIntros "[%hdom h]".
-    iSplit; first done.
-    iIntros (f ty hf).
-    destruct (has_field_bounded _ _ _ hp hfsb hf) as (bdef & hbdef & hb).
-    apply has_field_inherits_using with (A0 := A) (σB0 := σB) in hf => //.
-    iSpecialize ("h" $! f (subst_ty σB ty) hf).
-    iRewrite "h".
-    rewrite subst_ty_subst => //.
-    apply inherits_using_wf in hin => //.
-    destruct hin as (? & ? & ? & ? & ? & h & _).
-    simplify_eq.
-    by rewrite h.
   Qed.
 End proofs.
