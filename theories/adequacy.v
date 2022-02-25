@@ -146,6 +146,9 @@ Section proofs.
   Qed.
 
   Lemma heap_models_update h l rt vs σi t σt f fty v:
+    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _cname, wf_cdef_fields) Δ →
+    map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
     h !! l = Some (rt, vs) →
     has_field f t fty →
     interp_type (ClassT t σt) σi (LocV l) -∗
@@ -153,13 +156,13 @@ Section proofs.
     heap_models h -∗
     heap_models (<[l:=(rt, <[f:=v]> vs)]> h).
   Proof.
-    move => hheap hfield.
+    move => ?? hfb hheap hfield.
     iIntros "#hrecv #hv hmodels".
     iDestruct "hmodels" as (sh) "[hown [%hdom #h]]".
     iExists sh.
     rewrite interp_class_unfold.
-    iDestruct "hrecv" as (l' t' σ' σt' fields ifields) "[%H [hsem_d [hsem_s hl]]]".
-    iDestruct "hsem_s" as "[%hdomf #hifields]".
+    iDestruct "hrecv" as (l' t' σ' σt' fields ifields) "[%H [hsem hl]]".
+    iDestruct "hsem" as "[%hdomf #hifields]".
     destruct H as [[= <-] [ hinherits' [hwfσ' [hσ' hfields]]]].
     iDestruct (sem_heap_own_valid_2 with "hown hl") as "#Hv".
     iSplitL; first by iFrame.
@@ -178,7 +181,8 @@ Section proofs.
       rewrite !option_equivI prod_equivI /=.
       iDestruct "hsh" as "[%ht #hifs]".
       fold_leibniz; subst.
-      iSpecialize ("hifields" $! f fty hfield).
+      assert (hfield2 : has_field f rt (subst_ty σ' fty)) by (by eapply has_field_inherits_using).
+      iSpecialize ("hifields" $! f (subst_ty σ' fty) hfield2).
       iAssert (⌜is_Some (iFs !! f)⌝)%I as "%hsome".
       { iRewrite -"hifs".
         by iRewrite "hifields".
@@ -197,7 +201,14 @@ Section proofs.
           rewrite !option_equivI later_equivI discrete_fun_equivI.
           iNext.
           iSpecialize ("hf'" $! v).
-          by iRewrite -"hf'".
+          iRewrite -"hf'".
+          rewrite subst_ty_subst //.
+          apply has_field_bounded in hfield => //.
+          destruct hfield as (def & hdef & hfty).
+          apply inherits_using_wf in hinherits' => //.
+          destruct hinherits' as (? & ? & ? & ? & _ & hL & _).
+          simplify_eq.
+          by rewrite hL.
         * rewrite lookup_insert_ne //.
           by iApply "hmodfs".
     - iApply "h".
@@ -251,8 +262,8 @@ Section proofs.
       iModIntro. (* keep the later *)
       iDestruct (expr_adequacy with "Hle") as "#He" => //; try (by apply wfΔ).
       rewrite interp_class_unfold /=.
-      iDestruct "He" as (??????) "[%H [_ [#Hifields H◯]]]".
-      destruct H as [[= <-] [hinherits [_ hfields]]].
+      iDestruct "He" as (??????) "[%H [#Hifields H◯]]".
+      destruct H as [[= <-] [hinherits [_ [htargs hfields]]]].
       iAssert (heap_models h ∗ ▷ interp_type (subst_ty targs fty) σi v)%I with "[Hh]" as "[Hh Hv]".
       { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
         iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
@@ -262,12 +273,16 @@ Section proofs.
         iDestruct "HΦ" as "[%Ht HΦ]".
         fold_leibniz; subst.
         iSplitL. { iExists _. iFrame. by iSplit. }
+        iAssert (interp_fields σi t (subst_ty σt <$> σ) fields ifields interp_type) with "[Hifields]" as "Hifields_t".
+        { destruct wfΔ.
+          by iApply interp_fields_inclusion.
+        }
         rewrite /interp_fields.
-        iDestruct "Hifields" as "[%hdiom Hifields]".
-        iSpecialize ("Hifields" $! name fty hf).
+        iDestruct "Hifields_t" as "[%hdiom Hifields_t]".
+        iSpecialize ("Hifields_t" $! name fty hf).
         iDestruct "H▷" as "[%hdf h]".
-        iRewrite -"HΦ" in "Hifields".
-        iSpecialize ("h" $! name _ with "[Hifields]"); first done.
+        iRewrite -"HΦ" in "Hifields_t".
+        iSpecialize ("h" $! name _ with "[Hifields_t]"); first done.
         iDestruct "h" as (w) "[%hw hiw]".
         by simplify_eq.
       }
@@ -275,6 +290,8 @@ Section proofs.
       iFrame.
       by iApply interp_local_tys_update.
     - (* SetC *) inv hc.
+      assert (wfΔ' := wfΔ).
+      destruct wfΔ'.
       iClear "IH".
       iIntros "[Hh #Hle]" => /=.
       iSplitL; last done.
@@ -372,7 +389,7 @@ Section proofs.
       iIntros "[Hh #Hle]".
       iDestruct (expr_adequacy _ recv with "Hle") as "#Hrecv" => //.
       rewrite interp_class_unfold /=.
-      iDestruct "Hrecv" as (? ? σin σt fields ifields) "[%Hpure [hifields_d [hifields_s Hl]]]".
+      iDestruct "Hrecv" as (? ? σin σt fields ifields) "[%Hpure [hifields Hl]]".
       destruct Hpure as [[= <-] [hσin [hwfσt [htargs hfields]]]].
       iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
       iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
@@ -519,7 +536,6 @@ Section proofs.
               { iPureIntro; repeat split => //; first by econstructor.
                 by rewrite subst_ty_gen_targs.
               }
-              iSplit => //.
               by iSplit.
             + iApply interp_local_tys_list => //.
               * destruct hincl0 as [hdomincl _].
@@ -585,26 +601,29 @@ Section proofs.
       iIntros "[Hmodels Hle2]"; iFrame.
       iApply interp_local_tys_update; first by done.
       destruct hincl1 as [? [? hret]].
-      iApply subtype_is_inclusion.
-      + done.
-      + done.
-      + done.
-      + rewrite -subst_ty_subst; last first.
-        * apply inherits_using_wf in hin => //.
-          destruct hin as ( ? & ? & ? & ? & hF & hL & _).
-          apply inherits_using_wf in hσin => //.
-          destruct hσin as (? & ? & ? & ? & hF' & hL' & _).
-          simplify_eq.
-          apply bounded_subst with odef.(generics) => //; last by rewrite hL'.
-          assert (ho' := ho).
-          apply wf_methods_bounded in ho'.
-          apply ho' in hom.
-          by apply hom.
-        * apply subtype_subst; first done; last done.
-          by apply hret.
-      + iDestruct (expr_adequacy _ (methodret omdef0) with "Hle2") as "#Hret" => //.
-        iClear "hifields_d hifields_s".
-        by rewrite subst_ty_subst.
+      iDestruct (expr_adequacy _ (methodret omdef0) with "Hle2") as "#Hret" => //.
+      rewrite -subst_ty_subst; last first.
+      { assert (ho' := ho).
+        apply wf_methods_bounded in ho'.
+        apply ho' in hom.
+        by apply inherits_using_wf in hin.
+      }
+      rewrite -subst_ty_subst; last first.
+      { apply inherits_using_wf in hin => //.
+        destruct hin as ( ? & ? & ? & ? & hF & hL & _).
+        apply inherits_using_wf in hσin => //.
+        destruct hσin as (? & ? & ? & ? & hF' & hL' & _).
+        simplify_eq.
+        apply bounded_subst with odef.(generics) => //; last by rewrite hL'.
+        assert (ho' := ho).
+        apply wf_methods_bounded in ho'.
+        apply ho' in hom.
+        by apply hom.
+      }
+      assert (hsub: subst_ty σt (subst_ty σot1 (methodrettype omdef0)) <:
+                    subst_ty σt (subst_ty σin (subst_ty σot (methodrettype omdef))))
+        by (by apply subtype_subst).
+      by iApply subtype_is_inclusion.
     - (* Subtyping *) 
       destruct wfΔ.
       iIntros "H".
@@ -652,7 +671,7 @@ Section proofs.
       { iDestruct "Hint" as "%Hint"; by destruct Hint. }
       iDestruct "Hl" as "[Hbool | Hl]".
       { iDestruct "Hbool" as "%Hbool"; by destruct Hbool. }
-      iDestruct "Hl" as (exTag exσ k rt σ σt exfields ifields) "[%H [#Hfields_d [#hfields_s #Hl]]]".
+      iDestruct "Hl" as (exTag exσ k rt σ σt exfields ifields) "[%H [#Hfields #Hl]]".
       destruct H as [[= <-] [hinherits' [hwf' [ heq' hfields']]]].
       iAssert (⌜t' = rt⌝ ∗ heap_models st.2 ∗ interp_type (ExT rt) σi (LocV l))%I with "[H]" as "[%heq [Hh #Hv2]]".
       { iDestruct "H" as (sh) "(H● & %hdom & #Hh)".
@@ -677,8 +696,7 @@ Section proofs.
           * rewrite subst_ty_gen_targs //.
             inv hwf'.
             by simplify_eq.
-        + iSplit => //.
-          by iSplit.
+        + by iSplit.
       }
       subst.
       iFrame.

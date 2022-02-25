@@ -127,11 +127,7 @@ Section proofs.
       λ (w : value),
       (∃ ℓ t σ σt (fields: stringmap lang_ty) (ifields: gmapO string (laterO (sem_typeO Σ))),
       ⌜w = LocV ℓ ∧ inherits_using t C σ ∧ wf_ty (ClassT t σt) ∧ σC = subst_ty σt <$> σ ∧ has_fields t fields⌝ ∗
-      (* TODO: do we need both statements. The first one must imply the second
-       * one.
-       *)
       interp_fields σi t σt fields ifields rec ∗
-      interp_fields σi C σC fields ifields rec ∗
       (ℓ ↦ (t, ifields)))%I
     ).
 
@@ -185,11 +181,8 @@ Section proofs.
     rewrite /interp_fun !interp_car_simpl.
     do 13 f_equiv.
     rewrite /interp_fields.
-    f_equiv.
-    - do 9 f_equiv.
-      by apply ty_interpO_ne.
-    - do 10 f_equiv.
-      by apply ty_interpO_ne.
+    do 10 f_equiv.
+    by apply ty_interpO_ne.
   Qed.
 
   Local Instance interp_ex_ne cname (rec: ty_interpO) :
@@ -258,15 +251,10 @@ Section proofs.
     do 6 (f_equiv; intros ?).
     f_equiv.
     rewrite /interp_fields.
-    f_equiv.
-    - do 8 f_equiv.
-      f_contractive.
-      apply interp_car_ne2.
-      by f_equiv.
-    - do 9 f_equiv.
-      f_contractive.
-      apply interp_car_ne2.
-      by f_equiv.
+    do 9 f_equiv.
+    f_contractive.
+    apply interp_car_ne2.
+    by f_equiv.
   Qed.
 
   Global Instance interp_ex_contractive σi cname: Contractive (interp_ex σi cname).
@@ -388,11 +376,10 @@ Section proofs.
     move => hwf /map_Forall_lookup hwfb /map_Forall_lookup hwp A B σB hext σi v σA.
     rewrite !interp_type_unfold /=.
     iIntros "h".
-    iDestruct "h" as (ℓ t σ σt fields ifields) "[%h [hsem_d [hsem_s hl]]]".
+    iDestruct "h" as (ℓ t σ σt fields ifields) "[%h [hsem hl]]".
     destruct h as [-> [hin [hσwf [hσ hfields]]]].
     rewrite /interp_fields.
-    iDestruct "hsem_d" as "[%hdom hsem_d]".
-    iDestruct "hsem_s" as "[_ hsem_s]".
+    iDestruct "hsem" as "[%hdom hsem]".
     iExists ℓ, t, (subst_ty σ <$> σB), σt, fields, ifields. 
     iSplit.
     { iPureIntro; split; first done.
@@ -408,23 +395,10 @@ Section proofs.
       clear hdom; simplify_eq.
       by rewrite hL.
     }
-    iSplit.
-    - iSplit; first by iPureIntro.
-      iIntros (f ty) "%hf".
-      by iApply "hsem_d".
-    - iSplit; last done.
-      iSplit; first by iPureIntro.
-      iIntros (f ty) "%hf".
-      assert (hfield: has_field f A (subst_ty σB ty)) by (eapply has_field_extends_using => //).
-      iSpecialize ("hsem_s" $! f (subst_ty σB ty) hfield).
-      iRewrite "hsem_s".
-      rewrite subst_ty_subst //.
-      apply has_field_bounded in hf as [def [hΔB hb]] => //.
-      inv hext.
-      apply hwp in H.
-      rewrite /wf_cdef_parent H0 hΔB in H.
-      destruct H as (? & [= <-] & hlen & ?).
-      by rewrite hlen.
+    iSplit; last done.
+    iSplit; first by iPureIntro.
+    iIntros (f ty) "%hf".
+    by iApply "hsem".
   Qed.
 
   (* Main meat for A <: B → [|A|] ⊆ [|B|] *)
@@ -568,5 +542,30 @@ Section proofs.
     iDestruct ("Hle" $! v B hB) as (val) "[%Hv' #H]".
     iExists val; iSplitR; first done.
     by iApply subtype_is_inclusion.
+  Qed.
+
+  (* Helper to lift the conclusions of interp_class into a super class *)
+  Lemma interp_fields_inclusion σi t σt fields ifields σ C rec:
+    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _cname, wf_cdef_fields) Δ →
+    map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
+    inherits_using t C σ →
+    interp_fields σi t σt fields ifields rec -∗
+    interp_fields σi C (subst_ty σt <$> σ) fields ifields rec.
+  Proof.
+    move => ?? hb hin.
+    rewrite /interp_fields.
+    iIntros "[%hdom #H]".
+    iSplit; first done.
+    iIntros (f ty) "%hf".
+    assert (hfC: has_field f t (subst_ty σ ty)) by (by eapply has_field_inherits_using).
+    iSpecialize ("H" $! f (subst_ty σ ty) hfC).
+    rewrite subst_ty_subst //.
+    apply has_field_bounded in hf => //.
+    destruct hf as (def & hdef & hfty).
+    apply inherits_using_wf in hin => //.
+    destruct hin as (? & ? & ? & ? & _ & hL & _).
+    simplify_eq.
+    by rewrite hL.
   Qed.
 End proofs.
