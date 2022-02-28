@@ -412,7 +412,7 @@ Section proofs.
     interp_type_pre interp_type B env v.
   Proof.
     move => ? ? ?.
-    induction 1 as [A | A σA B σB adef hΔ hlen hext | | | | A | A B h
+    induction 1 as [A | A h | A σA B σB adef hΔ hlen hext | | | | A | A B h
       | A B h | A B C h0 hi0 h1 hi1 | A B | A B | A B C h0 hi0 h1 hi1
       | A | A B C h0 hi0 h1 hi1 ];
     move => env v.
@@ -454,6 +454,8 @@ Section proofs.
         iDestruct "hv" as (targs) "hv".
         iLeft; iRight; iRight.
         by iExists _, _.
+    - rewrite /=.
+      by iIntros "H".
     - by rewrite -!interp_type_unfold; iApply extends_using_is_inclusion.
     - by rewrite /= /interp_mixed.
     - iIntros "h"; by iLeft.

@@ -761,6 +761,7 @@ Section ProgDef.
    *)
   Inductive subtype : lang_ty → lang_ty → Prop :=
     | SubMixed : ∀ ty, subtype ty MixedT
+    | SubNothing : ∀ ty, wf_ty ty → subtype NothingT ty
     | SubClass : ∀ A σA B σB adef,
         Δ !! A = Some adef →
         length σA = adef.(generics) →
@@ -780,7 +781,6 @@ Section ProgDef.
     | SubRefl: ∀ s, subtype s s
     | SubTrans : ∀ s t u, subtype s t → subtype t u → subtype s u
   .
-  (* TODO: add Nothing <: t ? *)
 
   Hint Constructors subtype : core.
 
@@ -791,7 +791,7 @@ Section ProgDef.
     wf_ty A → A <: B → wf_ty B.
   Proof.
     move => hp hwf.
-    induction 1 as [ ty | A σA B σB adef hΔ hA hext | | | | A args | s t h
+    induction 1 as [ ty | ty h | A σA B σB adef hΔ hA hext | | | | A args | s t h
       | s t h | s t u hs his ht hit | s t | s t | s t u hs his ht hit | s
       | s t u hst hist htu hitu ] => //=; try (by constructor).
     - inv hext; simplify_eq.
@@ -823,9 +823,11 @@ Section ProgDef.
     (subst_ty σ A) <: (subst_ty σ B).
   Proof.
     move => hp.
-    induction 1 as [ ty | A σA B σB adef hΔ hA hext | | | | A args | s t h
+    induction 1 as [ ty | ty h | A σA B σB adef hΔ hA hext | | | | A args | s t h
       | s t h | s t u hs his ht hit | s t | s t | s t u hs his ht hit | s
       | s t u hst hist htu hitu ] => σ hσ //=.
+    - constructor.
+      by apply wf_ty_subst.
     - rewrite map_subst_ty_subst.
       + econstructor => //.
         by rewrite map_length.
