@@ -21,6 +21,10 @@ Definition sem_typeO (Σ : gFunctors) : ofe := value -d> iPropO Σ.
 
 Definition sem_typeOF (F: oFunctor) : oFunctor := value -d> F.
 
+(* The semantic heap is a map from locations to:
+ * - a runtime tag
+ * - the (gated by Next) interpretation of fields for this tag
+ *)
 Class sem_heapGpreS (Σ : gFunctors) : Set := {
   sem_heap :> inG Σ (gmap_viewR loc (prodO tagO (gmapO string (laterO (sem_typeO Σ)))));
 }.
@@ -66,23 +70,20 @@ Section sem_heap.
   Context `{hG: !sem_heapGS Σ}.
   Notation γ := sem_heap_name.
 
-	Lemma mapsto_contractive
-    (l: loc)
-    (t: tag)
-    (f: (lang_ty -d> sem_typeO Σ) → gmapO string (laterO (sem_typeO Σ )))
-    `{hf: Contractive f}:
-  Contractive (λ i, mapsto l t (f i)).
-  Proof.
-    move => n i1 i2 hdist.
-    rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
-    do 3 f_equiv.
-    by apply hf.
-  Qed.
-
   Global Instance mapsto_persistent l t iFs: Persistent (mapsto l t iFs).
   Proof.
     rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
     by apply _.
+  Qed.
+
+  Lemma mapsto_proper l t iFs0 iFs1 :
+    iFs0 ≡ iFs1 →
+    mapsto l t iFs0 ≡ mapsto l t iFs1.
+  Proof.
+    move => heq.
+    rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
+    rewrite gmap_view_frag_proper; first done.
+    by f_equiv.
   Qed.
 
   Lemma sem_heap_own_valid_2 sh l t iFs:
