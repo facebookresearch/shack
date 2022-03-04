@@ -156,7 +156,7 @@ Section proofs.
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
     map_Forall (λ _ : string, wf_cdef_fields_wf) Δ →
-    (* overkill, contra is enough for fields in this proof *)
+    (* Note: overkill, contra is enough for fields in this proof *)
     map_Forall (λ _cname, wf_field_mono) Δ →
     map_Forall (λ _ : string, wf_cdef_mono) Δ →
     h !! l = Some (rt, vs) →
@@ -262,7 +262,7 @@ Section proofs.
         lty lhs recv t targs name fty hrecv hf |
         lty recv fld rhs fty t σ hrecv hrhs hf |
         lty lhs t targs args fields hwf hf hdom harg |
-        lty lhs recv t targs name orig mdef args hrecv hfrom hdom hi |
+        lty lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
         lty c rty' rty hsub h hi |
         lty rty v tv t cmd hv hr h hi
       ] "IHty" forall (st st' n hc).
@@ -441,10 +441,19 @@ Section proofs.
       destruct wfΔ.
       (* Get inherits relation between dynamic tag and static tag *)
       iIntros "[Hh #Hle]".
+      (* make the script more resilient. Should provide a proper inversion
+       * lemma but this is the next best thing.
+       *)
+      rename H3 into heval_recv.
+      rename H4 into hmap.
+      rename H5 into hheap.
+      rename H7 into hhasm0.
+      rename H11 into heval_body.
+      rename H12 into heval_ret.
       iDestruct (expr_adequacy _ recv with "Hle") as "#Hrecv" => //.
       rewrite interp_class_unfold /=.
-      iDestruct "Hrecv" as (? ? def σin σt fields ifields) "[%Hpure [hifields Hl]]".
-      destruct Hpure as [[= <-] [hσin [hwfσt [hdef [htargs hfields]]]]].
+      iDestruct "Hrecv" as (? t1 def σin σt fields ifields) "[%Hpure [hifields Hl]]".
+      destruct Hpure as [[= <-] [hin_t1_t [hwf_t1_σt [hdef [htargs hfields]]]]].
       iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
       iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
       iDestruct ("Hh" with "[//]") as (?) "[H H▷]".
@@ -454,74 +463,77 @@ Section proofs.
       fold_leibniz; subst.
       (* both static and dynamic classes actually exists in Δ *)
       assert (ht1: is_Some (Δ !! t1)).
-      { apply has_method_from_def in H7 as (? & ? & ? & ? & _ & [? [hin ?]]) => //.
+      { apply has_method_from_def in hhasm0 as (? & ? & ? & ? & _ & [? [hin ?]]) => //.
         by apply inherits_using_wf in hin as (? & ? & ht1 & _).
       }
-      destruct ht1 as [ def1 ht1 ].
+      destruct ht1 as [ def1 hdef1 ].
       (* Get method inclusion information between mdef0 and mdef *)
       destruct (has_method_ordered _ _ _ _ _ _ _ _
         wf_extends_wf wf_override wf_parent wf_methods_bounded
-        hσin H7 hfrom)
-      as (σmin & σot1 & σot & odef0 & odef & omdef0 & omdef &
-         hσeq & ho1 & ho & hom1 & hom & hino & hin1 & hin &
-         _ & ? & heq0 & heq1 & hincl0 & hincl1).
+        hin_t1_t hhasm0 hhasm)
+      as (σoin & σot1 & σot & odef0 & odef & omdef0 & omdef &
+         hσeq & hodef0 & hodef & homdef0 & homdef & hin_o_o0 & hin_t1_o0 & hin_t_o &
+         _ & _ & -> & -> & hincl0 & hincl1).
       (* Get location of the definition of the dynamic method mdef0 *)
-      destruct (has_method_from_def _ _ _ _  wf_parent wf_methods_bounded H7) as
-        (odef0' & mdef0_orig & ho0 & hm0 & hmorig0 & [σ0 [hin0 ->]]).
-      rewrite ho0 in ho1; injection ho1; intros; subst; clear ho1.
-      rewrite subst_mdef_body in H11.
-      rewrite subst_mdef_ret in H12.
+      destruct (has_method_from_def _ _ _ _  wf_parent wf_methods_bounded hhasm0) as
+        (odef0' & mdef0_orig & hodef0' & hmdef0_orig & hhasm_morig0 & [σ0 [hin_t1_o0' heqmdef]]).
+      rewrite hodef0 in hodef0'; injection hodef0'; intros <-; clear hodef0'.
+      rewrite homdef0 in hmdef0_orig; injection hmdef0_orig; intros <-; clear hmdef0_orig.
+      replace σot1 with σ0 in *; last by eapply inherits_using_fun.
+      clear σot1 hin_t1_o0' heqmdef.
+      rewrite subst_mdef_body in heval_body.
+      rewrite subst_mdef_ret in heval_ret.
       (* Get some type info about dynamic method mdef0 *)
-      assert (hwf0 := hin0).
+      assert (hwf0 := hin_t1_o0).
       eapply wf_mdef_ty_inherits in hwf0 => //; last first.
-      { apply wf_mdefs in ho0.
-        by apply ho0 in hm0.
+      { apply wf_mdefs in hodef0.
+        by apply hodef0 in homdef0.
       }
       (* Random helpers statements *)
-      assert (bounded (length σ0) (methodrettype mdef0_orig)).
-      { assert (ho0' := ho0).
-        apply wf_methods_bounded in ho0'.
-        apply ho0' in hm0.
-        destruct hm0 as [_ hret].
-        apply inherits_using_wf in hin0 => //.
-        repeat destruct hin0 as [? hin0]; simplify_eq.
-        by rewrite H6.
+      assert (hb_ret0: bounded (length σ0) (methodrettype omdef0)).
+      { assert (h0 := hodef0).
+        apply wf_methods_bounded in h0.
+        apply h0 in homdef0.
+        destruct homdef0 as [_ hret].
+        apply inherits_using_wf in hin_t1_o0 => //.
+        destruct hin_t1_o0 as (? & ? & ? & ? & ? & hL &?); simplify_eq.
+        by rewrite hL.
       }
-      assert (hb0 : map_Forall (λ _ : string, bounded (length σ0)) (methodargs mdef0_orig)).
-      { assert (ho0' := ho0).
-        apply wf_methods_bounded in ho0'.
-        apply ho0' in hm0.
-        destruct hm0 as [hargs _].
+      assert (hb_a0 : map_Forall (λ _ : string, bounded (length σ0)) (methodargs omdef0)).
+      { assert (h0 := hodef0).
+        apply wf_methods_bounded in h0.
+        apply h0 in homdef0.
+        destruct homdef0 as [hargs _].
         rewrite map_Forall_lookup => k tk hk.
         apply hargs in hk.
-        apply inherits_using_wf in hin0 => //.
-        repeat destruct hin0 as [? hin0]; simplify_eq.
-        by rewrite H8.
+        apply inherits_using_wf in hin_t1_o0 => //.
+        destruct hin_t1_o0 as (? & ? & ? & ? & ? & hL &?); simplify_eq.
+        by rewrite hL.
       }
-      assert (hbo: map_Forall (λ _ : string, bounded (length σot)) (methodargs omdef)).
-      { assert (ho' := ho).
-        apply wf_methods_bounded in ho'.
-        apply ho' in hom.
-        destruct hom as [hargs _].
+      assert (hb_ao: map_Forall (λ _ : string, bounded (length σot)) (methodargs omdef)).
+      { assert (h0 := hodef).
+        apply wf_methods_bounded in h0.
+        apply h0 in homdef.
+        destruct homdef as [hargs _].
         rewrite map_Forall_lookup => k tk hk.
         apply hargs in hk.
-        apply inherits_using_wf in hin => //.
-        repeat destruct hin as [? hin]; simplify_eq.
-        by rewrite H8.
+        apply inherits_using_wf in hin_t_o => //.
+        destruct hin_t_o as (? & ? & ? & ? & ? & hL &?); simplify_eq.
+        by rewrite hL.
       }
-      assert (length σt = length (generics def1)).
-      { inv hwfσt.
+      assert (hl0: length σt = length (generics def1)).
+      { inv hwf_t1_σt.
         by simplify_eq.
       }
-      assert (Forall wf_ty σt) by (by apply wf_ty_class_inv in hwfσt).
-      assert (hwfot1: Forall wf_ty σot1).
-      { apply inherits_using_wf in hin1 => //.
-        by repeat destruct hin1 as [? hin1].
+      assert (hwf_σt: Forall wf_ty σt) by (by apply wf_ty_class_inv in hwf_t1_σt).
+      assert (hwfσot1: Forall wf_ty σ0).
+      { apply inherits_using_wf in hin_t1_o0 => //.
+        by repeat destruct hin_t1_o0 as [? hin_t1_o0].
       }
       (* specialize the typing judgement of the method by adding the
        * runtime type substitution.
        *)
-      assert (hwf1: wf_mdef_ty (ClassT t1 σt) (subst_ty σt <$> σ0) mdef0_orig).
+      assert (hwf1: wf_mdef_ty (ClassT t1 σt) (subst_ty σt <$> σ0) omdef0).
       { destruct hwf0 as [rty0 [wf0 [hbody0 hret0]]].
         exists (subst_ty σt <$> rty0); split; last split.
         + rewrite map_Forall_lookup => k ty.
@@ -543,65 +555,54 @@ Section proofs.
           * rewrite lookup_fmap_Some.
             case => [tx [<- hk]].
             apply wf_ty_subst.
-            { apply inherits_using_wf in hin0 => //.
-              by repeat destruct hin0 as [? hin0].
-            }
-            apply has_method_wf in hmorig0 as [hargs _] => //.
+            { by apply inherits_using_wf in hin_t1_o0. }
+            apply has_method_wf in hhasm_morig0 as [hargs _] => //.
             by apply hargs in hk.
         + rewrite -subst_ty_subst //.
           by apply expr_has_ty_subst.
       }
       destruct hwf1 as [rty1 [wf1 [hbody1 hret1]]].
       (* manual clean up *)
-      rewrite hm0 in hom1; injection hom1; intros; subst; clear hom1.
-      replace σ0 with σot1 in *; last by eapply inherits_using_fun.
-      clear hin0.
       assert (wfbody:
         map_Forall (λ _ : string, wf_ty)
-          (<["$this":=ClassT t1 σt]> (subst_ty (subst_ty σt <$> σot1) <$> methodargs omdef0))
+          (<["$this":=ClassT t1 σt]> (subst_ty (subst_ty σt <$> σ0) <$> methodargs omdef0))
       ).
       { rewrite map_Forall_lookup => x tx.
         rewrite lookup_insert_Some.
         case => [[? <-]|[?]] => //.
         rewrite lookup_fmap_Some.
         case => [tx' [ <- hx]].
-        apply wf_ty_subst.
-        - apply Forall_forall => tk hk.
-          apply elem_of_list_fmap_2 in hk as [tk2 [-> hk]].
-          apply wf_ty_subst => //.
-          rewrite Forall_forall in hwfot1.
-          by apply hwfot1 in hk.
-        - assert (ho0' := ho0).
-          apply wf_methods_wf in ho0'.
-          apply ho0' in hm0.
-          by apply hm0 in hx.
+        apply wf_ty_subst; first by apply wf_ty_subst_map.
+        assert (h0 := hodef0).
+        apply wf_methods_wf in h0.
+        apply h0 in homdef0.
+        by apply homdef0 in hx.
       }
-      assert (Forall wf_ty σin).
-      { apply inherits_using_wf in hσin => //.
-        by repeat destruct hσin as [? hσin].
+      assert (hwf_σin: Forall wf_ty σin).
+      { apply inherits_using_wf in hin_t1_t => //.
+        by repeat destruct hin_t1_t as [? hin_t1_t].
       }
-      assert (hbt: Forall wf_ty σt) by (by apply wf_ty_class_inv in hwfσt).
-      assert (hwftin: Forall wf_ty (subst_ty σt <$> σin)) by (by apply wf_ty_subst_map).
-      assert (hwftargs: Forall wf_ty targs).
+      assert (hwf_σt_σin: Forall wf_ty (subst_ty σt <$> σin)) by (by apply wf_ty_subst_map).
+      assert (hwf_targs: Forall wf_ty targs).
       { apply expr_has_ty_wf in hrecv => //.
         by apply wf_ty_class_inv in hrecv.
       }
-      assert (hbint : Forall (bounded (length σin)) σot).
-      { apply inherits_using_wf in hin => //.
-        destruct hin as (? & ? & ? & ? & hF & hL & hwf).
-        apply inherits_using_wf in hσin => //.
-        destruct hσin as (? & ? & ? & ? & hF' & hL' & hwf').
+      assert (hb_σin_σot : Forall (bounded (length σin)) σot).
+      { apply inherits_using_wf in hin_t1_t => //.
+        destruct hin_t1_t as (? & ? & ? & ? & hF & hL & hwf).
+        apply inherits_using_wf in hin_t_o => //.
+        destruct hin_t_o as (? & ? & ? & ? & hF' & hL' & hwf').
         simplify_eq.
-        by rewrite hL'.
+        by rewrite hL.
       }
       (* Time ot use the induction hypothesis *)
       iModIntro; iNext.
-      iSpecialize ("IH" $! _ _ _ wfbody hbody1 σi _ _ _ H11); simpl.
+      iSpecialize ("IH" $! _ _ _ wfbody hbody1 σi _ _ _ heval_body); simpl.
       iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
       { iSplit.
         - iExists _; iFrame.
-          iSplit; first by rewrite Hdom.
-          done.
+          iSplit; last done.
+          by rewrite Hdom.
         - iApply interp_local_tys_update => //; last first.
             + rewrite interp_class_unfold /interp_class /=.
               iExists l, t1, def1, (gen_targs (length def1.(generics))), σt, fields, ifields; iSplitR.
@@ -621,74 +622,68 @@ Section proofs.
                 destruct hincl1 as [hdom1 [hincl1 _]].
                 destruct (methodargs omdef !! x) as [ty' | ] eqn:hty'.
                 { assert (bounded (length σot) ty').
-                  { assert (ho' := ho).
-                    apply wf_methods_bounded in ho'.
-                    apply ho' in hom.
-                    apply hom in hty'.
-                    apply inherits_using_wf in hin => //.
-                    destruct hin as ( ? & ? & ? & ? & _ & hL & _); simplify_eq.
+                  { assert (ho := hodef).
+                    apply wf_methods_bounded in ho.
+                    apply ho in homdef.
+                    apply homdef in hty'.
+                    apply inherits_using_wf in hin_t_o => //.
+                    destruct hin_t_o as ( ? & ? & ? & ? & _ & hL & _); simplify_eq.
                     by rewrite hL.
                   }
                   eapply ESubTy.
                   - apply hi with x => //.
                     by rewrite /subst_mdef /= lookup_fmap hty'.
-                  - apply wf_ty_subst.
-                    + rewrite Forall_forall => tk hk.
-                      apply elem_of_list_fmap_2 in hk as [tk2 [-> hk]].
-                      apply wf_ty_subst => //.
-                      rewrite Forall_forall in hwfot1; by apply hwfot1.
-                    + apply has_method_wf in hmorig0 as [hargs _] => //.
-                      by apply hargs in hx.
+                  - apply wf_ty_subst; first by apply wf_ty_subst_map.
+                    apply has_method_wf in hhasm_morig0 as [hargs _] => //.
+                    by apply hargs in hx.
                   - (* step by step, using variance info *)
                     assert (hsub: subst_ty targs (subst_ty σot ty') <: subst_ty (subst_ty σt <$> σin) (subst_ty σot ty')).
                     { apply subtype_lift with (neg_variance <$> generics def) => //.
-                      - assert (hmono := ho).
+                      - assert (hmono := hodef).
                         apply wf_methods_mono in hmono.
-                        assert (hom' := hom).
-                        apply hmono in hom' as [hmonoa _].
+                        assert (ho := homdef).
+                        apply hmono in ho as [hmonoa _].
                         assert (ha := hty').
                         apply hmonoa in ha.
                         apply mono_subst with (neg_variance <$> generics odef) => //.
                         + rewrite map_length.
-                          apply wf_methods_bounded in ho.
-                          apply ho in hom.
-                          by apply hom in hty'.
+                          apply wf_methods_bounded in hodef.
+                          apply hodef in homdef.
+                          by apply homdef in hty'.
                         + rewrite map_length.
-                          apply inherits_using_wf in hin => //.
-                          repeat destruct hin as [? hin]; by simplify_eq.
+                          apply inherits_using_wf in hin_t_o => //.
+                          repeat destruct hin_t_o as [? hin_t_o]; by simplify_eq.
                         + rewrite neg_variance_fmap_idem => i vi ti hvi.
                           apply list_lookup_fmap_inv in hvi.
                           destruct hvi as [wi [-> hwi]].
                           move => hti hc.
-                          apply inherits_using_mono with (def0 := def) in hin => //.
-                          inv hin; simplify_eq.
-                          eapply H15 => //.
-                          by destruct wi.
+                          apply inherits_using_mono with (def0 := def) in hin_t_o => //.
+                          inv hin_t_o; simplify_eq.
+                          destruct wi; by eauto.
                         + move => i vi ti hvi.
                           apply list_lookup_fmap_inv in hvi.
                           destruct hvi as [wi [-> hwi]].
                           move => hti hc.
-                          apply inherits_using_mono with (def0 := def) in hin => //.
-                          inv hin; simplify_eq.
-                          eapply H16 => //.
-                          by destruct wi.
+                          apply inherits_using_mono with (def0 := def) in hin_t_o => //.
+                          inv hin_t_o; simplify_eq.
+                          destruct wi; by eauto.
                       - apply wf_ty_subst => //.
-                        * apply inherits_using_wf in hin => //.
-                          by repeat destruct hin as [? hin].
-                        * apply wf_methods_wf in ho.
-                          apply ho in hom.
-                          by apply hom in hty'.
+                        * apply inherits_using_wf in hin_t_o => //.
+                          by repeat destruct hin_t_o as [? hin_t_o].
+                        * apply wf_methods_wf in hodef.
+                          apply hodef in homdef.
+                          by apply homdef in hty'.
                       - by apply neg_subtype_targs.
                     }
                     eapply SubTrans; first by exact hsub.
                     rewrite -!subst_ty_subst; first last.
                     { by apply bounded_subst with (length σot). }
-                    { assert (ho0' := ho0).
-                      apply wf_methods_bounded in ho0.
-                      apply ho0 in hm0.
-                      apply hm0 in hx.
-                      apply inherits_using_wf in hin1 => //.
-                      destruct hin1 as (? & ? &? &? & ? &hL & ?).
+                    { assert (h0 := hodef0).
+                      apply wf_methods_bounded in h0.
+                      apply h0 in homdef0.
+                      apply homdef0 in hx.
+                      apply inherits_using_wf in hin_t1_o0 => //.
+                      destruct hin_t1_o0 as (? & ? &? &? & ? &hL & ?).
                       simplify_eq.
                       by rewrite hL.
                     }
@@ -710,54 +705,51 @@ Section proofs.
       iIntros "[Hmodels Hle2]"; iFrame.
       iApply interp_local_tys_update; first by done.
       destruct hincl1 as [? [? hret]].
-      assert (hsub: subst_ty (subst_ty σt <$> σot1) (methodrettype omdef0) <:
+      assert (hsub: subst_ty (subst_ty σt <$> σ0) (methodrettype omdef0) <:
                     subst_ty targs (subst_ty σot (methodrettype omdef))).
       { eapply SubTrans; last first.
         - apply subtype_lift with (σ1 := subst_ty σt <$> σin) (vs0 := generics def) => //.
-          + assert (hmono := ho).
+          + assert (hmono := hodef).
             apply wf_methods_mono in hmono.
-            assert (hom' := hom).
-            apply hmono in hom' as [_ hmonoret].
+            assert (hm := homdef).
+            apply hmono in hm as [_ hmonoret].
             apply mono_subst with (generics odef) => //.
-            * apply wf_methods_bounded in ho.
-              apply ho in hom.
-              by apply hom.
-            * apply inherits_using_wf in hin => //.
-              repeat destruct hin as [? hin]; by simplify_eq.
+            * apply wf_methods_bounded in hodef.
+              apply hodef in homdef.
+              by apply homdef.
+            * apply inherits_using_wf in hin_t_o => //.
+              repeat destruct hin_t_o as [? hin_t_o]; by simplify_eq.
             * move => i vi ti hvi hti hc.
-              apply inherits_using_mono with (def0 := def) in hin => //.
-              inv hin; simplify_eq.
-              by eapply H17.
+              apply inherits_using_mono with (def0 := def) in hin_t_o => //.
+              inv hin_t_o; simplify_eq.
+              by eauto.
             * move => i vi ti hvi hti hc.
-              apply inherits_using_mono with (def0 := def) in hin => //.
-              inv hin; simplify_eq.
-              by eapply H16.
+              apply inherits_using_mono with (def0 := def) in hin_t_o => //.
+              inv hin_t_o; simplify_eq.
+              by eauto.
           + apply wf_ty_subst => //.
-            * apply inherits_using_wf in hin => //.
-              by repeat destruct hin as [? hin].
-            * apply wf_methods_wf in ho.
-              apply ho in hom.
-              by apply hom.
-        - rewrite -!subst_ty_subst; last first.
-          { by apply inherits_using_wf in hin1. }
-          { apply bounded_subst with (length σot) => //.
-            apply inherits_using_wf in hin => //.
-            destruct hin as (? & ? & ? & ? & ? & hL & _).
-            simplify_eq.
-            assert (ho' := ho).
-            apply wf_methods_bounded in ho'.
-            apply ho' in hom.
-            rewrite hL.
-            by apply hom.
-          }
-          by apply subtype_subst.
+            * apply inherits_using_wf in hin_t_o => //.
+              by repeat destruct hin_t_o as [? hin_t_o].
+            * apply wf_methods_wf in hodef.
+              apply hodef in homdef.
+              by apply homdef.
+        - rewrite -!subst_ty_subst //; first by apply subtype_subst.
+          apply bounded_subst with (length σot) => //.
+          apply inherits_using_wf in hin_t_o => //.
+          destruct hin_t_o as (? & ? & ? & ? & ? & hL & _).
+          simplify_eq.
+          assert (ho := hodef).
+          apply wf_methods_bounded in ho.
+          apply ho in homdef.
+          rewrite hL.
+          by apply homdef.
       }
       iDestruct (expr_adequacy _ (methodret omdef0) with "Hle2") as "#Hret" => //.
       iApply subtype_is_inclusion => //.
       apply wf_ty_subst; first by apply wf_ty_subst_map.
-      apply wf_methods_wf in ho0.
-      apply ho0 in hm0.
-      by apply hm0.
+      apply wf_methods_wf in hodef0.
+      apply hodef0 in homdef0.
+      by apply homdef0.
     - (* Subtyping *) 
       destruct wfΔ.
       iIntros "H".

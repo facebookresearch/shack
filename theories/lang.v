@@ -10,9 +10,8 @@ From iris.proofmode Require Import tactics.
 
 (* TODO:
  * - maybe update definitions of bounded and gen_targs to take
- *   a class definition as input, and hide the 'length of generics' away.
- * - all fields must be invariant: new wf for fields
- * - all methods parameters must be contravariant and return types covariant: new wf for methods
+ *   a variance list or a class definition as input, and some
+ *   of the details away.
  *)
 
 (* Helper tactics *)
