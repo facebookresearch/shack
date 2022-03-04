@@ -45,15 +45,17 @@ Section proofs.
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _ : string, wf_cdef_mono) Δ →
+    map_Forall (λ _, wf_ty) lty →
     expr_eval le e = Some val →
     expr_has_ty lty e ty →
     interp_local_tys σi lty le -∗
     interp_type ty σi val.
   Proof.
-    move => ??? he h; move: le val he.
+    move => ????? he h; move: le val he.
     elim: h => [z | b | | op e1 e2 hop he1 hi1 he2 hi2 |
         op e1 e2 hop he1 hi1 he2 hi2 |
-        v vty hv | exp S T hS hi hwf hsub ] =>  le val he; iIntros "#Hlty".
+        v vty hv | exp S T hS hi hwf hsub ] => le val he; iIntros "#Hlty".
     - inv he; rewrite interp_type_unfold /=; by eauto.
     - inv he; rewrite interp_type_unfold /=; by eauto.
     - inv he; rewrite interp_type_unfold /=; by eauto.
@@ -94,7 +96,8 @@ Section proofs.
       rewrite H0 in H; by case: H => ->.
     - apply hi in he.
       iApply subtype_is_inclusion => //.
-      by iApply he.
+      + by apply expr_has_ty_wf in hS.
+      + by iApply he.
   Qed.
 
   Lemma interp_local_tys_update σi v lty le ty val :
@@ -113,6 +116,8 @@ Section proofs.
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _ : string, wf_cdef_mono) Δ →
+    map_Forall (λ _, wf_ty) lty →
     dom stringset targs = dom stringset args →
     map_args (expr_eval le) args = Some vargs →
     (∀ (x : string) (ty : lang_ty) (arg : expr),
@@ -122,7 +127,7 @@ Section proofs.
     interp_local_tys σi lty le -∗
     interp_local_tys σi targs vargs.
   Proof.
-    move => ??? hdom hargs helt.
+    move => ????? hdom hargs helt.
     iIntros "#Hle" (v ty) "%hin".
     assert (ha: ∃ arg, args !! v = Some arg).
     { apply elem_of_dom.
@@ -145,25 +150,30 @@ Section proofs.
     by iApply expr_adequacy.
   Qed.
 
-  Lemma heap_models_update h l rt vs σi t σt f fty v:
+  Lemma heap_models_update h l rt vs (σi: interp_env) t σt f fty v:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
+    map_Forall (λ _ : string, wf_cdef_fields_wf) Δ →
+    (* overkill, contra is enough for fields in this proof *)
+    map_Forall (λ _cname, wf_field_mono) Δ →
+    map_Forall (λ _ : string, wf_cdef_mono) Δ →
     h !! l = Some (rt, vs) →
     has_field f t fty →
+    wf_ty (ClassT t σt) →
     interp_type (ClassT t σt) σi (LocV l) -∗
     interp_type (subst_ty σt fty) σi v -∗
     heap_models h -∗
     heap_models (<[l:=(rt, <[f:=v]> vs)]> h).
   Proof.
-    move => ?? hfb hheap hfield.
+    move => ?? hfb ??? hheap hfield hwf.
     iIntros "#hrecv #hv hmodels".
     iDestruct "hmodels" as (sh) "[hown [%hdom #h]]".
     iExists sh.
     rewrite interp_class_unfold.
-    iDestruct "hrecv" as (l' t' σ' σt' fields ifields) "[%H [hsem hl]]".
+    iDestruct "hrecv" as (l' t' def σ' σt' fields ifields) "[%H [hsem hl]]".
     iDestruct "hsem" as "[%hdomf #hifields]".
-    destruct H as [[= <-] [ hinherits' [hwfσ' [hσ' hfields]]]].
+    destruct H as [[= <-] [ hinherits' [hwfσ' [hdef [hσ' hfields]]]]].
     iDestruct (sem_heap_own_valid_2 with "hown hl") as "#Hv".
     iSplitL; first by iFrame.
     iSplitR.
@@ -202,13 +212,33 @@ Section proofs.
           iNext.
           iSpecialize ("hf'" $! v).
           iRewrite -"hf'".
-          rewrite subst_ty_subst //.
-          apply has_field_bounded in hfield => //.
-          destruct hfield as (def & hdef & hfty).
-          apply inherits_using_wf in hinherits' => //.
-          destruct hinherits' as (? & ? & ? & ? & _ & hL & _).
-          simplify_eq.
-          by rewrite hL.
+          rewrite subst_ty_subst; last first.
+          { apply has_field_bounded in hfield => //.
+            destruct hfield as (def' & hdef' & hfty).
+            apply inherits_using_wf in hinherits' => //.
+            destruct hinherits' as (? & ? & ? & ? & _ & hL & _).
+            simplify_eq.
+            by rewrite hL.
+          }
+          assert (hsub : subst_ty σt fty <: subst_ty (subst_ty σt' <$> σ') fty).
+          { clear hdom hdomf hdomv.
+            assert (hfwf := hfield).
+            apply has_field_wf in hfwf => //.
+            apply has_field_mono in hfield => //.
+            destruct hfield as (tdef & ? & [_ hcontra]); simplify_eq.
+            apply subtype_lift with (neg_variance <$> generics tdef) => //.
+            - by apply wf_ty_class_inv in hwf.
+            - apply wf_ty_subst_map.
+              + by apply wf_ty_class_inv in hwfσ'.
+              + apply inherits_using_wf in hinherits' => //.
+                by repeat destruct hinherits' as [? hinherits'].
+            - by apply neg_subtype_targs.
+
+          }
+          iApply subtype_is_inclusion => //.
+          apply has_field_wf in hfield => //.
+          apply wf_ty_subst => //.
+          by apply wf_ty_class_inv in hwf.
         * rewrite lookup_insert_ne //.
           by iApply "hmodfs".
     - iApply "h".
@@ -262,8 +292,8 @@ Section proofs.
       iModIntro. (* keep the later *)
       iDestruct (expr_adequacy with "Hle") as "#He" => //; try (by apply wfΔ).
       rewrite interp_class_unfold /=.
-      iDestruct "He" as (??????) "[%H [#Hifields H◯]]".
-      destruct H as [[= <-] [hinherits [_ [htargs hfields]]]].
+      iDestruct "He" as (???????) "[%H [#Hifields H◯]]".
+      destruct H as [[= <-] [hinherits [hwfσt [hdef [htargs hfields]]]]].
       iAssert (heap_models h ∗ ▷ interp_type (subst_ty targs fty) σi v)%I with "[Hh]" as "[Hh Hv]".
       { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
         iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
@@ -284,7 +314,28 @@ Section proofs.
         iRewrite -"HΦ" in "Hifields_t".
         iSpecialize ("h" $! name _ with "[Hifields_t]"); first done.
         iDestruct "h" as (w) "[%hw hiw]".
-        by simplify_eq.
+        iNext.
+        destruct wfΔ.
+        assert (hsub: subst_ty (subst_ty σt <$> σ) fty <: subst_ty targs fty).
+        { clear hdom hdiom hdf.
+          assert (hfwf := hf).
+          apply has_field_wf in hfwf => //.
+          apply has_field_mono in hf => //.
+          destruct hf as (tdef & ? & [hcov _]); simplify_eq.
+          apply subtype_lift with (generics tdef) => //.
+          - apply wf_ty_subst_map; first by apply wf_ty_class_inv in hwfσt.
+            apply inherits_using_wf in hinherits => //.
+            by repeat destruct hinherits as [? hinherits].
+          - apply expr_has_ty_wf in hrecv => //.
+            by apply wf_ty_class_inv in hrecv.
+        }
+        simplify_eq.
+        iApply subtype_is_inclusion => //.
+        apply wf_ty_subst.
+        * apply wf_ty_subst_map; first by apply wf_ty_class_inv in hwfσt.
+          apply inherits_using_wf in hinherits => //.
+          by repeat destruct hinherits as [? hinherits].
+        * by apply has_field_wf in hf.
       }
       iNext.
       iFrame.
@@ -295,6 +346,7 @@ Section proofs.
       iClear "IH".
       iIntros "[Hh #Hle]" => /=.
       iSplitL; last done.
+      assert (ht: wf_ty (ClassT t σ)) by (by apply expr_has_ty_wf in hrecv).
       iApply heap_models_update => //.
       + iApply expr_adequacy => //; by apply wfΔ.
       + iApply expr_adequacy => //; by apply wfΔ.
@@ -324,12 +376,13 @@ Section proofs.
         rewrite interp_type_unfold /=.
         assert (hwf' := hwf).
         inv hwf'.
-        iExists new, t, (gen_targs def.(generics)), targs, fields, iFs.
+        iExists new, t, def, (gen_targs (length def.(generics))), targs, fields, iFs.
         iSplit; last by (repeat iSplit => //).
         iPureIntro.
         repeat split => //.
         + by econstructor.
-        + by rewrite subst_ty_gen_targs.
+        + rewrite subst_ty_gen_targs => //.
+          by apply subtype_targs_refl.
       }
       iSplitL; last by iApply interp_local_tys_update.
       iExists _. iFrame. iSplit; first by rewrite !dom_insert_L Hdom.
@@ -389,8 +442,8 @@ Section proofs.
       iIntros "[Hh #Hle]".
       iDestruct (expr_adequacy _ recv with "Hle") as "#Hrecv" => //.
       rewrite interp_class_unfold /=.
-      iDestruct "Hrecv" as (? ? σin σt fields ifields) "[%Hpure [hifields Hl]]".
-      destruct Hpure as [[= <-] [hσin [hwfσt [htargs hfields]]]].
+      iDestruct "Hrecv" as (? ? def σin σt fields ifields) "[%Hpure [hifields Hl]]".
+      destruct Hpure as [[= <-] [hσin [hwfσt [hdef [htargs hfields]]]]].
       iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
       iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
       iDestruct ("Hh" with "[//]") as (?) "[H H▷]".
@@ -403,11 +456,6 @@ Section proofs.
       { apply has_method_from_def in H7 as (? & ? & ? & ? & _ & [? [hin ?]]) => //.
         by apply inherits_using_wf in hin as (? & ? & ht1 & _).
       }
-      assert (ht : is_Some (Δ !! t)).
-      { apply inherits_using_wf in hσin => //.
-        by destruct hσin as (? & ? & _ & -> & _).
-      }
-      destruct ht as [ def ht ].
       destruct ht1 as [ def1 ht1 ].
       (* Get method inclusion information between mdef0 and mdef *)
       destruct (has_method_ordered _ _ _ _ _ _ _ _
@@ -438,7 +486,7 @@ Section proofs.
         repeat destruct hin0 as [? hin0]; simplify_eq.
         by rewrite H6.
       }
-      assert (map_Forall (λ _ : string, bounded (length σ0)) (methodargs mdef0_orig)).
+      assert (hb0 : map_Forall (λ _ : string, bounded (length σ0)) (methodargs mdef0_orig)).
       { assert (ho0' := ho0).
         apply wf_methods_bounded in ho0'.
         apply ho0' in hm0.
@@ -449,7 +497,7 @@ Section proofs.
         repeat destruct hin0 as [? hin0]; simplify_eq.
         by rewrite H8.
       }
-      assert (map_Forall (λ _ : string, bounded (length σot)) (methodargs omdef)).
+      assert (hbo: map_Forall (λ _ : string, bounded (length σot)) (methodargs omdef)).
       { assert (ho' := ho).
         apply wf_methods_bounded in ho'.
         apply ho' in hom.
@@ -458,9 +506,9 @@ Section proofs.
         apply hargs in hk.
         apply inherits_using_wf in hin => //.
         repeat destruct hin as [? hin]; simplify_eq.
-        by rewrite H9.
+        by rewrite H8.
       }
-      assert (length σt = generics def1).
+      assert (length σt = length (generics def1)).
       { inv hwfσt.
         by simplify_eq.
       }
@@ -473,11 +521,14 @@ Section proofs.
        * runtime type substitution.
        *)
       assert (hwf1: wf_mdef_ty (ClassT t1 σt) (subst_ty σt <$> σ0) mdef0_orig).
-      { destruct hwf0 as [rty0 [hbody0 hret0]].
-        exists (subst_ty σt <$> rty0); split; last first.
-        + rewrite -subst_ty_subst //.
-          by apply expr_has_ty_subst.
-        + replace (ClassT t1 σt) with (subst_ty σt (ClassT t1 (gen_targs (generics def1)))); last first.
+      { destruct hwf0 as [rty0 [wf0 [hbody0 hret0]]].
+        exists (subst_ty σt <$> rty0); split; last split.
+        + rewrite map_Forall_lookup => k ty.
+          rewrite lookup_fmap_Some.
+          case => [ty' [<- hk]].
+          apply wf_ty_subst => //.
+          by apply wf0 in hk.
+        + replace (ClassT t1 σt) with (subst_ty σt (ClassT t1 (gen_targs (length (generics def1))))); last first.
           { simpl.
             by rewrite subst_ty_gen_targs.
           }
@@ -496,8 +547,10 @@ Section proofs.
             }
             apply has_method_wf in hmorig0 as [hargs _] => //.
             by apply hargs in hk.
+        + rewrite -subst_ty_subst //.
+          by apply expr_has_ty_subst.
       }
-      destruct hwf1 as [rty1 [hbody1 hret1]].
+      destruct hwf1 as [rty1 [wf1 [hbody1 hret1]]].
       (* manual clean up *)
       rewrite hm0 in hom1; injection hom1; intros; subst; clear hom1.
       replace σ0 with σot1 in *; last by eapply inherits_using_fun.
@@ -522,6 +575,24 @@ Section proofs.
           apply ho0' in hm0.
           by apply hm0 in hx.
       }
+      assert (Forall wf_ty σin).
+      { apply inherits_using_wf in hσin => //.
+        by repeat destruct hσin as [? hσin].
+      }
+      assert (hbt: Forall wf_ty σt) by (by apply wf_ty_class_inv in hwfσt).
+      assert (hwftin: Forall wf_ty (subst_ty σt <$> σin)) by (by apply wf_ty_subst_map).
+      assert (hwftargs: Forall wf_ty targs).
+      { apply expr_has_ty_wf in hrecv => //.
+        by apply wf_ty_class_inv in hrecv.
+      }
+      assert (hbint : Forall (bounded (length σin)) σot).
+      { apply inherits_using_wf in hin => //.
+        destruct hin as (? & ? & ? & ? & hF & hL & hwf).
+        apply inherits_using_wf in hσin => //.
+        destruct hσin as (? & ? & ? & ? & hF' & hL' & hwf').
+        simplify_eq.
+        by rewrite hL'.
+      }
       (* Time ot use the induction hypothesis *)
       iModIntro; iNext.
       iSpecialize ("IH" $! _ _ _ wfbody hbody1 σi _ _ _ H11); simpl.
@@ -532,12 +603,13 @@ Section proofs.
           done.
         - iApply interp_local_tys_update => //; last first.
             + rewrite interp_class_unfold /interp_class /=.
-              iExists l, t1, (gen_targs def1.(generics)), σt, fields, ifields; iSplitR.
+              iExists l, t1, def1, (gen_targs (length def1.(generics))), σt, fields, ifields; iSplitR.
               { iPureIntro; repeat split => //; first by econstructor.
-                by rewrite subst_ty_gen_targs.
+                rewrite subst_ty_gen_targs //.
+                by apply subtype_targs_refl.
               }
               by iSplit.
-            + iApply interp_local_tys_list => //.
+            + iApply (interp_local_tys_list _ lty le) => //.
               * destruct hincl0 as [hdomincl _].
                 rewrite !dom_fmap_L in hdomincl.
                 rewrite !dom_fmap_L in hdom.
@@ -566,27 +638,63 @@ Section proofs.
                       rewrite Forall_forall in hwfot1; by apply hwfot1.
                     + apply has_method_wf in hmorig0 as [hargs _] => //.
                       by apply hargs in hx.
-                  - rewrite -!subst_ty_subst; first last.
-                    + apply bounded_subst with (length σot) => //.
-                      apply inherits_using_wf in hin => //.
-                      destruct hin as (? & ? & ? & ? & hF & _ & _).
-                      apply inherits_using_wf in hσin => //.
-                      destruct hσin as (? & ? & ? & ? & _ & hL' & _).
-                      simplify_eq.
-                      by rewrite hL'.
-                    + assert (ho0' := ho0).
-                      apply wf_methods_bounded in ho0'.
-                      apply ho0' in hm0.
+                  - (* step by step, using variance info *)
+                    assert (hsub: subst_ty targs (subst_ty σot ty') <: subst_ty (subst_ty σt <$> σin) (subst_ty σot ty')).
+                    { apply subtype_lift with (neg_variance <$> generics def) => //.
+                      - assert (hmono := ho).
+                        apply wf_methods_mono in hmono.
+                        assert (hom' := hom).
+                        apply hmono in hom' as [hmonoa _].
+                        assert (ha := hty').
+                        apply hmonoa in ha.
+                        apply mono_subst with (neg_variance <$> generics odef) => //.
+                        + rewrite map_length.
+                          apply wf_methods_bounded in ho.
+                          apply ho in hom.
+                          by apply hom in hty'.
+                        + rewrite map_length.
+                          apply inherits_using_wf in hin => //.
+                          repeat destruct hin as [? hin]; by simplify_eq.
+                        + rewrite neg_variance_fmap_idem => i vi ti hvi.
+                          apply list_lookup_fmap_inv in hvi.
+                          destruct hvi as [wi [-> hwi]].
+                          move => hti hc.
+                          apply inherits_using_mono with (def0 := def) in hin => //.
+                          inv hin; simplify_eq.
+                          eapply H15 => //.
+                          by destruct wi.
+                        + move => i vi ti hvi.
+                          apply list_lookup_fmap_inv in hvi.
+                          destruct hvi as [wi [-> hwi]].
+                          move => hti hc.
+                          apply inherits_using_mono with (def0 := def) in hin => //.
+                          inv hin; simplify_eq.
+                          eapply H16 => //.
+                          by destruct wi.
+                      - apply wf_ty_subst => //.
+                        * apply inherits_using_wf in hin => //.
+                          by repeat destruct hin as [? hin].
+                        * apply wf_methods_wf in ho.
+                          apply ho in hom.
+                          by apply hom in hty'.
+                      - by apply neg_subtype_targs.
+                    }
+                    eapply SubTrans; first by exact hsub.
+                    rewrite -!subst_ty_subst; first last.
+                    { by apply bounded_subst with (length σot). }
+                    { assert (ho0' := ho0).
+                      apply wf_methods_bounded in ho0.
+                      apply ho0 in hm0.
                       apply hm0 in hx.
                       apply inherits_using_wf in hin1 => //.
-                      destruct hin1 as (? & ? & ? & ? & ? & hL' & _).
+                      destruct hin1 as (? & ? &? &? & ? &hL & ?).
                       simplify_eq.
-                      by rewrite hL'.
-                    + apply subtype_subst => //.
-                      rewrite subst_ty_subst //.
-                      apply hincl1 with x => //; first by rewrite /subst_mdef /= lookup_fmap hx.
-                      rewrite /subst_mdef /= fmap_subst_ty_subst //.
-                      by rewrite lookup_fmap hty'.
+                      by rewrite hL.
+                    }
+                    apply subtype_subst => //.
+                    eapply hincl1 with x.
+                    * by rewrite /subst_mdef /= lookup_fmap hx /=.
+                    * by rewrite /subst_mdef /= !lookup_fmap hty' /=.
                 }
                 rewrite /subst_mdef /= !dom_fmap_L in hdom1.
                 apply mk_is_Some in hx.
@@ -601,29 +709,54 @@ Section proofs.
       iIntros "[Hmodels Hle2]"; iFrame.
       iApply interp_local_tys_update; first by done.
       destruct hincl1 as [? [? hret]].
+      assert (hsub: subst_ty (subst_ty σt <$> σot1) (methodrettype omdef0) <:
+                    subst_ty targs (subst_ty σot (methodrettype omdef))).
+      { eapply SubTrans; last first.
+        - apply subtype_lift with (σ1 := subst_ty σt <$> σin) (vs0 := generics def) => //.
+          + assert (hmono := ho).
+            apply wf_methods_mono in hmono.
+            assert (hom' := hom).
+            apply hmono in hom' as [_ hmonoret].
+            apply mono_subst with (generics odef) => //.
+            * apply wf_methods_bounded in ho.
+              apply ho in hom.
+              by apply hom.
+            * apply inherits_using_wf in hin => //.
+              repeat destruct hin as [? hin]; by simplify_eq.
+            * move => i vi ti hvi hti hc.
+              apply inherits_using_mono with (def0 := def) in hin => //.
+              inv hin; simplify_eq.
+              by eapply H17.
+            * move => i vi ti hvi hti hc.
+              apply inherits_using_mono with (def0 := def) in hin => //.
+              inv hin; simplify_eq.
+              by eapply H16.
+          + apply wf_ty_subst => //.
+            * apply inherits_using_wf in hin => //.
+              by repeat destruct hin as [? hin].
+            * apply wf_methods_wf in ho.
+              apply ho in hom.
+              by apply hom.
+        - rewrite -!subst_ty_subst; last first.
+          { by apply inherits_using_wf in hin1. }
+          { apply bounded_subst with (length σot) => //.
+            apply inherits_using_wf in hin => //.
+            destruct hin as (? & ? & ? & ? & ? & hL & _).
+            simplify_eq.
+            assert (ho' := ho).
+            apply wf_methods_bounded in ho'.
+            apply ho' in hom.
+            rewrite hL.
+            by apply hom.
+          }
+          by apply subtype_subst.
+      }
       iDestruct (expr_adequacy _ (methodret omdef0) with "Hle2") as "#Hret" => //.
-      rewrite -subst_ty_subst; last first.
-      { assert (ho' := ho).
-        apply wf_methods_bounded in ho'.
-        apply ho' in hom.
-        by apply inherits_using_wf in hin.
-      }
-      rewrite -subst_ty_subst; last first.
-      { apply inherits_using_wf in hin => //.
-        destruct hin as ( ? & ? & ? & ? & hF & hL & _).
-        apply inherits_using_wf in hσin => //.
-        destruct hσin as (? & ? & ? & ? & hF' & hL' & _).
-        simplify_eq.
-        apply bounded_subst with odef.(generics) => //; last by rewrite hL'.
-        assert (ho' := ho).
-        apply wf_methods_bounded in ho'.
-        apply ho' in hom.
-        by apply hom.
-      }
-      assert (hsub: subst_ty σt (subst_ty σot1 (methodrettype omdef0)) <:
-                    subst_ty σt (subst_ty σin (subst_ty σot (methodrettype omdef))))
-        by (by apply subtype_subst).
-      by iApply subtype_is_inclusion.
+      iApply subtype_is_inclusion => //.
+      apply wf_ty_subst; first by apply wf_ty_subst_map.
+      apply wf_methods_wf in ho0.
+      apply ho0 in hm0.
+      by apply hm0.
     - (* Subtyping *) 
       destruct wfΔ.
       iIntros "H".
@@ -631,8 +764,9 @@ Section proofs.
       iApply updN_mono_I; last done.
       iIntros "[Hh #Hrty]". iFrame.
       iDestruct (interp_local_tys_is_inclusion with "Hrty") as "Hrty'" => //.
-      rewrite Forall_forall => i hi v.
-      by apply _.
+      + by apply cmd_has_ty_wf in h.
+      + rewrite Forall_forall => i hi v.
+        by apply _.
     - (* CondTagC *) inv hc; last first.
       { iIntros "[Hh H]".
         iAssert (heap_models st'.2 ∗ interp_local_tys σi rty st'.1)%I with "[Hh H]" as "H".
@@ -661,8 +795,9 @@ Section proofs.
       rewrite Hlev in hl; simplify_eq.
       iAssert (interp_type MixedT σi (LocV l)) as "Hmixed".
       { destruct wfΔ.
-        iApply subtype_is_inclusion; [ done | done | done | by apply SubMixed | ].
-        done.
+        assert (hsub : tv <: MixedT) by apply SubMixed.
+        iApply subtype_is_inclusion => //.
+        by apply wflty in hv.
       }
       rewrite interp_mixed_unfold /=.
       iDestruct "Hmixed" as "[Hnonnull | Hnull]"; last first.
@@ -671,8 +806,9 @@ Section proofs.
       { iDestruct "Hint" as "%Hint"; by destruct Hint. }
       iDestruct "Hl" as "[Hbool | Hl]".
       { iDestruct "Hbool" as "%Hbool"; by destruct Hbool. }
-      iDestruct "Hl" as (exTag exσ k rt σ σt exfields ifields) "[%H [#Hfields #Hl]]".
-      destruct H as [[= <-] [hinherits' [hwf' [ heq' hfields']]]].
+      iDestruct "Hl" as (exTag exσ) "[wfex Hl]".
+      iDestruct "Hl" as (k rt def σ σt exfields ifields) "[%H [#Hfields #Hl]]".
+      destruct H as [[= <-] [hinherits' [hwf' [hdef [ heq' hfields']]]]].
       iAssert (⌜t' = rt⌝ ∗ heap_models st.2 ∗ interp_type (ExT rt) σi (LocV l))%I with "[H]" as "[%heq [Hh #Hv2]]".
       { iDestruct "H" as (sh) "(H● & %hdom & #Hh)".
         iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
@@ -688,14 +824,19 @@ Section proofs.
         { inv hwf'.
           by rewrite H1.
         }
-        destruct hrt as [def hrt].
-        iExists σt, l, rt, (gen_targs def.(generics)), σt, exfields, ifields.
+        destruct hrt as [rdef hrt].
+        iExists σt.
+        iSplitR.
+        { iPureIntro.
+          by apply wf_ty_class_inv in hwf'.
+        }
+        iExists l, rt, rdef, (gen_targs (length rdef.(generics))), σt, exfields, ifields.
         iSplit.
         + iPureIntro; repeat split => //.
           * by constructor.
-          * rewrite subst_ty_gen_targs //.
-            inv hwf'.
-            by simplify_eq.
+          * inv hwf'; simplify_eq.
+            rewrite subst_ty_gen_targs //.
+            by apply subtype_targs_refl.
         + by iSplit.
       }
       subst.

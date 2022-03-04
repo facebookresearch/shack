@@ -8,6 +8,13 @@ From stdpp Require Import base strings gmap stringmap fin_maps.
 (* Not using iris but importing their ssreflect dependencies *)
 From iris.proofmode Require Import tactics.
 
+(* TODO:
+ * - maybe update definitions of bounded and gen_targs to take
+ *   a class definition as input, and hide the 'length of generics' away.
+ * - all fields must be invariant: new wf for fields
+ * - all methods parameters must be contravariant and return types covariant: new wf for methods
+ *)
+
 (* Helper tactics *)
 Ltac inv H := inversion H; subst; clear H.
 
@@ -119,6 +126,27 @@ Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
   | GenT n => default ty (targs !! n)
   | ExT _ | IntT | BoolT | NothingT | MixedT | NullT | NonNullT => ty
   end.
+
+Corollary subst_ty_nil ty : subst_ty [] ty = ty.
+Proof.
+  induction ty as [ | | | | cname targs hi | | | s t hs ht |
+      s t hs ht | n | cname ] => //=.
+  - f_equal.
+    rewrite Forall_forall in hi.
+    pattern targs at 2.
+    replace targs with (map id targs) by apply map_id.
+    apply map_ext_in => s /elem_of_list_In hin.
+    by apply hi.
+  - by rewrite hs ht.
+  - by rewrite hs ht.
+Qed.
+
+Corollary map_subst_ty_nil (σ: list lang_ty) : subst_ty [] <$> σ = σ.
+Proof.
+  induction σ as [ | hd tl hi] => //=.
+  f_equal; first by rewrite subst_ty_nil.
+  by apply hi.
+Qed.
 
 Lemma subst_ty_subst ty l k:
   bounded (length k) ty →
@@ -280,9 +308,46 @@ Proof.
   by eapply hargs.
 Qed.
 
+Inductive variance : Set :=
+  | Invariant
+  | Covariant
+  | Contravariant
+.
+
+Definition neg_variance v :=
+  match v with
+  | Invariant => Invariant
+  | Covariant => Contravariant
+  | Contravariant => Covariant
+  end
+.
+
+Lemma neg_variance_idem v : neg_variance (neg_variance v) = v.
+Proof. by destruct v. Qed.
+
+Lemma neg_variance_fmap_idem (vs: list variance) : neg_variance <$> (neg_variance <$> vs) = vs.
+Proof.
+  induction vs as [ | v vs hi] => //.
+  by rewrite !fmap_cons neg_variance_idem hi.
+Qed.
+
+Definition not_cov v :=
+  match v with
+  | Invariant | Contravariant => true
+  | Covariant => false
+  end
+.
+
+Definition not_contra v :=
+  match v with
+  | Invariant | Covariant => true
+  | Contravariant => false
+  end
+.
+
 Record classDef := {
   classname: tag;
-  generics: nat; (* number of generics, no constraint for now *)
+  generics: list variance; (* variance of the generics *)
   superclass: option (tag * list lang_ty);
   classfields : stringmap lang_ty;
   classmethods : stringmap methodDef;
@@ -296,6 +361,17 @@ Lemma lookup_gen_targs_lt :
 Proof.
   move => n pos h.
   by rewrite /gen_targs list_lookup_fmap lookup_seq_lt.
+Qed.
+
+Lemma lookup_gen_targs:
+  ∀ n pos ty, gen_targs n !! pos = Some ty -> ty = GenT pos.
+Proof.
+  move => n pos ty.
+  rewrite /gen_targs => h.
+  apply list_lookup_fmap_inv in h.
+  destruct h as [? [-> h]].
+  rewrite lookup_seq in h.
+  by destruct h as [-> ?].
 Qed.
 
 Lemma length_gen_targs n : length (gen_targs n) = n.
@@ -414,7 +490,7 @@ Section ProgDef.
     | WfMixed : wf_ty MixedT
     | WfClassT t σ def:
         Δ !! t = Some def →
-        length σ = def.(generics) →
+        length σ = length def.(generics) →
         (∀ k ty, σ !! k = Some ty → wf_ty ty) →
         wf_ty (ClassT t σ)
     | WfNull : wf_ty NullT
@@ -484,20 +560,21 @@ Section ProgDef.
    * - of the right length (must capture all generics of the parent class)
    * - bounded by the current class (must only mention generics of the current class)
    * - be well-formed.
+   * - respect variance (see wf_cdef_mono)
    *)
   Definition wf_cdef_parent (prog: stringmap classDef) cdef : Prop :=
     match cdef.(superclass) with
     | None => True
     | Some (parent, σ) =>
         ∃ pdef, prog !! parent = Some pdef ∧
-        length σ = pdef.(generics) ∧
+        length σ = length pdef.(generics) ∧
         Forall wf_ty σ ∧
-        Forall (bounded cdef.(generics)) σ
+        Forall (bounded (length cdef.(generics))) σ
     end
   .
   
   Definition cdef_methods_bounded cdef : Prop :=
-    map_Forall (λ _mname mdef, mdef_bounded cdef.(generics) mdef) cdef.(classmethods).
+    map_Forall (λ _mname mdef, mdef_bounded (length cdef.(generics)) mdef) cdef.(classmethods).
 
   (* source relation `class A<...> extends B<...>` *)
   Inductive extends_using : tag → tag → list lang_ty → Prop :=
@@ -514,8 +591,8 @@ Section ProgDef.
     ∃ adef bdef,
     Δ !! A = Some adef ∧
     Δ !! B = Some bdef ∧
-    Forall (bounded adef.(generics)) σ ∧
-    length σ = bdef.(generics) ∧
+    Forall (bounded (length adef.(generics))) σ ∧
+    length σ = length bdef.(generics) ∧
     Forall wf_ty σ.
   Proof.
     move => /map_Forall_lookup hwf hext.
@@ -530,7 +607,7 @@ Section ProgDef.
   Inductive inherits_using : tag → tag → list lang_ty → Prop :=
     | InheritsRefl A adef:
         Δ !! A = Some adef →
-        inherits_using A A (gen_targs (adef.(generics)))
+        inherits_using A A (gen_targs (length (adef.(generics))))
     | InheritsExtends A B σ:
         extends_using A B σ →
         inherits_using A B σ
@@ -548,8 +625,8 @@ Section ProgDef.
     ∃ adef bdef,
     Δ !! A = Some adef ∧
     Δ !! B = Some bdef ∧
-    Forall (bounded adef.(generics)) σ ∧
-    length σ = bdef.(generics) ∧
+    Forall (bounded (length adef.(generics))) σ ∧
+    length σ = length bdef.(generics) ∧
     Forall wf_ty σ.
   Proof.
     move => hwf.
@@ -650,7 +727,7 @@ Section ProgDef.
         apply hwf in H.
         rewrite /wf_cdef_parent H0 in H.
         destruct H as (bdef & hB & hL & _ & hF).
-        exists (gen_targs bdef.(generics)); left; split; last by econstructor.
+        exists (gen_targs (length bdef.(generics))); left; split; last by econstructor.
         by rewrite subst_ty_gen_targs.
       + inv H1.
         simplify_eq.
@@ -667,7 +744,7 @@ Section ProgDef.
         apply hwf in hA.
         rewrite /wf_cdef_parent H0 in hA.
         destruct hA as (bdef & hB & hL & _ & hF).
-        apply bounded_subst with (generics bdef) => //.
+        apply bounded_subst with (length (generics bdef)) => //.
         apply inherits_using_wf in h => //.
         destruct h as (? & cdef & ? & hC & hF' & hL' & _); simplify_eq.
         by rewrite Forall_forall in hF'; apply hF'.
@@ -699,7 +776,7 @@ Section ProgDef.
   Lemma inherits_using_refl A σ:
     wf_no_cycle Δ →
     inherits_using A A σ →
-    ∃ adef, Δ !! A = Some adef ∧ σ = gen_targs adef.(generics).
+    ∃ adef, Δ !! A = Some adef ∧ σ = gen_targs (length adef.(generics)).
   Proof.
     move => hwf hA.
     assert (h: ∃ adef, Δ !! A = Some adef).
@@ -764,9 +841,14 @@ Section ProgDef.
     | SubNothing : ∀ ty, wf_ty ty → subtype NothingT ty
     | SubClass : ∀ A σA B σB adef,
         Δ !! A = Some adef →
-        length σA = adef.(generics) →
+        length σA = length (adef.(generics)) →
         extends_using A B σB →
         subtype (ClassT A σA) (ClassT B (subst_ty σA <$> σB))
+    | SubVariance : ∀ A adef σ0 σ1,
+        Δ !! A = Some adef →
+        Forall wf_ty σ1 →
+        subtype_targs adef.(generics) σ0 σ1 →
+        subtype (ClassT A σ0) (ClassT A σ1)
     | SubMixed2: subtype MixedT (UnionT NonNullT NullT)
     | SubIntNonNull: subtype IntT NonNullT
     | SubBoolNonNull: subtype BoolT NonNullT
@@ -780,18 +862,366 @@ Section ProgDef.
     | SubInterGreatest: ∀ s t u, subtype u s → subtype u t → subtype u (InterT s t)
     | SubRefl: ∀ s, subtype s s
     | SubTrans : ∀ s t u, subtype s t → subtype t u → subtype s u
+ with subtype_targs : list variance → list lang_ty → list lang_ty → Prop :=
+    | subtype_targs_nil : subtype_targs [] [] []
+    | subtype_targs_invariant : ∀ ty0 ty1 vs ty0s ty1s,
+        subtype ty0 ty1 →
+        subtype ty1 ty0 →
+        subtype_targs vs ty0s ty1s →
+        subtype_targs (Invariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
+    | subtype_targs_covariant : ∀ ty0 ty1 vs ty0s ty1s,
+        subtype ty0 ty1 →
+        subtype_targs vs ty0s ty1s →
+        subtype_targs (Covariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
+    | subtype_targs_contravariant : ∀ ty0 ty1 vs ty0s ty1s,
+        subtype ty1 ty0 →
+        subtype_targs vs ty0s ty1s →
+        subtype_targs (Contravariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
   .
+ 
+  Corollary length_subtype_targs_v0: ∀ vs ty0s ty1s,
+    subtype_targs vs ty0s ty1s → length vs = length ty0s.
+  Proof.
+    induction 1 as [ | ??????? h hi | ?????? h hi | ?????? h hi] => //=; by rewrite hi.
+  Qed.
+
+  Corollary length_subtype_targs_v1: ∀ vs ty0s ty1s,
+    subtype_targs vs ty0s ty1s → length vs = length ty1s.
+  Proof.
+    induction 1 as [ | ??????? h hi | ?????? h hi | ?????? h hi] => //=; by rewrite hi.
+  Qed.
+
+  Corollary length_subtype_targs_01: ∀ vs ty0s ty1s,
+    subtype_targs vs ty0s ty1s → length ty0s = length ty1s.
+  Proof.
+    induction 1 as [ | ??????? h hi | ?????? h hi | ?????? h hi] => //=; by rewrite hi.
+  Qed.
 
   Hint Constructors subtype : core.
+  Hint Constructors subtype_targs : core.
 
   Notation "s <: t" := (subtype s t) (at level 70, no associativity).
+
+  Lemma subtype_targs_refl vs: ∀ σ,
+    length vs = length σ → subtype_targs vs σ σ.
+  Proof.
+    induction vs as [ | v vs hi] => σ hLen.
+    - by rewrite (nil_length_inv σ).
+    - destruct σ as [ | ty σ]; first by discriminate hLen.
+      case : hLen => hLen.
+      apply hi in hLen.
+      destruct v; by constructor.
+  Qed.
+
+  Lemma neg_subtype_targs vs σ0 σ1 :
+    subtype_targs vs σ0 σ1 → subtype_targs (neg_variance <$> vs) σ1 σ0.
+  Proof.
+    induction 1 as [ | ??????? h hi | ?????? h hi | ?????? h hi] => //=.
+    - by constructor.
+    - by constructor.
+    - by constructor.
+  Qed.
+
+  (* See Andrew Kennedy's paper:
+     Variance and Generalized Constraints for C♯ Generics
+  *)
+  Inductive mono : list variance → lang_ty → Prop :=
+    | MonoInt vs : mono vs IntT
+    | MonoBool vs : mono vs BoolT
+    | MonoNothing vs : mono vs NothingT
+    | MonoMixed vs : mono vs MixedT
+    | MonoNull vs : mono vs NullT
+    | MonoNonNull vs : mono vs NonNullT
+    | MonoUnion vs s t : mono vs s → mono vs t → mono vs (UnionT s t)
+    | MonoInter vs s t : mono vs s → mono vs t → mono vs (InterT s t)
+    | MonoVInvGen vs n: vs !! n = Some Invariant → mono vs (GenT n)
+    | MonoVCoGen vs n: vs !! n = Some Covariant → mono vs (GenT n)
+    | MonoGen vs n: vs !! n = None → mono vs (GenT n)
+    | MonoEx vs cname: mono vs (ExT cname)
+    | MonoClass vs cname cdef targs:
+        Δ !! cname = Some cdef →
+        (∀ i wi ti, cdef.(generics) !! i = Some wi →
+                    targs !! i = Some ti →
+                    not_contra wi →
+                    mono vs ti) →
+        (∀ i wi ti, cdef.(generics) !! i = Some wi →
+                    targs !! i = Some ti →
+                    not_cov wi →
+                    mono (neg_variance <$> vs) ti) →
+        mono vs (ClassT cname targs)
+  .
+
+  Definition wf_cdef_mono cdef : Prop :=
+    match cdef.(superclass) with
+    | None => True
+    | Some (parent, σ) =>
+        mono cdef.(generics) (ClassT parent σ)
+    end
+  .
+
+  Definition wf_mdef_mono vs mdef : Prop :=
+    map_Forall (λ _argname, mono (neg_variance <$> vs)) mdef.(methodargs) ∧
+    mono vs mdef.(methodrettype).
+
+  Definition wf_cdef_methods_mono cdef : Prop :=
+    map_Forall (λ _mname, wf_mdef_mono cdef.(generics)) cdef.(classmethods)
+  .
+
+  Definition invariant vs ty :=
+    mono vs ty ∧ mono (neg_variance <$> vs) ty.
+
+  Definition wf_field_mono cdef :=
+    map_Forall (λ _fname, invariant cdef.(generics)) cdef.(classfields).
+
+  Lemma mono_subst vs ty:
+    mono vs ty →
+    bounded (length vs) ty →
+    ∀ ws σ,
+    length vs = length σ →
+    (∀ i vi ti, vs !! i = Some vi → σ !! i = Some ti →
+      not_cov vi → mono (neg_variance <$> ws) ti) →
+    (∀ i vi ti, vs !! i = Some vi → σ !! i = Some ti →
+      not_contra vi → mono ws ti) →
+    mono ws (subst_ty σ ty).
+  Proof.
+    induction 1 as [ vs | vs | vs | vs | vs | vs | vs s t hs his ht hit
+      | vs s t hs his ht hit | vs n hinv | vs n hco | vs n hnone
+      | vs cname | vs cname cdef targs hΔ hcov hicov hcontra hicontra ]
+      => hb ws σ hlen h0 h1 //=; try by constructor.
+    - inv hb.
+      constructor.
+      + eapply his; by eauto.
+      + eapply hit; by eauto.
+    - inv hb.
+      constructor.
+      + eapply his; by eauto.
+      + eapply hit; by eauto.
+    - destruct (σ !! n) as [ty | ] eqn:hty => //=.
+      + by eapply h1.
+      + apply lookup_lt_Some in hinv.
+        rewrite hlen in hinv.
+        apply lookup_lt_is_Some_2 in hinv.
+        rewrite hty in hinv.
+        by elim hinv.
+    - destruct (σ !! n) as [ty | ] eqn:hty => //=.
+      + by eapply h1.
+      + apply lookup_lt_Some in hco.
+        rewrite hlen in hco.
+        apply lookup_lt_is_Some_2 in hco.
+        rewrite hty in hco.
+        by elim hco.
+    - inv hb.
+      apply lookup_lt_is_Some_2 in H0.
+      rewrite hnone in H0.
+      by elim H0.
+    - inv hb.
+      econstructor; first done.
+      + move => i ci ti hci hi hc.
+        apply list_lookup_fmap_inv in hi as [ty [-> hi]].
+        eapply hicov => //.
+        rewrite Forall_forall in H0.
+        apply H0.
+        by apply elem_of_list_lookup_2 in hi.
+      + move => i ci ti hci hi hc.
+        apply list_lookup_fmap_inv in hi as [ty [-> hi]].
+        eapply hicontra => //.
+        * rewrite Forall_forall in H0.
+          rewrite map_length.
+          apply H0.
+          by apply elem_of_list_lookup_2 in hi.
+        * by rewrite map_length.
+        * move => j vj tj hj htj hcj.
+          apply list_lookup_fmap_inv in hj as [vj' [-> hj]].
+          rewrite neg_variance_fmap_idem.
+          eapply h1 => //.
+          by destruct vj'.
+        * move => j vj tj hj htj hcj.
+          apply list_lookup_fmap_inv in hj as [vj' [-> hj]].
+          eapply h0 => //.
+          by destruct vj'.
+  Qed.
+
+  Lemma extends_using_mono A B σ :
+    map_Forall (λ _cname, wf_cdef_mono) Δ →
+    extends_using A B σ →
+    ∀ def, Δ !! A = Some def →
+    mono def.(generics) (ClassT B σ).
+  Proof.
+    move => hmono h def hdef.
+    inv h; simplify_eq.
+    apply hmono in hdef.
+    by rewrite /wf_cdef_mono H0 in hdef.
+  Qed.
+
+  Lemma inherits_using_mono A B σ :
+    map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _cname, wf_cdef_mono) Δ →
+    inherits_using A B σ →
+    ∀ def, Δ !! A = Some def →
+    mono def.(generics) (ClassT B σ).
+  Proof.
+    move => ? hmono.
+    induction 1 as [A adef h | A B σ h | A B σ C σC hext h hi ] => def hdef.
+    - simplify_eq.
+      econstructor => //.
+      + move => i wi ti hgi /lookup_gen_targs -> hc.
+        destruct wi; by constructor.
+      + move => i wi ti hgi /lookup_gen_targs -> hc.
+        destruct wi => //.
+        * apply MonoVInvGen.
+          by rewrite list_lookup_fmap hgi.
+        * apply MonoVCoGen.
+          by rewrite list_lookup_fmap hgi.
+    - by apply extends_using_mono with (def := def) in h.
+    - apply inherits_using_wf in h => //.
+      destruct h as (bdef & cdef & hb & hc & hF & hL & hwf).
+      assert (hb' := hb).
+      assert (hext' := hext).
+      apply hi in hb'.
+      apply extends_using_mono with (def := def) in hext' => //.
+      inv hext'.
+      simplify_eq.
+      change (ClassT C (subst_ty σ <$> σC)) with (subst_ty σ (ClassT C σC)).
+      apply mono_subst with (generics bdef) => //.
+      + by constructor.
+      + apply extends_using_wf in hext => //.
+        repeat destruct hext as [? hext].
+        by simplify_eq.
+  Qed.
+
+  Definition check_variance v ty0 ty1 :=
+    match v with
+    | Invariant => (ty0 <: ty1) ∧ (ty1 <: ty0)
+    | Covariant => ty0 <: ty1
+    | Contravariant => ty1 <: ty0
+    end.
+
+  Lemma subtype_targs_lookup_0 vs σ0 σ1:
+    subtype_targs vs σ0 σ1 →
+    ∀ k ty0, σ0 !! k = Some ty0 →
+    ∃ v ty1, vs !! k = Some v ∧ σ1 !! k = Some ty1 ∧
+    check_variance v ty0 ty1.
+  Proof.
+    induction 1 as [ | ????? h0 h1 h hi | ????? h0 h hi | ????? h0 h hi] => k tk.
+    - by rewrite lookup_nil.
+    - destruct k as [ | k] => //=.
+      + case => <-; clear tk.
+        exists Invariant, ty1; by repeat split.
+      + move => hk.
+        apply hi in hk as (v & t2 & -> & -> & hv).
+        exists v, t2; by repeat split.
+    - destruct k as [ | k] => //=.
+      + case => <-; clear tk.
+        exists Covariant, ty1; by repeat split.
+      + move => hk.
+        apply hi in hk as (v & t2 & -> & -> & hv).
+        exists v, t2; by repeat split.
+    - destruct k as [ | k] => //=.
+      + case => <-; clear tk.
+        exists Contravariant, ty1; by repeat split.
+      + move => hk.
+        apply hi in hk as (v & t2 & -> & -> & hv).
+        exists v, t2; by repeat split.
+  Qed.
+
+  Lemma subtype_targs_lookup_1 vs σ0 σ1:
+    subtype_targs vs σ0 σ1 →
+    ∀ k ty1, σ1 !! k = Some ty1 →
+    ∃ v ty0, vs !! k = Some v ∧ σ0 !! k = Some ty0 ∧
+    check_variance v ty0 ty1.
+  Proof.
+    move => hsub k ty1 h1.
+    destruct (σ0 !! k) as [ty0 | ] eqn:h0; last first.
+    { apply length_subtype_targs_01 in hsub.
+      apply mk_is_Some in h1.
+      apply lookup_lt_is_Some_1 in h1.
+      rewrite -hsub in h1.
+      apply lookup_lt_is_Some_2 in h1.
+      rewrite h0 in h1.
+      by elim h1.
+    }
+    apply subtype_targs_lookup_0 with (k := k) (ty0 := ty0) in hsub => //.
+    destruct hsub as (v & ty1' & hv & ? & h); simplify_eq.
+    exists v, ty0.
+    by repeat split.
+  Qed.
+
+  Lemma subtype_targs_lookup_v vs σ0 σ1:
+    subtype_targs vs σ0 σ1 →
+    ∀ k v, vs !! k = Some v →
+    ∃ ty0 ty1, σ0 !! k = Some ty0 ∧ σ1 !! k = Some ty1 ∧
+    check_variance v ty0 ty1.
+  Proof.
+    move => hsub k v hv.
+    destruct (σ0 !! k) as [ty0 | ] eqn:h0; last first.
+    { apply length_subtype_targs_v0 in hsub.
+      apply mk_is_Some in hv.
+      apply lookup_lt_is_Some_1 in hv.
+      rewrite hsub in hv.
+      apply lookup_lt_is_Some_2 in hv.
+      rewrite h0 in hv.
+      by elim hv.
+    }
+    apply subtype_targs_lookup_0 with (k := k) (ty0 := ty0) in hsub => //.
+    destruct hsub as (v' & ty1 & ? & ? & h); simplify_eq.
+    exists ty0, ty1.
+    by repeat split.
+  Qed.
+      
+  Lemma subtype_targs_forall vs σ0 σ1:
+    length σ0 = length vs →
+    length σ1 = length vs →
+    (∀ k v ty0 ty1,
+         vs !! k = Some v → σ0 !! k = Some ty0 → σ1 !! k = Some ty1 → 
+         check_variance v ty0 ty1) →
+    subtype_targs vs σ0 σ1.
+  Proof.
+    move : σ0 σ1.
+    induction vs as [ | v vs hi] => σ0 σ1 h0 h1 h.
+    - apply nil_length_inv in h0.
+      apply nil_length_inv in h1.
+      by rewrite h0 h1.
+    - destruct σ0 as [ | ty0 σ0]; first by discriminate h0.
+      destruct σ1 as [ | ty1 σ1]; first by discriminate h1.
+      case : h0 => h0.
+      case : h1 => h1.
+      destruct v.
+      + constructor.
+        * by apply (h 0 Invariant ty0 ty1).
+        * by apply (h 0 Invariant ty0 ty1).
+        * apply hi => //.
+          move => k v ty2 ty3 hv h2 h3.
+          by apply (h (S k) v ty2 ty3).
+      + constructor.
+        * by apply (h 0 Covariant ty0 ty1).
+        * apply hi => //.
+          move => k v ty2 ty3 hv h2 h3.
+          by apply (h (S k) v ty2 ty3).
+      + constructor.
+        * by apply (h 0 Contravariant ty0 ty1).
+        * apply hi => //.
+          move => k v ty2 ty3 hv h2 h3.
+          by apply (h (S k) v ty2 ty3).
+  Qed.
+
+  Lemma subtype_targs_cons v t0 t1 vs σ0 σ1:
+    check_variance v t0 t1 →
+    subtype_targs vs σ0 σ1 →
+    subtype_targs (v :: vs) (t0 :: σ0) (t1 :: σ1).
+  Proof.
+    rewrite /check_variance => hc hs.
+    destruct v; constructor => //.
+    - by destruct hc.
+    - by destruct hc.
+  Qed.
 
   Lemma subtype_wf A B:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     wf_ty A → A <: B → wf_ty B.
   Proof.
     move => hp hwf.
-    induction 1 as [ ty | ty h | A σA B σB adef hΔ hA hext | | | | A args | s t h
+    induction 1 as [ ty | ty h | A σA B σB adef hΔ hA hext
+      | A adef σ0 σ1 hΔ hwfσ hσ | | | | A args | s t h
       | s t h | s t u hs his ht hit | s t | s t | s t u hs his ht hit | s
       | s t u hst hist htu hitu ] => //=; try (by constructor).
     - inv hext; simplify_eq.
@@ -809,6 +1239,13 @@ Section ProgDef.
         rewrite Forall_forall in hσB.
         apply elem_of_list_lookup_2 in hty.
         by apply hσB in hty.
+    - apply length_subtype_targs_v1 in hσ.
+      inv hwf; simplify_eq; econstructor.
+      + exact hΔ.
+      + by rewrite hσ.
+      + rewrite Forall_forall in hwfσ => k ty hty.
+        apply elem_of_list_lookup_2 in hty.
+        by apply hwfσ in hty.
     - inv hwf; by eauto.
     - inv hwf; by eauto.
     - inv hwf; by eauto.
@@ -820,28 +1257,230 @@ Section ProgDef.
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     A <: B → ∀ σ,
     Forall wf_ty σ →
-    (subst_ty σ A) <: (subst_ty σ B).
+    (subst_ty σ A) <: (subst_ty σ B)
+  with subtype_targs_subst vs As Bs:
+    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    subtype_targs vs As Bs → ∀ σ,
+    Forall wf_ty σ →
+    subtype_targs vs (subst_ty σ <$> As) (subst_ty σ <$> Bs).
   Proof.
-    move => hp.
-    induction 1 as [ ty | ty h | A σA B σB adef hΔ hA hext | | | | A args | s t h
-      | s t h | s t u hs his ht hit | s t | s t | s t u hs his ht hit | s
-      | s t u hst hist htu hitu ] => σ hσ //=.
-    - constructor.
-      by apply wf_ty_subst.
-    - rewrite map_subst_ty_subst.
-      + econstructor => //.
-        by rewrite map_length.
-      + apply extends_using_wf in hext => //.
-      destruct hext as (? & bdef & ? & hB & hF & hL).
-      simplify_eq.
-      by rewrite hA.
-    - constructor.
-      by apply wf_ty_subst.
-    - constructor.
-      by apply wf_ty_subst.
-    - constructor; by eauto.
-    - econstructor; by eauto.
-    - econstructor; by eauto.
+    - move => hp.
+      destruct 1 as [ ty | ty h | A σA B σB adef hΔ hA hext
+      | A adef σ0 σ1 hΔ hwfσ hσ01 | | | | A args
+      | s t h | s t h | s t u hs ht | s t | s t | s t u hs ht | s
+      | s t u hst htu ] => σ hσ => /=; try (by constructor).
+      + constructor.
+        by apply wf_ty_subst.
+      + rewrite map_subst_ty_subst.
+        * econstructor; [exact hΔ | | by assumption].
+          by rewrite map_length.
+        * apply extends_using_wf in hext; last done.
+          destruct hext as (? & bdef & ? & hB & hF & hL).
+          simplify_eq.
+          by rewrite hA.
+      + eapply SubVariance.
+        * exact hΔ.
+        * rewrite Forall_forall => ty /elem_of_list_fmap [ty' [-> hin]].
+          apply wf_ty_subst => //.
+          rewrite Forall_forall in hwfσ; by apply hwfσ in hin.
+        * apply subtype_targs_subst; by assumption.
+      + constructor.
+        by apply wf_ty_subst.
+      + constructor.
+        by apply wf_ty_subst.
+      + constructor; by apply subtype_subst.
+      + constructor; by apply subtype_subst.
+      + econstructor; by apply subtype_subst.
+    - move => hp.
+      destruct 1 as [ | ????? h0 h1 h | ????? h0 h | ????? h0 h] => σ hσ /=.
+      + by constructor.
+      + constructor.
+        * by apply subtype_subst.
+        * by apply subtype_subst.
+        * by apply subtype_targs_subst.
+      + constructor.
+        * by apply subtype_subst.
+        * by apply subtype_targs_subst.
+      + constructor.
+        * by apply subtype_subst.
+        * by apply subtype_targs_subst.
+  Qed.
+
+  Lemma subtype_lift vs ty :
+    mono vs ty →
+    ∀ σ0 σ1,
+    wf_ty ty →
+    Forall wf_ty σ0 →
+    Forall wf_ty σ1 →
+    subtype_targs vs σ0 σ1 →
+    subst_ty σ0 ty <: subst_ty σ1 ty.
+  Proof.
+    induction 1 as [ vs | vs | vs | vs | vs | vs
+      | vs s t hs his ht hit
+      | vs s t hs his ht hit
+      | vs n hinv | vs n hco | vs n hnone | vs cname
+      | vs cname cdef targs hΔ hcov hicov hcontra hicontra ] => σ0 σ1 hwf hwf0 hwf1 hsub //=.
+    - inv hwf.
+      constructor.
+      + econstructor; first by eapply his.
+        econstructor.
+        by apply wf_ty_subst.
+      + econstructor; first by eapply hit.
+        econstructor.
+        by apply wf_ty_subst.
+    - inv hwf.
+      constructor.
+      + eapply SubTrans with (subst_ty σ0 s); last by eapply his.
+        by constructor.
+      + eapply SubTrans with (subst_ty σ0 t); last by eapply hit.
+        by constructor.
+    - apply subtype_targs_lookup_v with (k := n) (v := Invariant) in hsub => //.
+      by destruct hsub as (ty0 & ty1 & -> & -> & h0 & h1).
+    - apply subtype_targs_lookup_v with (k := n) (v := Covariant) in hsub => //.
+      by destruct hsub as (ty0 & ty1 & -> & -> & h).
+    - destruct (σ0 !! n) as [? | ] eqn:h0.
+      { apply length_subtype_targs_v0 in hsub.
+        apply mk_is_Some in h0.
+        apply lookup_lt_is_Some_1 in h0.
+        rewrite -hsub in h0.
+        apply lookup_lt_is_Some_2 in h0.
+        rewrite hnone in h0.
+        by elim h0.
+      }
+      destruct (σ1 !! n) as [? | ] eqn:h1.
+      { apply length_subtype_targs_v1 in hsub.
+        apply mk_is_Some in h1.
+        apply lookup_lt_is_Some_1 in h1.
+        rewrite -hsub in h1.
+        apply lookup_lt_is_Some_2 in h1.
+        rewrite hnone in h1.
+        by elim h1.
+      }
+      done.
+    - assert (hwftargs : Forall wf_ty targs) by (by apply wf_ty_class_inv in hwf).
+      apply SubVariance with cdef => //; first by apply wf_ty_subst_map.
+      apply subtype_targs_forall.
+      + rewrite map_length.
+        inv hwf; by simplify_eq.
+      + rewrite map_length.
+        inv hwf; by simplify_eq.
+      + move => k v ty0 ty1 hk h0 h1.
+        apply list_lookup_fmap_inv in h0.
+        destruct h0 as [t0' [-> h0]].
+        apply list_lookup_fmap_inv in h1.
+        destruct h1 as [t1' [-> h1]].
+        simplify_eq.
+        destruct v; first split.
+        * eapply hicov => //.
+          rewrite Forall_forall in hwftargs.
+          apply hwftargs.
+          by apply elem_of_list_lookup_2 in h0.
+        * eapply hicontra => //.
+          rewrite Forall_forall in hwftargs.
+          apply hwftargs.
+          by apply elem_of_list_lookup_2 in h0.
+          by apply neg_subtype_targs.
+        * eapply hicov => //.
+          rewrite Forall_forall in hwftargs.
+          apply hwftargs.
+          by apply elem_of_list_lookup_2 in h0.
+        * eapply hicontra => //.
+          rewrite Forall_forall in hwftargs.
+          apply hwftargs.
+          by apply elem_of_list_lookup_2 in h0.
+          by apply neg_subtype_targs.
+  Qed.
+
+  Lemma subtype_targs_lift σ:
+    ∀ vs σ0 σ1 ws,
+    Forall wf_ty σ →
+    Forall wf_ty σ0 →
+    Forall wf_ty σ1 →
+    subtype_targs vs σ0 σ1 →
+    length σ = length ws →
+    (∀ i wi ti, ws !! i = Some wi →
+                σ !! i = Some ti →
+                not_contra wi →
+                mono vs ti) →
+    (∀ i wi ti, ws !! i = Some wi →
+                σ !! i = Some ti →
+                not_cov wi →
+                mono (neg_variance <$> vs) ti) →
+    subtype_targs ws (subst_ty σ0 <$> σ) (subst_ty σ1 <$> σ)
+    .
+  Proof.
+    induction σ as [ | ty σ hi] => vs σ0 σ1 ws hwf hwf0 hwf1 h hlen hcov hcontra;
+      first by rewrite (nil_length_inv ws).
+    destruct ws as [ | w ws]; first by discriminate hlen.
+    case: hlen => hlen /=.
+    apply Forall_cons_1 in hwf as [hty hwf].
+    apply subtype_targs_cons.
+    { destruct w => /=.
+      - split.
+        + apply subtype_lift with vs => //.
+          by apply (hcov 0 Invariant).
+        + apply subtype_lift with (neg_variance <$> vs) => //; last by apply neg_subtype_targs.
+          by apply (hcontra 0 Invariant).
+      - apply subtype_lift with vs => //.
+        by apply (hcov 0 Covariant).
+      - apply subtype_lift with (neg_variance <$> vs) => //; last by apply neg_subtype_targs.
+        by apply (hcontra 0 Contravariant).
+    }
+    apply hi with vs => //.
+    - move => i wi ti hwi hti hc.
+      by apply (hcov (S i) wi ti).
+    - move => i wi ti hwi hti hc.
+      by apply (hcontra (S i) wi ti).
+  Qed.
+
+  Lemma subtype_targs_inv_0 vs σ ty0 σ0:
+    subtype_targs vs (ty0 :: σ0) σ →
+    ∃ w ws ty1 σ1,
+    vs = w :: ws ∧
+    σ = ty1 :: σ1 ∧
+    check_variance w ty0 ty1 ∧
+    subtype_targs ws σ0 σ1.
+  Proof.
+    move => h; inv h.
+    - by exists Invariant, vs0, ty2, ty1s.
+    - by exists Covariant, vs0, ty2, ty1s.
+    - by exists Contravariant, vs0, ty2, ty1s.
+  Qed.
+
+  Lemma subtype_targs_inv_1 vs σ ty1 σ1:
+    subtype_targs vs σ (ty1 :: σ1) →
+    ∃ w ws ty0 σ0,
+    vs = w :: ws ∧
+    σ = ty0 :: σ0 ∧
+    check_variance w ty0 ty1 ∧
+    subtype_targs ws σ0 σ1.
+  Proof.
+    move => h; inv h.
+    - by exists Invariant, vs0, ty0, ty0s.
+    - by exists Covariant, vs0, ty0, ty0s.
+    - by exists Contravariant, vs0, ty0, ty0s.
+  Qed.
+
+  Lemma subtype_targs_trans σ:
+    ∀ vs σ0 σ1,
+    subtype_targs vs σ0 σ1 →
+    subtype_targs vs σ σ0 →
+    subtype_targs vs σ σ1.
+  Proof.
+    induction σ as [ | ty σ hi] => vs σ0 σ1 h01 h0.
+    - inv h0.
+      by inv h01.
+    - apply subtype_targs_inv_0 in h0.
+      destruct h0 as (w & ws & ty0 & ty0s & -> & -> & hc & hsub).
+      apply subtype_targs_inv_0 in h01.
+      destruct h01 as (? & ? & ty1 & ty1s & heq & -> & hc' & hsub').
+      case : heq.
+      intros <- <-.
+      apply subtype_targs_cons; last by eapply hi.
+      move : hc hc'; destruct w => /=.
+      + move => [??] [??]; split; by eauto.
+      + move => ? ?; by eauto.
+      + move => ? ?; by eauto.
   Qed.
 
   (* Sanity checks: Some derived rules *)
@@ -877,7 +1516,7 @@ Section ProgDef.
   Lemma subtype_inherits_using A B σ σA adef:
     map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
     Δ !! A = Some adef →
-    length σA = adef.(generics) →
+    length σA = length (adef.(generics)) →
     inherits_using A B σ →
     ClassT A σA <: ClassT B (subst_ty σA <$> σ).
   Proof.
@@ -1006,7 +1645,7 @@ Section ProgDef.
 
   (* All field types in a class must be bounded by the class generics *)
   Definition wf_cdef_fields_bounded cdef : Prop :=
-    map_Forall (λ _fname, bounded cdef.(generics)) cdef.(classfields).
+    map_Forall (λ _fname, bounded (length cdef.(generics))) cdef.(classfields).
 
   (* All field types in a class must be well-formed *)
   Definition wf_cdef_fields_wf cdef : Prop :=
@@ -1050,7 +1689,7 @@ Section ProgDef.
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
     has_field f t fty →
-    ∃ def, Δ !! t = Some def ∧ bounded def.(generics) fty.
+    ∃ def, Δ !! t = Some def ∧ bounded (length def.(generics)) fty.
   Proof.
     move => /map_Forall_lookup hwfparent /map_Forall_lookup hwfb.
     induction 1 as [ tag cdef typ hΔ hf
@@ -1091,6 +1730,52 @@ Section ProgDef.
       destruct h as (? & ? & ? & ? & ? & h & _).
       simplify_eq.
       by rewrite h.
+  Qed.
+
+  Lemma has_field_mono f t ty :
+    map_Forall (λ _cname, wf_field_mono) Δ →
+    map_Forall (λ _cname, wf_cdef_mono) Δ →
+    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
+    has_field f t ty →
+    ∃ def, Δ !! t = Some def ∧
+    invariant def.(generics) ty.
+  Proof.
+    move => hwfΔ hmono hp hfb.
+    induction 1 as [ tag cdef typ hΔ hf
+      | tag targs parent cdef typ hΔ hf hs h hi ].
+      - exists cdef; split => //.
+        apply hwfΔ in hΔ.
+        by apply hΔ in hf.
+      - destruct hi as [def [hdef [h0 h1]]].
+        exists cdef; split => //.
+        assert (htag := hΔ).
+        apply hp in htag.
+        rewrite /wf_cdef_parent hs in htag.
+        destruct htag as (? & ? & hlen & hwf & hb); simplify_eq.
+        apply has_field_bounded in h => //.
+        destruct h as (? & ? & hbt).
+        assert (htag := hΔ).
+        apply hmono in htag.
+        rewrite /wf_cdef_mono hs in htag.
+        inv htag.
+        simplify_eq.
+        split.
+        + by apply mono_subst with (generics x).
+        + apply mono_subst with (neg_variance <$> generics x) => //.
+          * by rewrite map_length.
+          * by rewrite map_length.
+          * rewrite !neg_variance_fmap_idem.
+            move => i vi ti hvi hti hc.
+            apply list_lookup_fmap_inv in hvi.
+            destruct hvi as [wi [-> hwi]].
+            eapply H4 => //.
+            by destruct wi.
+          * move => i vi ti hvi hti hc.
+            apply list_lookup_fmap_inv in hvi.
+            destruct hvi as [wi [-> hwi]].
+            eapply H5 => //.
+            by destruct wi.
   Qed.
 
   (* Helper predicate to collect all fields of a given class, as a map *)
@@ -1258,7 +1943,7 @@ Section ProgDef.
     move => /map_Forall_lookup hp /map_Forall_lookup hmb.
     induction 1 as [ A adef mdef hΔ hm | A parent orig σ cdef mdef hΔ hm hs h hi ].
     - exists adef, mdef; repeat split => //; first by econstructor.
-      exists (gen_targs adef.(generics)); split; first by constructor.
+      exists (gen_targs (length adef.(generics))); split; first by constructor.
       rewrite subst_mdef_gen_targs //.
       apply hmb in hΔ.
       by apply hΔ in hm.
@@ -1371,7 +2056,7 @@ Section ProgDef.
         (? & ? & mbdef & ? & ? & hbm & ->); simplify_eq.
       destruct (has_method_fun _ _ _ _ _ _ hhB hbm) as [-> ->].
       simplify_eq.
-      exists (gen_targs oadef.(generics)),
+      exists (gen_targs (length oadef.(generics))),
              (subst_ty σ <$> σ''),
              σ'',
              oadef, oadef,
@@ -1425,7 +2110,7 @@ Section ProgDef.
         apply inherits_using_wf in hiB => //.
         repeat destruct hiB as [? hiB].
         simplify_eq.
-        apply bounded_subst_mdef with (generics obdef) => //.
+        apply bounded_subst_mdef with (length (generics obdef)) => //.
         apply inherits_using_wf in h => //.
         repeat destruct h as [? h].
         simplify_eq.
@@ -1690,7 +2375,7 @@ Section ProgDef.
         apply hmb in ho.
         apply ho in hmo.
         destruct hmo as [_ hret].
-        apply bounded_subst with (n := generics odef) => //.
+        apply bounded_subst with (n := length (generics odef)) => //.
         apply expr_has_ty_wf in he => //.
         inv he; simplify_eq.
         by rewrite H2.
@@ -1717,7 +2402,7 @@ Section ProgDef.
         rewrite lookup_fmap_Some in hty.
         destruct hty as [ty' [ <- hty]].
         apply hargs' in hty.
-        apply bounded_subst with (n := generics odef) => //.
+        apply bounded_subst with (n := length (generics odef)) => //.
         apply expr_has_ty_wf in he => //.
         inv he; simplify_eq.
         by rewrite H2.
@@ -1740,12 +2425,13 @@ Section ProgDef.
    *)
   Definition wf_mdef_ty this σ mdef :=
     ∃ rty,
+    map_Forall (λ _name, wf_ty) rty ∧
     cmd_has_ty (<["$this" := this]>(subst_ty σ <$> mdef.(methodargs))) mdef.(methodbody) rty ∧
     expr_has_ty rty mdef.(methodret) (subst_ty σ mdef.(methodrettype))
   .
 
   Definition cdef_wf_mdef_ty cname cdef :=
-    let σ := gen_targs cdef.(generics) in
+    let σ := gen_targs (length cdef.(generics)) in
     map_Forall (λ _mname mdef, wf_mdef_ty (ClassT cname σ) σ mdef) cdef.(classmethods)
   .
 
@@ -1753,6 +2439,9 @@ Section ProgDef.
    * - no cycle (we have a forest)
    * - every type is well-formed/bounded
    * - every substitution's domain/codomain is valid
+   * - variance is checked
+   * TODO: all our fields are public, we probably need to have them
+   *       all Invariant. This is currently missing
    *)
   Record wf_cdefs (prog: stringmap classDef) := {
     wf_extends_wf : wf_no_cycle prog;
@@ -1761,9 +2450,13 @@ Section ProgDef.
     wf_fields : map_Forall (λ _cname, wf_cdef_fields) prog;
     wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) prog;
     wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) prog;
+    (* because all fields are public/mutable *)
+    wf_fields_mono : map_Forall (λ _cname, wf_field_mono) prog;
     wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) prog;
     wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) prog;
+    wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) prog;
     wf_mdefs : map_Forall cdef_wf_mdef_ty prog;
+    wf_mono : map_Forall (λ _cname, wf_cdef_mono) prog;
   }
   .
 
@@ -1851,13 +2544,13 @@ Section ProgDef.
     Δ !! t = Some def →
     Δ !! t0 = Some def0 →
     has_method m t orig mdef →
-    wf_mdef_ty (ClassT t (gen_targs def.(generics))) (gen_targs def.(generics)) mdef →
+    wf_mdef_ty (ClassT t (gen_targs (length def.(generics)))) (gen_targs (length def.(generics))) mdef →
     inherits_using t0 t σ →
-    wf_mdef_ty (ClassT t0 (gen_targs def0.(generics))) σ mdef.
+    wf_mdef_ty (ClassT t0 (gen_targs (length (def0.(generics))))) σ mdef.
   Proof.
-    move => hp hfwf hmwf hfb hmb hΔt hΔt0 hm [rty [hbody hret]] hin.
-    assert (h: Forall (bounded (generics def0)) σ
-            ∧ length σ = generics def ∧ Forall wf_ty σ).
+    move => hp hfwf hmwf hfb hmb hΔt hΔt0 hm [rty [wfrty [hbody hret]]] hin.
+    assert (h: Forall (bounded (length (generics def0))) σ
+            ∧ length σ = length (generics def) ∧ Forall wf_ty σ).
     { apply inherits_using_wf in hin => //.
       destruct hin as (? & ? & ? & ? &? & ? & ?).
       by simplify_eq.
@@ -1871,7 +2564,12 @@ Section ProgDef.
     assert (hmdef_orig' := hmdef_orig).
     apply hmwf in ho'.
     apply ho' in hmdef_orig' as [hargs _].
-    exists (subst_ty σ <$> rty); split.
+    exists (subst_ty σ <$> rty); split; last split.
+    - rewrite map_Forall_lookup => k ty.
+      rewrite lookup_fmap_Some.
+      case => [ty' [<- hk]].
+      apply wf_ty_subst => //.
+      by apply wfrty in hk.
     - apply cmd_has_ty_subl with (<["$this":=ClassT t σ]>(subst_ty σ <$> methodargs mdef)) => //.
       + rewrite map_Forall_lookup => x tx.
         rewrite lookup_insert_Some.
@@ -1889,10 +2587,10 @@ Section ProgDef.
           apply wf_ty_subst => //.
           apply wf_ty_subst => //.
           by apply hargs in hz.
-      + replace (ClassT t σ) with (subst_ty σ (ClassT t (gen_targs def.(generics)))); last first.
+      + replace (ClassT t σ) with (subst_ty σ (ClassT t (gen_targs (length def.(generics))))); last first.
         { by rewrite /= subst_ty_gen_targs. }
-        replace (<["$this":=subst_ty σ (ClassT t (gen_targs (generics def)))]> (subst_ty σ <$> methodargs mdef))
-          with (subst_ty σ <$> (<["$this" := ClassT t (gen_targs (generics def))]> (methodargs mdef))); last first.
+        replace (<["$this":=subst_ty σ (ClassT t (gen_targs (length (generics def))))]> (subst_ty σ <$> methodargs mdef))
+          with (subst_ty σ <$> (<["$this" := ClassT t (gen_targs (length (generics def)))]> (methodargs mdef))); last first.
         { by rewrite fmap_insert. }
         apply cmd_has_ty_subst => //.
         * rewrite map_Forall_lookup => x tx.
@@ -1921,7 +2619,7 @@ Section ProgDef.
         case => [[<- <-]|[?]].
         * rewrite lookup_insert.
           eexists; split => //.
-          replace σ with (subst_ty (gen_targs def0.(generics)) <$> σ); last first.
+          replace σ with (subst_ty (gen_targs (length def0.(generics))) <$> σ); last first.
           { by rewrite subst_tys_id. }
           eapply subtype_inherits_using => //.
           by rewrite length_gen_targs.
@@ -1930,7 +2628,7 @@ Section ProgDef.
           rewrite lookup_insert_ne // lookup_fmap hx /=.
           by eexists.
     - apply expr_has_ty_subst => //.
-      replace (methodrettype mdef) with (subst_ty (gen_targs (generics def)) (methodrettype mdef)); first done.
+      replace (methodrettype mdef) with (subst_ty (gen_targs (length (generics def))) (methodrettype mdef)); first done.
       simplify_eq.
       rewrite subst_ty_id // /subst_mdef /=.
       eapply bounded_subst => //.
@@ -2104,6 +2802,6 @@ Section ProgDef.
 End ProgDef.
 
 (* Hints and notations are local to the section. Re-exporting them *)
-Global Hint Constructors subtype : core.
+Global Hint Constructors subtype subtype_targs : core.
 Global Hint Constructors has_field : core.
 Global Hint Constructors has_method : core.
