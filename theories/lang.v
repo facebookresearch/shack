@@ -901,9 +901,10 @@ Section ProgDef.
   Hint Constructors subtype_targs : core.
 
   Notation "s <: t" := (subtype s t) (at level 70, no associativity).
+  Notation "lts <: vs :> rts" := (subtype_targs vs lts rts) (at level 70, vs at next level).
 
   Lemma subtype_targs_refl vs: ∀ σ,
-    length vs = length σ → subtype_targs vs σ σ.
+    length vs = length σ → σ <:vs:> σ.
   Proof.
     induction vs as [ | v vs hi] => σ hLen.
     - by rewrite (nil_length_inv σ).
@@ -914,7 +915,7 @@ Section ProgDef.
   Qed.
 
   Lemma neg_subtype_targs vs σ0 σ1 :
-    subtype_targs vs σ0 σ1 → subtype_targs (neg_variance <$> vs) σ1 σ0.
+    σ0 <:vs:> σ1 → σ1 <:(neg_variance <$> vs):> σ0.
   Proof.
     induction 1 as [ | ??????? h hi | ?????? h hi | ?????? h hi] => //=.
     - by constructor.
@@ -1097,7 +1098,7 @@ Section ProgDef.
     end.
 
   Lemma subtype_targs_lookup_0 vs σ0 σ1:
-    subtype_targs vs σ0 σ1 →
+    σ0 <:vs:> σ1 →
     ∀ k ty0, σ0 !! k = Some ty0 →
     ∃ v ty1, vs !! k = Some v ∧ σ1 !! k = Some ty1 ∧
     check_variance v ty0 ty1.
@@ -1125,7 +1126,7 @@ Section ProgDef.
   Qed.
 
   Lemma subtype_targs_lookup_1 vs σ0 σ1:
-    subtype_targs vs σ0 σ1 →
+    σ0 <:vs:> σ1 →
     ∀ k ty1, σ1 !! k = Some ty1 →
     ∃ v ty0, vs !! k = Some v ∧ σ0 !! k = Some ty0 ∧
     check_variance v ty0 ty1.
@@ -1147,7 +1148,7 @@ Section ProgDef.
   Qed.
 
   Lemma subtype_targs_lookup_v vs σ0 σ1:
-    subtype_targs vs σ0 σ1 →
+    σ0 <:vs:> σ1 →
     ∀ k v, vs !! k = Some v →
     ∃ ty0 ty1, σ0 !! k = Some ty0 ∧ σ1 !! k = Some ty1 ∧
     check_variance v ty0 ty1.
@@ -1174,7 +1175,7 @@ Section ProgDef.
     (∀ k v ty0 ty1,
          vs !! k = Some v → σ0 !! k = Some ty0 → σ1 !! k = Some ty1 → 
          check_variance v ty0 ty1) →
-    subtype_targs vs σ0 σ1.
+    σ0 <:vs:> σ1.
   Proof.
     move : σ0 σ1.
     induction vs as [ | v vs hi] => σ0 σ1 h0 h1 h.
@@ -1206,8 +1207,8 @@ Section ProgDef.
 
   Lemma subtype_targs_cons v t0 t1 vs σ0 σ1:
     check_variance v t0 t1 →
-    subtype_targs vs σ0 σ1 →
-    subtype_targs (v :: vs) (t0 :: σ0) (t1 :: σ1).
+    σ0 <:vs:> σ1 →
+    (t0::σ0) <:(v::vs):> (t1::σ1).
   Proof.
     rewrite /check_variance => hc hs.
     destruct v; constructor => //.
@@ -1260,9 +1261,9 @@ Section ProgDef.
     (subst_ty σ A) <: (subst_ty σ B)
   with subtype_targs_subst vs As Bs:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    subtype_targs vs As Bs → ∀ σ,
+    As <:vs:> Bs → ∀ σ,
     Forall wf_ty σ →
-    subtype_targs vs (subst_ty σ <$> As) (subst_ty σ <$> Bs).
+    (subst_ty σ <$> As) <:vs:> (subst_ty σ <$> Bs).
   Proof.
     - move => hp.
       destruct 1 as [ ty | ty h | A σA B σB adef hΔ hA hext
@@ -1312,7 +1313,7 @@ Section ProgDef.
     wf_ty ty →
     Forall wf_ty σ0 →
     Forall wf_ty σ1 →
-    subtype_targs vs σ0 σ1 →
+    σ0 <:vs:> σ1 →
     subst_ty σ0 ty <: subst_ty σ1 ty.
   Proof.
     induction 1 as [ vs | vs | vs | vs | vs | vs
@@ -1396,7 +1397,7 @@ Section ProgDef.
     Forall wf_ty σ →
     Forall wf_ty σ0 →
     Forall wf_ty σ1 →
-    subtype_targs vs σ0 σ1 →
+    σ0 <:vs:> σ1 →
     length σ = length ws →
     (∀ i wi ti, ws !! i = Some wi →
                 σ !! i = Some ti →
@@ -1406,7 +1407,7 @@ Section ProgDef.
                 σ !! i = Some ti →
                 not_cov wi →
                 mono (neg_variance <$> vs) ti) →
-    subtype_targs ws (subst_ty σ0 <$> σ) (subst_ty σ1 <$> σ)
+    (subst_ty σ0 <$> σ) <:ws:> (subst_ty σ1 <$> σ)
     .
   Proof.
     induction σ as [ | ty σ hi] => vs σ0 σ1 ws hwf hwf0 hwf1 h hlen hcov hcontra;
@@ -1434,12 +1435,12 @@ Section ProgDef.
   Qed.
 
   Lemma subtype_targs_inv_0 vs σ ty0 σ0:
-    subtype_targs vs (ty0 :: σ0) σ →
+    (ty0 :: σ0) <:vs:> σ →
     ∃ w ws ty1 σ1,
     vs = w :: ws ∧
     σ = ty1 :: σ1 ∧
     check_variance w ty0 ty1 ∧
-    subtype_targs ws σ0 σ1.
+    σ0 <:ws:> σ1.
   Proof.
     move => h; inv h.
     - by exists Invariant, vs0, ty2, ty1s.
@@ -1448,12 +1449,12 @@ Section ProgDef.
   Qed.
 
   Lemma subtype_targs_inv_1 vs σ ty1 σ1:
-    subtype_targs vs σ (ty1 :: σ1) →
+    σ <:vs:> (ty1 :: σ1) →
     ∃ w ws ty0 σ0,
     vs = w :: ws ∧
     σ = ty0 :: σ0 ∧
     check_variance w ty0 ty1 ∧
-    subtype_targs ws σ0 σ1.
+    σ0 <:ws:> σ1.
   Proof.
     move => h; inv h.
     - by exists Invariant, vs0, ty0, ty0s.
@@ -1463,9 +1464,9 @@ Section ProgDef.
 
   Lemma subtype_targs_trans σ:
     ∀ vs σ0 σ1,
-    subtype_targs vs σ0 σ1 →
-    subtype_targs vs σ σ0 →
-    subtype_targs vs σ σ1.
+    σ0 <:vs:> σ1 →
+    σ <:vs:> σ0 →
+    σ <:vs:> σ1.
   Proof.
     induction σ as [ | ty σ hi] => vs σ0 σ1 h01 h0.
     - inv h0.

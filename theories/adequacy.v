@@ -23,6 +23,7 @@ Section proofs.
   (* Helping the inference with this notation that hides Δ *)
   Local Notation "s <: t" := (@subtype _ s t) (at level 70, no associativity).
   Local Notation "lty <:< rty" := (@lty_sub _ lty rty) (at level 70, no associativity).
+  Local Notation "lts <: vs :> rts" := (@subtype_targs _ vs lts rts) (at level 70, vs at next level).
 
   (* heap models relation; the semantic heap does
      not appear because it is hidden in iProp  *)

@@ -78,6 +78,7 @@ Section proofs.
   (* Helping the inference with this notation that hides Δ *)
   Local Notation "s <: t" := (@subtype _ s t) (at level 70, no associativity).
   Local Notation "lty <:< rty" := (@lty_sub _ lty rty) (at level 70, no associativity).
+  Local Notation "lts <: vs :> rts" := (@subtype_targs _ vs lts rts) (at level 70, vs at next level).
 
   (* now, let's interpret some types ! *)
 
@@ -127,7 +128,7 @@ Section proofs.
       λ (w : value),
       (∃ ℓ t cdef σ σt (fields: stringmap lang_ty) (ifields: gmapO string (laterO (sem_typeO Σ))),
       ⌜w = LocV ℓ ∧ inherits_using t C σ ∧ wf_ty (ClassT t σt) ∧
-       Δ !! C = Some cdef ∧ subtype_targs cdef.(generics) (subst_ty σt <$> σ) σC ∧
+       Δ !! C = Some cdef ∧ (subst_ty σt <$> σ) <: cdef.(generics) :> σC ∧
        has_fields t fields⌝ ∗
       interp_fields σi t σt fields ifields rec ∗
       (ℓ ↦ (t, ifields)))%I
@@ -464,7 +465,7 @@ Section proofs.
     map_Forall (λ _cname, wf_cdef_mono) Δ →
     Forall wf_ty As →
     Forall wf_ty Bs →
-    subtype_targs Vs As Bs →
+    As <:Vs:> Bs →
     ∀ (env: interp_env),
     True%I -∗ iForall3 (interp_variance env) Vs As Bs.
   Proof.
