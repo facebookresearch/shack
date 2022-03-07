@@ -40,7 +40,7 @@ Definition BoxGet := {|
 Definition Box := {|
   classname := "Box";
   superclass := None;
-  generics := 1;
+  generics := [Invariant];
   classfields := {["$data" := GenT 0]};
   classmethods := {["set" := BoxSet; "get" := BoxGet]};
 |}.
@@ -63,7 +63,7 @@ Definition IntBoxSSet := {|
 Definition IntBoxS := {|
   classname := "IntBoxS";
   superclass := Some ("Box", σ);
-  generics := 0;
+  generics := [];
   classfields := ∅;
   classmethods := {["set" := IntBoxSSet]};
 |}.
@@ -107,7 +107,7 @@ Proof.
   by constructor.
 Qed.
 
-Lemma σbounded : Forall (bounded (generics IntBoxS)) σ.
+Lemma σbounded : Forall (bounded (length (generics IntBoxS))) σ.
 Proof.
   apply Forall_forall => x hx.
   apply elem_of_list_lookup_1 in hx.
@@ -493,6 +493,19 @@ Proof.
   - rewrite map_Forall_lookup => c0 d0.
     rewrite lookup_insert_Some.
     case => [[? <-]|[?]].
+    { rewrite /wf_field_mono /Box /=.
+      rewrite map_Forall_lookup => x mx.
+      rewrite lookup_insert_Some.
+      case => [[? <-]|[?]]; last by rewrite lookup_empty.
+      split; by constructor.
+    }
+    rewrite lookup_insert_Some.
+    case => [[? <-]|[?]]; last by rewrite lookup_empty.
+    rewrite /wf_field_mono /IntBoxS /=.
+    by apply map_Forall_empty.
+  - rewrite map_Forall_lookup => c0 d0.
+    rewrite lookup_insert_Some.
+    case => [[? <-]|[?]].
     { rewrite /cdef_methods_bounded /Box /=.
       rewrite map_Forall_lookup => x mx.
       rewrite lookup_insert_Some.
@@ -550,49 +563,125 @@ Proof.
       by constructor.
   - rewrite map_Forall_lookup => c0 d0.
     rewrite lookup_insert_Some.
+    case => [[? <-]|[?]].
+    + rewrite /wf_cdef_methods_mono /Box /=.
+      rewrite map_Forall_lookup => x mx.
+      rewrite lookup_insert_Some.
+      case => [[? <-]|[?]].
+      * rewrite /wf_mdef_mono /BoxSet /=.
+        split; last by constructor.
+        apply map_Forall_singleton.
+        by constructor.
+      * rewrite lookup_insert_Some.
+        case => [[? <-]|[?]]; last by rewrite lookup_empty.
+        rewrite /wf_mdef_mono /BoxGet /=.
+        split; first by apply map_Forall_empty.
+        by constructor.
+    + rewrite lookup_insert_Some.
+      case => [[? <-]|[?]]; last by rewrite lookup_empty.
+      rewrite /wf_cdef_methods_mono /IntBoxS /=.
+      apply map_Forall_singleton.
+      rewrite /wf_mdef_mono /IntBoxSSet /=.
+      split; last by constructor.
+      apply map_Forall_singleton.
+      by constructor.
+  - rewrite map_Forall_lookup => c0 d0.
+    rewrite lookup_insert_Some.
     case => [[<- <-]|[?]].
     + rewrite /cdef_wf_mdef_ty /Box /=.
       rewrite map_Forall_lookup => x mx.
       rewrite lookup_insert_Some.
       case => [[? <-]|[?]].
       * rewrite /wf_mdef_ty /BoxSet /=.
-        eexists; split; last by constructor.
-        eapply SetTy.
-        { constructor.
-          by rewrite lookup_insert.
+        eexists.
+        split; first last.
+        { split ; last by constructor.
+          eapply SetTy.
+          - constructor.
+            by rewrite lookup_insert.
+          - by eapply HasField.
+          - constructor.
+            by rewrite lookup_insert_ne.
         }
-        { by eapply HasField. }
-        { constructor.
-          by rewrite lookup_insert_ne.
+        rewrite map_Forall_lookup => k t /=.
+        rewrite lookup_insert_Some.
+        case => [[? <-]|[?]].
+        { econstructor => //.
+          by apply gen_targs_wf.
         }
+        rewrite lookup_fmap_Some.
+        case => [ty [<- ]].
+        rewrite lookup_singleton_Some.
+        case => ? <-.
+        by constructor.
       * rewrite lookup_insert_Some.
         case => [[? <-]|[?]]; last by rewrite lookup_empty.
         rewrite /wf_mdef_ty /BoxGet /=.
-        eexists; split.
-        { eapply GetTy.
-          { constructor.
+        eexists; split; first last.
+        { split.
+          - eapply GetTy.
+            + constructor.
+              by rewrite lookup_insert.
+            + by eapply HasField.
+          - constructor.
             by rewrite lookup_insert.
-          }
-          by eapply HasField.
         }
-        constructor.
-        by rewrite lookup_insert.
+        rewrite map_Forall_lookup => k t /=.
+        rewrite lookup_insert_Some.
+        case => [[? <-]|[?]]; first by constructor.
+        rewrite lookup_insert_Some.
+        case => [[? <-]|[?]].
+        { econstructor => //.
+          by apply gen_targs_wf.
+        }
+        by rewrite fmap_empty lookup_empty.
     + rewrite lookup_insert_Some.
       case => [[<- <-]|[?]]; last by rewrite lookup_empty.
       rewrite /cdef_wf_mdef_ty /IntBoxS /=.
       rewrite map_Forall_singleton.
-      eexists; split; last by constructor.
-      rewrite /IntBoxSSet /=.
-      eapply SetTy.
-      * constructor.
-        by rewrite lookup_insert.
-      * eapply InheritsField => //.
-        by eapply HasField.
-      * constructor => //.
+      eexists.
+      split; first last.
+      * split; last by constructor.
+        rewrite /IntBoxSSet /=.
+        eapply SetTy.
         { constructor.
-          by rewrite lookup_insert_ne.
+          by rewrite lookup_insert.
         }
+        { eapply InheritsField => //.
+          by eapply HasField.
+        }
+        { constructor => //.
+          - constructor.
+            by rewrite lookup_insert_ne.
+          - by constructor.
+        }
+      * rewrite map_Forall_lookup => x tx.
+        rewrite lookup_insert_Some.
+        case => [[? <-]|[?]]; first by econstructor.
+        rewrite lookup_fmap_Some.
+        case => [ty [<-]].
+        rewrite lookup_singleton_Some.
+        case => [? <-].
         by constructor.
+  - rewrite map_Forall_lookup => x cx.
+    rewrite lookup_insert_Some.
+    case => [[? <-]|[?]]; first done.
+    rewrite lookup_singleton_Some.
+    case => [? <-].
+    rewrite /wf_cdef_mono /IntBoxS /=.
+    econstructor => //.
+    + move => i wi ti //=.
+      rewrite list_lookup_singleton_Some.
+      case => [-> <-].
+      simpl.
+      case => <- _.
+      by constructor.
+    + move => i wi ti //=.
+      rewrite list_lookup_singleton_Some.
+      case => [-> <-].
+      simpl.
+      case => <- _.
+      by constructor.
 Qed.
 
 (* Director level theorem: every execution that should produce an int
