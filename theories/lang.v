@@ -242,6 +242,7 @@ Inductive expr :=
   | NullE
   | OpE (op: primop) (e1: expr) (e2: expr)
   | VarE (v: var)
+  | ThisE (* $this *)
 .
 
 Inductive cmd : Set :=
@@ -501,6 +502,19 @@ Section ProgDef.
   .
 
   Hint Constructors wf_ty : core.
+
+  Lemma wf_ty_class t σ def:
+    Δ !! t = Some def →
+    length σ = length def.(generics) →
+    Forall wf_ty σ →
+    wf_ty (ClassT t σ).
+  Proof.
+    move => h hl hσ.
+    econstructor => //.
+    rewrite Forall_forall in hσ => k ty hk.
+    apply elem_of_list_lookup_2 in hk.
+    by apply hσ in hk.
+  Qed.
 
   Lemma wf_ty_class_inv t σ:
     wf_ty (ClassT t σ) →
@@ -1306,6 +1320,16 @@ Section ProgDef.
         * by apply subtype_targs_subst.
   Qed.
 
+  Lemma subtype_subst_class A B σA σB:
+    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    ClassT A σA <: ClassT B σB → ∀ σ,
+    Forall wf_ty σ →
+    ClassT A (subst_ty σ <$> σA) <: ClassT B (subst_ty σ <$> σB).
+  Proof.
+    move => ? hsub σ h.
+    by apply subtype_subst with (σ := σ) in hsub.
+  Qed.
+
   Lemma subtype_lift vs ty :
     mono vs ty →
     ∀ σ0 σ1,
@@ -1538,33 +1562,57 @@ Section ProgDef.
   Qed.
 
   (* Typing contexts *)
-  Definition local_tys := stringmap lang_ty.
+  Record local_tys := {
+    type_of_this: tag * list lang_ty;
+    ctxt: stringmap lang_ty;
+  }.
+
+  Definition this_type lty :=
+    ClassT lty.(type_of_this).1 lty.(type_of_this).2.
 
   (* Subtype / Inclusion of typing contexts *)
   Definition lty_sub (lty rty: local_tys) :=
-    ∀ k A, rty !! k = Some A → ∃ B, lty !! k = Some B ∧ B <: A.
+    this_type lty = this_type rty ∧
+    ∀ k A, rty.(ctxt) !! k = Some A → ∃ B, lty.(ctxt) !! k = Some B ∧ B <: A.
 
   Notation "lty <:< rty" := (lty_sub lty rty) (at level 70, no associativity).
 
   Lemma lty_sub_reflexive: reflexive _ lty_sub.
   Proof.
-    move => lty k A ->.
+    move => [this lty]; split => // k A ->.
     by exists A.
   Qed.
 
   Lemma lty_sub_transitive: transitive _ lty_sub.
   Proof.
-    move => lty rty zty hlr hrz k A hA.
+    move => [[t0 σ0] lty] [[t1 σ1] rty] [[t2 σ2] zty] [h0 hlr] [h1 hrz].
+    move : h0 h1.
+    rewrite /this_type /=.
+    case => -> ->.
+    case => -> ->.
+    split; first by eauto.
+    move => k A hA.
     apply hrz in hA as (C & hC & hsub).
-    apply hlr in hC as (B & -> & hsub').
+    apply hlr in hC as (B & hB & hsub').
     exists B; by eauto.
   Qed.
+
+  Global Instance local_tys_insert : Insert string lang_ty local_tys :=
+    λ x ty lty, 
+    {| type_of_this := lty.(type_of_this);
+      ctxt := <[x := ty]>lty.(ctxt);
+    |}.
+
+  Definition subst_lty σ lty :=
+    {| type_of_this := (lty.(type_of_this).1, subst_ty σ <$> lty.(type_of_this).2);
+        ctxt := subst_ty σ <$> lty.(ctxt);
+    |}.
 
   Lemma lty_sub_insert_1 lhs ty lty0 lty1:
     lty0 <:< lty1 →
     <[lhs:=ty]> lty0 <:< <[lhs:=ty]> lty1.
   Proof.
-    move => h x xty.
+    move => [hthis h]; split => // x xty.
     rewrite lookup_insert_Some.
     case => [[<- <-] | [hne hin]].
     - rewrite lookup_insert; by exists ty.
@@ -1578,7 +1626,7 @@ Section ProgDef.
     ty0 <: ty1 →
     <[lhs := ty0]>lty <:< <[lhs := ty1]> lty.
   Proof.
-    move => hsub k ty.
+    move => hsub; split => // k ty.
     rewrite lookup_insert_Some.
     case => [[<- <-] | [hne hin]].
     - exists ty0; by rewrite lookup_insert.
@@ -1588,9 +1636,15 @@ Section ProgDef.
   Lemma lty_sub_subst σ lty rty:
     map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
     Forall wf_ty σ →
-    lty <:< rty → (subst_ty σ <$> lty) <:< (subst_ty σ <$> rty).
+    lty <:< rty → (subst_lty σ lty) <:< (subst_lty σ rty).
   Proof.
-    move => hp hσ hsub k A.
+    destruct lty as [[lt lσ] lty].
+    destruct rty as [[rt rσ] rty].
+    rewrite /subst_lty => hp hσ [].
+    rewrite /this_type /=.
+    case => -> -> hsub.
+    split => //.
+    move => k A.
     rewrite lookup_fmap_Some.
     case => B [<- hk].
     apply hsub in hk as [ B' [HB' hsub']].
@@ -2037,8 +2091,6 @@ Section ProgDef.
       inherits_using origA origB σin ∧
       inherits_using A origA σA ∧
       inherits_using B origB σB ∧
-      has_method m origA origA mA ∧ (* Not sure these are useful *)
-      has_method m origB origB mB ∧
       mdefA = subst_mdef σA mA ∧
       mdefB = subst_mdef σB mB ∧
       mdef_incl mA (subst_mdef σin mB) ∧
@@ -2068,7 +2120,7 @@ Section ProgDef.
       }
       do 4 (split => //).
       split; first by econstructor.
-      do 6 (split => //).
+      do 4 (split => //).
       split.
       + repeat split.
         * by rewrite /subst_mdef /= dom_fmap_L.
@@ -2102,7 +2154,7 @@ Section ProgDef.
         by (by eapply inherits_using_trans).
       assert (hincl : mdef_incl oaorig (subst_mdef (subst_ty σ'' <$> σB) oborig))
         by (by eapply (ho origA origB) in hh).
-      do 12 (split => //).
+      do 10 (split => //).
       rewrite -subst_mdef_mdef; last first.
       { assert (hoB' := hoB).
         apply hm in hoB'.
@@ -2158,8 +2210,9 @@ Section ProgDef.
         expr_has_ty lty e2 IntT →
         expr_has_ty lty (OpE op e1 e2) BoolT
     | GenTy: ∀ v ty,
-        lty !! v = Some ty →
+        lty.(ctxt) !! v = Some ty →
         expr_has_ty lty (VarE v) ty
+    | ThisTy : expr_has_ty lty ThisE (this_type lty)
     | ESubTy: ∀ e s t,
         expr_has_ty lty e s →
         wf_ty t →
@@ -2171,28 +2224,65 @@ Section ProgDef.
     map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
     Forall wf_ty σ →
     expr_has_ty lty e ty →
-    expr_has_ty (subst_ty σ <$> lty) e (subst_ty σ ty).
+    expr_has_ty (subst_lty σ lty) e (subst_ty σ ty).
   Proof.
     move => hp hwf.
     induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
-      op e1 e2 hop h1 hi1 h2 hi2 | v ty h | e s t h hi hsub ] => //=; try (by constructor).
+      op e1 e2 hop h1 hi1 h2 hi2 | v ty h | | e s t h hi hsub ] => //=; try (by constructor).
     - constructor.
+      rewrite /subst_lty /=.
       by rewrite lookup_fmap h.
     - econstructor; first by apply hi.
       + by apply wf_ty_subst.
       + by apply subtype_subst.
   Qed.
 
+  Definition wf_lty lty :=
+    wf_ty (this_type lty) ∧
+    map_Forall (λ _, wf_ty) lty.(ctxt)
+  .
+
+  Lemma insert_wf_lty x ty lty :
+    wf_ty ty → wf_lty lty → wf_lty (<[x := ty]>lty).
+  Proof.
+    destruct lty as [[lt lσ] lty].
+    rewrite /wf_lty /this_type /= => h [h0 hl]; split => //.
+    rewrite map_Forall_lookup => k tk.
+    rewrite lookup_insert_Some.
+    case => [[? <-] | [? hk]]; first done.
+    by apply hl in hk.
+  Qed.
+
+  Lemma subst_wf_lty σ lty :
+    Forall wf_ty σ → wf_lty lty → wf_lty (subst_lty σ lty).
+  Proof.
+    destruct lty as [[lt lσ] lty].
+    rewrite /wf_lty /this_type /= => hσ [h0 hl]; split.
+    - inv h0.
+      econstructor => //.
+      + by rewrite map_length H2.
+      + move => k tk hk.
+        apply list_lookup_fmap_inv in hk.
+        destruct hk as [tk' [-> hk]].
+        apply wf_ty_subst => //.
+        by apply H3 in hk.
+    - rewrite map_Forall_lookup => k tk.
+      rewrite lookup_fmap_Some.
+      case => t [<- hk].
+      apply wf_ty_subst => //.
+      by apply hl in hk.
+  Qed.
+
   Lemma expr_has_ty_wf lty e ty:
-    map_Forall (λ _, wf_ty) lty →
+    wf_lty lty →
     expr_has_ty lty e ty →
     wf_ty ty.
   Proof.
     move => hwf.
     induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
-      op e1 e2 hop h1 hi1 h2 hi2 | v ty h | e s t h hi hsub ] => //=; try (by constructor).
-    rewrite map_Forall_lookup in hwf.
-    by apply hwf in h.
+      op e1 e2 hop h1 hi1 h2 hi2 | v ty h | | e s t h hi hsub ] => //=; try (by constructor).
+    - by apply hwf in h.
+    - by apply hwf.
   Qed.
 
   (* continuation-based typing for commands *)
@@ -2243,7 +2333,7 @@ Section ProgDef.
         cmd_has_ty lty c rty' →
         cmd_has_ty lty c rty
     | CondTagTy lty rty v tv t cmd :
-        lty !! v = Some tv →
+        lty.(ctxt) !! v = Some tv →
         lty <:< rty →
         cmd_has_ty (<[v:=InterT tv (ExT t)]> lty) cmd rty →
         cmd_has_ty lty (CondTagC v t cmd) rty
@@ -2253,44 +2343,55 @@ Section ProgDef.
     map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
     map_Forall (λ _ : string, wf_cdef_fields_wf) Δ →
     map_Forall (λ _ : string, wf_cdef_methods_wf) Δ →
-    map_Forall (λ _, wf_ty) lty →
+    wf_lty lty →
     cmd_has_ty lty cmd lty' →
-    map_Forall (λ _, wf_ty) lty'.
+    wf_lty lty'.
   Proof.
-    move => hp hfields hmethods hwf.
+    move => hp hfields hmethods [hthis hwf].
     induction 1 as [ lty | ????? h1 hi1 h2 hi2 | ???? he |
       ????? he h1 hi1 h2 hi2 | ??????? he hf |
       ??????? he hf hr | ?????? ht hf hdom hargs |
       ????????? he hm hdom hargs |
       ???? hsub h hi | ?????? hin hr h hi ] => //=; try (by eauto).
-    - apply map_Forall_insert_2 => //.
+    - apply hi2.
+      + by apply hi1.
+      + by apply hi1.
+    - split; first by apply hthis.
+      apply map_Forall_insert_2 => //.
       by apply expr_has_ty_wf in he.
-    - apply map_Forall_insert_2 => //.
+    - split; first by apply hthis.
+      apply map_Forall_insert_2 => //.
       apply wf_ty_subst.
       + apply expr_has_ty_wf in he => //.
         by apply wf_ty_class_inv in he.
       + by apply has_field_wf in hf.
-    - by apply map_Forall_insert_2.
-    - apply map_Forall_insert_2 => //.
+    - split; first by apply hthis.
+      by apply map_Forall_insert_2.
+    - split; first by apply hthis.
+      apply map_Forall_insert_2 => //.
       apply has_method_wf in hm => //.
       destruct hm as [hargs' hret'].
       apply wf_ty_subst => //.
       apply expr_has_ty_wf in he => //.
       by apply wf_ty_class_inv in he.
-    - apply hi in hwf; clear hi h.
+    - apply hi in hwf as [hthis' hwf] => //; clear hi h.
+      destruct hsub as [h0 h1].
+      split; first by rewrite -h0.
       rewrite map_Forall_lookup => k ty hty.
-      apply hsub in hty.
+      apply h1 in hty.
       destruct hty as [ty' [ hty' hsub']].
       rewrite map_Forall_lookup in hwf; apply hwf in hty'.
       by eapply subtype_wf.
     - apply hi; clear hi.
-      rewrite map_Forall_lookup => k ty.
-      rewrite lookup_insert_Some.
-      case => [[heq <-] | [hne hk]].
-      { constructor; last by constructor.
-        by apply hwf in hin.
-      }
-      by apply hwf in hk.
+      + destruct lty as [[lt lσ] ?]; rewrite /this_type /=.
+        by apply hthis.
+      + rewrite map_Forall_lookup => k ty.
+        rewrite lookup_insert_Some.
+        case => [[heq <-] | [hne hk]].
+        { constructor; last by constructor.
+          by apply hwf in hin.
+        }
+        by apply hwf in hk.
   Qed.
 
   Lemma cmd_has_ty_subst σ lty cmd lty':
@@ -2299,10 +2400,10 @@ Section ProgDef.
     map_Forall (λ _ : string, wf_cdef_methods_wf) Δ →
     map_Forall (λ _ : string, wf_cdef_fields_bounded) Δ →
     map_Forall (λ _ : string, cdef_methods_bounded) Δ →
-    map_Forall (λ _, wf_ty) lty →
+    wf_lty lty →
     Forall wf_ty σ →
     cmd_has_ty lty cmd lty' →
-    cmd_has_ty (subst_ty σ <$> lty) cmd (subst_ty σ <$> lty').
+    cmd_has_ty (subst_lty σ lty) cmd (subst_lty σ lty').
   Proof.
     move => hp hfields hmethods hfb hmb hwf0 hwf1.
     induction 1 as [ lty | ????? h1 hi1 h2 hi2 | ???? he |
@@ -2315,7 +2416,7 @@ Section ProgDef.
       + by eapply hi1.
       + eapply hi2.
         by apply cmd_has_ty_wf in h1.
-    - rewrite fmap_insert.
+    - rewrite /subst_lty fmap_insert.
       eapply LetTy.
       by eapply expr_has_ty_subst.
     - eapply IfTy => //.
@@ -2324,7 +2425,7 @@ Section ProgDef.
       + by apply hi1.
       + apply hi2.
         by apply cmd_has_ty_wf in h1.
-    - rewrite fmap_insert subst_ty_subst; last first.
+    - rewrite /subst_lty fmap_insert subst_ty_subst; last first.
       { apply has_field_bounded in hf => //.
         destruct hf as (hdef & ht & hfty).
         apply expr_has_ty_wf in he => //.
@@ -2343,7 +2444,7 @@ Section ProgDef.
         by rewrite H2.
       + change (ClassT t (subst_ty σ <$> σ0)) with (subst_ty σ (ClassT t σ0)).
         by eapply expr_has_ty_subst.
-    - rewrite fmap_insert /=.
+    - rewrite /subst_lty fmap_insert /=.
       eapply NewTy => //.
       { inv hwf.
         econstructor => //; first by rewrite map_length.
@@ -2363,7 +2464,7 @@ Section ProgDef.
         destruct hfty as (hdef & ht & hfty).
         inv hwf; simplify_eq.
         by rewrite H2.
-    - rewrite fmap_insert /=.
+    - rewrite /subst_lty fmap_insert /=.
       rewrite subst_ty_subst; last first.
       { apply has_method_from_def in hm => //.
         destruct hm as (odef & mo & ho & hmo & _ & [σo [hin ->]]).
@@ -2411,28 +2512,33 @@ Section ProgDef.
     - eapply CondTagTy.
       + by rewrite lookup_fmap hin /=.
       + by apply lty_sub_subst.
-      + rewrite fmap_insert /= in hi.
+      + rewrite /subst_lty fmap_insert /= in hi.
         apply hi.
-        apply map_Forall_insert_2 => //.
-        constructor; last by constructor.
-        rewrite map_Forall_lookup in hwf0.
-        by apply hwf0 in hin.
+        destruct lty as [[lt lσ] lty].
+        split.
+        * rewrite /this_type /=.
+          by apply hwf0.
+        * apply map_Forall_insert_2 => //; last by apply hwf0.
+          constructor; last by constructor.
+          by apply hwf0 in hin.
   Qed.
 
   (* Consider a class C<T0, ..., Tn>,
    * method bodies must be well-formed under a generic substitution mapping
    * Ti -> Ti.
    *)
-  Definition wf_mdef_ty this σ mdef :=
+  Definition wf_mdef_ty tag σ σ' mdef :=
     ∃ rty,
-    map_Forall (λ _name, wf_ty) rty ∧
-    cmd_has_ty (<["$this" := this]>(subst_ty σ <$> mdef.(methodargs))) mdef.(methodbody) rty ∧
-    expr_has_ty rty mdef.(methodret) (subst_ty σ mdef.(methodrettype))
+    wf_lty rty ∧
+    cmd_has_ty
+      {| type_of_this := (tag, σ); ctxt := subst_ty σ' <$> mdef.(methodargs) |}
+      mdef.(methodbody) rty ∧
+    expr_has_ty rty mdef.(methodret) (subst_ty σ' mdef.(methodrettype))
   .
 
   Definition cdef_wf_mdef_ty cname cdef :=
     let σ := gen_targs (length cdef.(generics)) in
-    map_Forall (λ _mname mdef, wf_mdef_ty (ClassT cname σ) σ mdef) cdef.(classmethods)
+    map_Forall (λ _mname mdef, wf_mdef_ty cname σ σ mdef) cdef.(classmethods)
   .
 
   (* Collection of all program invariant (at the source level):
@@ -2440,8 +2546,6 @@ Section ProgDef.
    * - every type is well-formed/bounded
    * - every substitution's domain/codomain is valid
    * - variance is checked
-   * TODO: all our fields are public, we probably need to have them
-   *       all Invariant. This is currently missing
    *)
   Record wf_cdefs (prog: stringmap classDef) := {
     wf_extends_wf : wf_no_cycle prog;
@@ -2460,183 +2564,6 @@ Section ProgDef.
   }
   .
 
-  Lemma expr_has_ty_subl lty e ty:  
-    map_Forall (λ _, wf_ty) lty →
-    expr_has_ty lty e ty →
-    ∀ lty', lty' <:< lty →
-    expr_has_ty lty' e ty.
-  Proof.
-    move => hwf.
-    induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
-      op e1 e2 hop h1 hi1 h2 hi2 | v ty h | e s t h hi hsub ] => lty' hlty//=; try (by constructor).
-    - constructor; by eauto.
-    - constructor; by eauto.
-    - assert (hh : wf_ty ty) by (by apply hwf in h).
-      apply hlty in h.
-      destruct h as [ty' [ h hsub]].
-      eapply ESubTy => //.
-      by constructor.
-    - apply hi in hlty.
-      by econstructor.
-  Qed.
-
-  Lemma cmd_has_ty_subl lty cmd rty :
-    map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
-    map_Forall (λ _ : string, wf_ty) lty →
-    cmd_has_ty lty cmd rty →
-    ∀ lty', lty' <:< lty →
-    cmd_has_ty lty' cmd rty.
-  Proof.
-    move => hp hwf.
-    induction 1 as [ lty | ????? h1 hi1 h2 hi2 | ???? he |
-      ????? he h1 hi1 h2 hi2 | ??????? he hf |
-      ??????? he hf hr | ?????? ht hf hdom hargs |
-      ????????? he hm hdom hargs |
-      ???? hsub h hi | ?????? hin hr h hi ] => //= lty' hlty'.
-    - apply SubTy with lty' => //.
-      by constructor.
-    - econstructor; by eauto.
-    - eapply SubTy; first by apply lty_sub_insert_1.
-      constructor.
-      by apply expr_has_ty_subl with lty.
-    - constructor; try (by eauto).
-      by apply expr_has_ty_subl with lty1.
-    - eapply SubTy; first by apply lty_sub_insert_1.
-      econstructor; last done.
-      by apply expr_has_ty_subl with lty.
-    - apply SubTy with lty' => //.
-      econstructor; [| done|]; by eapply expr_has_ty_subl.
-    - eapply SubTy; first by apply lty_sub_insert_1.
-      econstructor => //.
-      move => f fty arg hfty ha.
-      eapply expr_has_ty_subl => //.
-      by eapply hargs.
-    - eapply SubTy; first by apply lty_sub_insert_1.
-      econstructor => //.
-      + by eapply expr_has_ty_subl.
-      + move => f fty arg hfty ha.
-        eapply expr_has_ty_subl => //.
-        by eapply hargs.
-    - econstructor; by eauto.
-    - destruct (hlty' _ _ hin) as [ty' [? ?]].
-      eapply CondTagTy.
-      + done.
-      + by eapply lty_sub_transitive.
-      + eapply hi.
-        * rewrite map_Forall_lookup => x tx.
-          rewrite lookup_insert_Some.
-          case => [[? <-] | [? hx]].
-          { constructor; last by constructor.
-            by apply hwf in hin.
-          }
-          by apply hwf in hx.
-        * eapply lty_sub_transitive; first by apply lty_sub_insert_1.
-          apply lty_sub_insert_2.
-          by eauto.
-  Qed.
-
-  Lemma wf_mdef_ty_inherits t0 t σ m mdef orig def def0:
-    map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
-    map_Forall (λ _ : string, wf_cdef_fields_wf) Δ →
-    map_Forall (λ _ : string, wf_cdef_methods_wf) Δ →
-    map_Forall (λ _ : string, wf_cdef_fields_bounded) Δ →
-    map_Forall (λ _ : string, cdef_methods_bounded) Δ →
-    Δ !! t = Some def →
-    Δ !! t0 = Some def0 →
-    has_method m t orig mdef →
-    wf_mdef_ty (ClassT t (gen_targs (length def.(generics)))) (gen_targs (length def.(generics))) mdef →
-    inherits_using t0 t σ →
-    wf_mdef_ty (ClassT t0 (gen_targs (length (def0.(generics))))) σ mdef.
-  Proof.
-    move => hp hfwf hmwf hfb hmb hΔt hΔt0 hm [rty [wfrty [hbody hret]]] hin.
-    assert (h: Forall (bounded (length (generics def0))) σ
-            ∧ length σ = length (generics def) ∧ Forall wf_ty σ).
-    { apply inherits_using_wf in hin => //.
-      destruct hin as (? & ? & ? & ? &? & ? & ?).
-      by simplify_eq.
-    }
-    destruct h as (hF & hL & hσ).
-    apply has_method_from_def in hm => //.
-    destruct hm as (def' & mdef_orig & ho & hmdef_orig & _ & σm & hσm & hmdef).
-    apply inherits_using_wf in hσm => //.
-    destruct hσm as (def'' & odef'' & ? & ? & ? & ? & ? );
-    assert (ho' := ho).
-    assert (hmdef_orig' := hmdef_orig).
-    apply hmwf in ho'.
-    apply ho' in hmdef_orig' as [hargs _].
-    exists (subst_ty σ <$> rty); split; last split.
-    - rewrite map_Forall_lookup => k ty.
-      rewrite lookup_fmap_Some.
-      case => [ty' [<- hk]].
-      apply wf_ty_subst => //.
-      by apply wfrty in hk.
-    - apply cmd_has_ty_subl with (<["$this":=ClassT t σ]>(subst_ty σ <$> methodargs mdef)) => //.
-      + rewrite map_Forall_lookup => x tx.
-        rewrite lookup_insert_Some.
-        simplify_eq.
-        case => [[? <-]|[? ]].
-        * econstructor => //.
-          rewrite Forall_forall in hσ => k ty hk.
-          apply elem_of_list_lookup_2 in hk.
-          by apply hσ.
-        * rewrite lookup_fmap_Some.
-          case => [ty [<- ]].
-          rewrite /subst_mdef /=.
-          rewrite lookup_fmap_Some.
-          case => [tz [<- hz]].
-          apply wf_ty_subst => //.
-          apply wf_ty_subst => //.
-          by apply hargs in hz.
-      + replace (ClassT t σ) with (subst_ty σ (ClassT t (gen_targs (length def.(generics))))); last first.
-        { by rewrite /= subst_ty_gen_targs. }
-        replace (<["$this":=subst_ty σ (ClassT t (gen_targs (length (generics def))))]> (subst_ty σ <$> methodargs mdef))
-          with (subst_ty σ <$> (<["$this" := ClassT t (gen_targs (length (generics def)))]> (methodargs mdef))); last first.
-        { by rewrite fmap_insert. }
-        apply cmd_has_ty_subst => //.
-        * rewrite map_Forall_lookup => x tx.
-          rewrite lookup_insert_Some.
-          simplify_eq.
-          case => [[? <-] | [? ]].
-          { econstructor => //; first by rewrite length_gen_targs. 
-            by apply gen_targs_wf.
-          }
-          rewrite /subst_mdef /=.
-          rewrite lookup_fmap_Some.
-          case => [tz [<- hz]].
-          apply wf_ty_subst => //.
-          by apply hargs in hz.
-        * move: hbody.
-          simplify_eq.
-          rewrite fmap_subst_tys_id => //.
-          rewrite map_Forall_lookup /subst_mdef /= => k tk.
-          rewrite lookup_fmap_Some; case => [ty [<- hty]].
-          eapply bounded_subst => //.
-          apply hmb in ho.
-          apply ho in hmdef_orig.
-          by apply hmdef_orig in hty.
-      + move => x tx.
-        rewrite lookup_insert_Some.
-        case => [[<- <-]|[?]].
-        * rewrite lookup_insert.
-          eexists; split => //.
-          replace σ with (subst_ty (gen_targs (length def0.(generics))) <$> σ); last first.
-          { by rewrite subst_tys_id. }
-          eapply subtype_inherits_using => //.
-          by rewrite length_gen_targs.
-        * rewrite lookup_fmap_Some.
-          case => [ty [<- hx]].
-          rewrite lookup_insert_ne // lookup_fmap hx /=.
-          by eexists.
-    - apply expr_has_ty_subst => //.
-      replace (methodrettype mdef) with (subst_ty (gen_targs (length (generics def))) (methodrettype mdef)); first done.
-      simplify_eq.
-      rewrite subst_ty_id // /subst_mdef /=.
-      eapply bounded_subst => //.
-      apply hmb in ho.
-      apply ho in hmdef_orig.
-      by apply hmdef_orig.
-  Qed.
-          
   (* Big step reduction *)
   Definition primop_eval (op: primop) : Z → Z → value :=
     match op with
@@ -2650,7 +2577,16 @@ Section ProgDef.
     end
   .
 
-  Definition local_env := gmap var value.
+  Record local_env := {
+    vthis : loc;
+    lenv : gmap var value
+  }.
+
+  Global Instance local_env_insert : Insert string value local_env :=
+    λ x v le, 
+    {| vthis := le.(vthis);
+      lenv := <[x := v]>le.(lenv);
+    |}.
 
   Fixpoint expr_eval (le : local_env) (e: expr) : option value :=
     match e with
@@ -2662,7 +2598,8 @@ Section ProgDef.
         | Some (IntV z1), Some (IntV z2) => Some (primop_eval op z1 z2)
         | _, _ => None
         end
-    | VarE v => le !! v
+    | VarE v => le.(lenv) !! v
+    | ThisE => Some (LocV le.(vthis))
     end
   .
 
@@ -2739,7 +2676,7 @@ Section ProgDef.
   Qed.
 
   Definition tag_match (st : local_env * heap) (v: string) (t: tag) :=
-    ∃ l, st.1 !! v = Some (LocV l) ∧
+    ∃ l, st.1.(lenv) !! v = Some (LocV l) ∧
     ∃ t' (fields: stringmap value), st.2 !! l = Some (t', fields) ∧
     inherits t' t
   .
@@ -2785,7 +2722,7 @@ Section ProgDef.
         map_args (expr_eval le) args = Some vargs →
         h !! l = Some (t, vs) →
         has_method name t orig mdef →
-        <["$this" := LocV l]>vargs = run_env →
+        {| vthis := l; lenv := vargs|} = run_env →
         cmd_eval (run_env, h) mdef.(methodbody) (run_env', h') n →
         expr_eval run_env' mdef.(methodret) = Some ret →
         cmd_eval (le, h) (CallC lhs recv name args) (<[lhs := ret]>le, h') (S n)

@@ -658,21 +658,32 @@ Section proofs.
 
   Definition interp_local_tys
     σi (lty : local_tys) (le : local_env) : iProp Σ :=
-    (∀ v ty, ⌜lty !! v = Some ty⌝ -∗
-    ∃ val, ⌜le !! v = Some val⌝ ∗ interp_type ty σi val)%I.
+    interp_class lty.(type_of_this).1 lty.(type_of_this).2 σi interp_type (LocV le.(vthis)) ∗
+    (∀ v ty, ⌜lty.(ctxt) !! v = Some ty⌝ -∗
+    ∃ val, ⌜le.(lenv) !! v = Some val⌝ ∗ interp_type ty σi val)%I.
 
   Lemma interp_local_tys_is_inclusion (σi: interp_env)  lty rty le:
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _ : string, wf_cdef_mono) Δ →
-    map_Forall (λ _, wf_ty) lty →
+    wf_lty lty →
     Forall (λ (i: interp Σ), ∀ v, Persistent (i v)) σi →
     lty <:< rty →
     interp_local_tys σi lty le -∗
     interp_local_tys σi rty le.
   Proof.
-    move => ???? hlty hpers hsub; iIntros "Hle" (v ty) "%Hv".
+    move => ???? hlty hpers hsub; iIntros "[#Hthis Hle]".
+    destruct hsub as [hthis hsub].
+    assert (hthis2: type_of_this lty = type_of_this rty).
+    { rewrite /this_type in hthis.
+      rewrite (surjective_pairing (type_of_this lty))
+              (surjective_pairing (type_of_this rty)).
+      by case : hthis => -> ->.
+    }
+    rewrite hthis2.
+    iSplitR; first done.
+    iIntros (v ty) "%Hv".
     apply hsub in Hv as (B & hB & hsubB).
     iDestruct ("Hle" $! v B hB) as (val) "[%Hv' #H]".
     iExists val; iSplitR; first done.
