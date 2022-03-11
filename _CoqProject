@@ -5,6 +5,10 @@ INSTALLDEFAULTROOT = shack-test
 -arg -w -arg -redundant-canonical-projection
 
 theories/lang.v
+theories/progdef.v
+theories/subtype.v
+theories/typing.v
+theories/eval.v
 theories/heap.v
 theories/modality.v
 theories/interp.v

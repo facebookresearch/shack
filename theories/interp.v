@@ -10,7 +10,7 @@ From iris.base_logic.lib Require Import iprop own.
 From iris.algebra Require Import ofe cmra gmap_view.
 From iris.proofmode Require Import tactics.
 
-From shack Require Import lang heap modality.
+From shack Require Import lang progdef subtype typing eval heap modality.
 
 (* the interpretation of types is simply given by
      the carrier set of the sem_typeO ofe *)

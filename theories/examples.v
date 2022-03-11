@@ -10,7 +10,7 @@ From iris.proofmode Require Import tactics.
 From iris.base_logic.lib Require Import iprop own wsat.
 From iris.algebra.lib Require Import gmap_view.
 
-From shack Require Import lang heap modality interp adequacy.
+From shack Require Import lang progdef subtype typing eval heap modality interp adequacy.
 
 (* TODO: we don't have void atm so I'm using null ;) *)
 
