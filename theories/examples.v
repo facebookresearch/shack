@@ -14,9 +14,30 @@ From shack Require Import lang heap modality interp adequacy.
 
 (* TODO: we don't have void atm so I'm using null ;) *)
 
+(* Definition of class ROBox<+T>:
+ * class ROBox<+T> {
+ *   private T $data;
+ *   function get(): T { $ret = $this->data; return $ret; }
+ *)
+Definition Get := {|
+  methodname := "get";
+  methodargs := ∅;
+  methodrettype := GenT 0;
+  methodbody := GetC "$ret" ThisE "$data";
+  methodret := VarE "$ret";
+|}.
+
+Definition ROBox := {|
+  classname := "ROBox";
+  superclass := None;
+  generics := [Covariant];
+  classfields := {["$data" := (Private, GenT 0)]};
+  classmethods := {["get" := Get]};
+|}.
+
 (* Definition of class Box<T>:
  * class Box<T> {
- *   T $data;
+ *   public T $data;
  *   function set(T $data) : void { $this->data = $data; }
  *   function get(): T { $ret = $this->data; return $ret; }
  * }
@@ -29,20 +50,12 @@ Definition BoxSet := {|
   methodret := NullE;
 |}.
 
-Definition BoxGet := {|
-  methodname := "get";
-  methodargs := ∅;
-  methodrettype := GenT 0;
-  methodbody := GetC "$ret" ThisE "$data";
-  methodret := VarE "$ret";
-|}.
-
 Definition Box := {|
   classname := "Box";
   superclass := None;
   generics := [Invariant];
   classfields := {["$data" := (Public, GenT 0)]};
-  classmethods := {["set" := BoxSet; "get" := BoxGet]};
+  classmethods := {["set" := BoxSet; "get" := Get]};
 |}.
 
 (* Definition of class IntBoxS:
@@ -70,7 +83,9 @@ Definition IntBoxS := {|
 
 (* Main program:
  * function main(): bool {
- *   $box = new IntBoxS(32);
+ *   $robox = new ROBox(43);
+ *   $init = $robox->get();
+ *   $box = new IntBoxS($init);
  *   $tmp = $box->get();
  *   $tmp = $tmp + 20;
  *   $_ = $box->set($tmp - 10);
@@ -79,13 +94,15 @@ Definition IntBoxS := {|
  * }
  *)
 Definition ProgramBody :=
-   SeqC (NewC "$box" "IntBoxS" {["$data" := IntE 32]})
+   SeqC (NewC "$robox" "ROBox" {["$data" := IntE 32]})
+  (SeqC (CallC "$init" (VarE "$robox") "get" ∅)
+  (SeqC (NewC "$box" "IntBoxS" {["$data" := VarE "$init"]})
   (SeqC (CallC "$tmp" (VarE "$box") "get" ∅)
   (SeqC (LetC "$tmp" (OpE PlusO (VarE "$tmp") (IntE 20)))
   (SeqC (CallC "$_" (VarE "$box") "set"
            {["$data" := OpE MinusO (VarE "$tmp") (IntE 10)]})
         (GetC "$tmp" (VarE "$box") "$data")
-  ))).
+  ))))).
 
 Definition EntryPoint := {|
   methodname := "entry_point";
@@ -103,7 +120,7 @@ Definition Main := {|
   classmethods := {["entry_point" := EntryPoint]};
  |}.
 
-Local Instance PDC : ProgDefContext := { Δ := {[ "Box" := Box; "IntBoxS" := IntBoxS; "Main" := Main ]} }.
+Local Instance PDC : ProgDefContext := { Δ := {[ "ROBox" := ROBox; "Box" := Box; "IntBoxS" := IntBoxS; "Main" := Main ]} }.
 
 Lemma wfσ : Forall wf_ty σ.
 Proof.
@@ -125,54 +142,76 @@ Proof.
   by constructor.
 Qed.
 
-Lemma has_method_get: has_method "get" "IntBoxS" "Box" (subst_mdef σ BoxGet).
+Lemma has_method_get0: has_method "get" "ROBox" "ROBox" Get.
+Proof. by repeat econstructor; eauto. Qed.
+
+Lemma has_method_get1: has_method "get" "IntBoxS" "Box" (subst_mdef σ Get).
 Proof. by repeat econstructor; eauto. Qed.
 
 Lemma has_method_set: has_method "set" "IntBoxS" "IntBoxS" IntBoxSSet.
 Proof. by repeat econstructor; eauto. Qed.
 
+Lemma has_fields_ROBox : has_fields "ROBox" {[ "$data" := (Private, GenT 0, "ROBox") ]}.
+Proof.
+  move => f vis fty orig; split => h.
+  - inv h.
+    + rewrite /Δ /= lookup_insert in H.
+      simplify_eq.
+      rewrite /ROBox /= lookup_singleton_Some in H0.
+      by destruct H0 as [<- <-].
+    + by rewrite /Δ /= lookup_insert in H; simplify_eq.
+  - rewrite lookup_singleton_Some in h.
+    destruct h as [<- [= <- <- <-]].
+    change Private with (Private, GenT 0).1.
+    by econstructor.
+Qed.
+
 Lemma has_fields_IntBoxS : has_fields "IntBoxS" {[ "$data" := (Public, IntT, "Box") ]}.
 Proof.
   move => f vis fty orig; split => h.
   - inv h.
-    + rewrite /Δ /= lookup_insert_ne // lookup_insert in H; by simplify_eq.
-    + rewrite /Δ /= lookup_insert_ne // lookup_insert in H; simplify_eq.
+    + rewrite /Δ /= lookup_insert_ne // lookup_insert_ne // lookup_insert in H; by simplify_eq.
+    + rewrite /Δ /= lookup_insert_ne // lookup_insert_ne // lookup_insert in H; simplify_eq.
+      apply lookup_singleton_Some.
       rewrite /IntBoxS /= in H1 H0.
       injection H1; intros; subst; clear H1.
       inv H2.
-      * rewrite /Δ /= lookup_insert in H; simplify_eq.
-        rewrite /Box /= lookup_insert_Some in H1.
-        destruct H1 as [[<- <-]|[?]]; last by rewrite lookup_empty in H1.
-        by rewrite lookup_insert.
-      * by rewrite /Δ /= lookup_insert in H; simplify_eq.
-  - rewrite lookup_insert_Some in h.
-    destruct h as [[<- [= <- <- <-]] | [? h]]; last by rewrite lookup_empty in h.
+      * rewrite /Δ /= lookup_insert_ne // lookup_insert in H; simplify_eq.
+        rewrite /Box /= lookup_singleton_Some in H1.
+        by destruct H1 as [<- <-].
+      * by rewrite /Δ /= lookup_insert_ne // lookup_insert in H; simplify_eq.
+  - rewrite lookup_singleton_Some in h.
+    destruct h as [<- [= <- <- <-]].
     change IntT with (subst_ty σ (GenT 0)).
     eapply InheritsField => //.
     change Public with (Public, GenT 0).1.
-    econstructor.
-    + by rewrite /Δ /= lookup_insert.
-    + by rewrite /Box /=.
+    econstructor; first done.
+    by rewrite /Box /=.
 Qed.
 
-Definition final_le le new_loc : local_env :=
+Definition final_le le new_loc1 new_loc2 : local_env :=
    <["$_":=NullV]>
   (<["$tmp":=IntV 43]>
-  (<["$box":=LocV new_loc]> le)).
+  (<["$box":=LocV new_loc1]>
+  (<["$init":= IntV 32]>
+  (<["$robox":= LocV new_loc2]> le)))).
 
-Definition final_heap (h: heap) new_loc :=
-  <[new_loc := ("IntBoxS", {["$data" := IntV 43]})]> h.
+Definition final_heap (h: heap) new_loc1 new_loc2 :=
+   <[new_loc1 := ("IntBoxS", {["$data" := IntV 43]})]>
+  (<[new_loc2 := ("ROBox", {["$data" := IntV 32]})]> h).
 
 Lemma Main_eval st:
- ∀ new_loc, st.2 !! new_loc = None →
- cmd_eval st ProgramBody (final_le st.1 new_loc, final_heap st.2 new_loc) 5.
+ ∀ new_loc1 new_loc2,
+ st.2 !! new_loc1 = None →
+ st.2 !! new_loc2 = None →
+ new_loc1 <> new_loc2 →
+ cmd_eval st ProgramBody (final_le st.1 new_loc1 new_loc2, final_heap st.2 new_loc1 new_loc2) 8.
 Proof.
-  case: st => le h /= new_loc hnew.
+  case: st => le h /= new_loc1 new_loc2 hnew1 hnew2 hnew.
   rewrite /ProgramBody.
-  change 5 with (1 + (2 + (0 + (1 + 1)))).
-  apply SeqEv with (<["$box" := LocV new_loc]>le,
-                    <[new_loc := ("IntBoxS", {["$data" := IntV 32]})]> h).
-  { apply NewEv; first done.
+  change 8 with (1 + (2 + (1 + (2 + (0 + (1 + 1)))))).
+  eapply SeqEv.
+  { apply NewEv; first by apply hnew2.
     rewrite /map_args option_guard_True /=; first by rewrite omap_singleton.
     by apply map_Forall_singleton.
   }
@@ -182,13 +221,35 @@ Proof.
     - rewrite /map_args option_guard_True; first done.
       by apply map_Forall_empty.
     - by rewrite lookup_insert.
-    - by apply has_method_get.
+    - by apply has_method_get0.
     - by rewrite omap_empty.
     - eapply GetEv.
       + by constructor.
       + by rewrite lookup_insert.
       + by rewrite lookup_insert.
-    - by rewrite /BoxGet /= lookup_insert.
+    - by rewrite /Get /= lookup_insert.
+  }
+  eapply SeqEv.
+  { apply NewEv.
+    - rewrite lookup_insert_ne; first by exact hnew1.
+      done.
+    - rewrite /map_args option_guard_True /=; first by rewrite omap_singleton.
+      apply map_Forall_singleton => /=.
+      by rewrite lookup_insert.
+  }
+  eapply SeqEv.
+  { eapply CallEv => /=.
+    - by rewrite lookup_insert.
+    - rewrite /map_args option_guard_True; first done.
+      by apply map_Forall_empty.
+    - by rewrite lookup_insert.
+    - by apply has_method_get1.
+    - by rewrite omap_empty.
+    - eapply GetEv.
+      + by constructor.
+      + by rewrite lookup_insert.
+      + by rewrite lookup_insert.
+    - by rewrite /Get /= lookup_insert.
   }
   eapply SeqEv.
   { (* Let *)
@@ -213,74 +274,86 @@ Proof.
       + done.
     - by rewrite /IntBoxSSet /=.
   }
-  replace (final_le le new_loc) with
+  rewrite lookup_insert.
+  replace (final_le le new_loc1 new_loc2) with
     ( <["$tmp" := IntV 43]>
      (<["$_":=NullV]>
      (<["$tmp":=IntV (32 + 20)]>
-     (<["$tmp":=IntV 32]> (<["$box":=LocV new_loc]> le))))); last first.
+     (<["$tmp":=IntV 32]>
+     (<["$box":=LocV new_loc1]>
+     (<["$init":= IntV 32]>
+     (<["$robox":= LocV new_loc2]> le))))))); last first.
   { rewrite /final_le.
     destruct le as [vthis lenv] => /=.
     rewrite /local_env_insert /=.
     f_equal.
-    (* TODO: set/naive solver ? *) apply map_eq => k.
-    destruct (decide (k = "$tmp")) as [-> | ?];
-        first by rewrite lookup_insert lookup_insert_ne // lookup_insert.
-    rewrite lookup_insert_ne //.
-    destruct (decide (k = "$_")) as [-> | ?]; first by rewrite !lookup_insert.
-    do 3 (rewrite lookup_insert_ne //).
-    destruct (decide (k = "$box")) as [-> | ?]; last by rewrite !lookup_insert_ne.
-    rewrite lookup_insert lookup_insert_ne // lookup_insert_ne //.
-    by rewrite lookup_insert.
+    rewrite insert_commute //.
+    f_equal.
+    by rewrite !insert_insert.
   }
-  replace (final_heap h new_loc) with
-    ( <[new_loc:=("IntBoxS", {["$data" := IntV (33 + 20 - 10); "$data" := IntV 32]})]>
-     (<[new_loc:=("IntBoxS", {["$data" := IntV 32]})]> h)); last first.
+  replace (final_heap h new_loc1 new_loc2) with
+    ( <[new_loc1:=("IntBoxS", {["$data" := IntV (33 + 20 - 10); "$data" := IntV 32]})]>
+     (<[new_loc1:=("IntBoxS", {["$data" := IntV 32]})]>
+     (<[new_loc2:=("ROBox", {["$data" := IntV 32]})]> h))); last first.
   { rewrite /final_heap.
-    apply map_eq => k.
-    destruct (decide (k = new_loc)) as [-> | hne].
-    + rewrite !lookup_insert.
-      repeat f_equal.
-      apply map_eq => k.
-      destruct (decide (k = "$data")) as [-> | ?]; first by rewrite !lookup_insert.
-      by rewrite !lookup_insert_ne.
-    + by rewrite !lookup_insert_ne.
+    by rewrite !insert_insert.
   }
   eapply GetEv.
-  - rewrite /= lookup_insert_ne // lookup_insert_ne //.
-    by rewrite lookup_insert_ne // lookup_insert.
+  - do 3 (rewrite /= lookup_insert_ne //).
+    by rewrite lookup_insert.
   - by rewrite lookup_insert. 
   - by rewrite lookup_insert.
 Qed.
 
 Definition final_lty lty : local_tys :=
-   <["$tmp":=IntT]>
-  (<["$_" := NullT]>
-  (<["$box":=ClassT "IntBoxS" []]> lty)).
+   <["$tmp"   := IntT]>
+  (<["$_"     := NullT]>
+  (<["$box"   := ClassT "IntBoxS" []]>
+  (<["$init"  := IntT]>
+  (<["$robox" := ClassT "ROBox" [IntT]]> lty)))).
 
 Lemma Main_ty lty :
   cmd_has_ty lty ProgramBody (final_lty lty).
 Proof.
   rewrite /final_lty /ProgramBody.
   eapply SeqTy.
+  { eapply NewTy with (targs := [IntT]).
+    + econstructor => //.
+      move => k ty; rewrite list_lookup_singleton_Some.
+      case => _ <-; by constructor.
+    + by apply has_fields_ROBox.
+    + by set_solver.
+    + move => f fty arg.
+      rewrite !lookup_singleton_Some.
+      case => <- <- [_ <-].
+      by constructor.
+  }
+  eapply SeqTy.
+  { eapply CallTy.
+    + constructor.
+      by rewrite lookup_insert.
+    + by apply has_method_get0.
+    + by set_solver.
+    + move => ????; by rewrite lookup_empty.
+  }
+  eapply SeqTy.
   { eapply NewTy with (targs := []).
     + by econstructor.
     + by apply has_fields_IntBoxS.
     + by set_solver.
     + move => f fty arg.
-      rewrite !lookup_insert_Some.
-      case => [[<- <-] | [? ?]].
-      * case => [[_ <-] | [? ?]]; last done.
-        by constructor.
-      * case => [[? ?] | [? ?]]; by simplify_eq.
+      rewrite !lookup_singleton_Some.
+      case => <- <- [_ <-].
+      constructor.
+      by rewrite lookup_insert.
   }
   eapply SeqTy.
   { eapply CallTy.
     + econstructor.
       by rewrite lookup_insert.
-    + by apply has_method_get.
-    + rewrite /BoxGet /=.
-      by set_solver.
-    + by move => x ty arg; rewrite /BoxGet /= lookup_empty.
+    + by apply has_method_get1.
+    + by set_solver.
+    + by move => x ty arg; rewrite /Get /= lookup_empty.
   }
   eapply SeqTy.
   { eapply LetTy.
@@ -291,20 +364,15 @@ Proof.
   eapply SeqTy.
   { eapply CallTy.
     + econstructor.
-      rewrite lookup_insert_ne //.
-      rewrite lookup_insert_ne //.
+      rewrite lookup_insert_ne // lookup_insert_ne //.
       by rewrite lookup_insert.
     + by apply has_method_set.
-    + rewrite /BoxGet /=.
-      by set_solver.
-    + move => x ty arg; rewrite /BoxGet /= lookup_insert_Some.
-      case => [[<- <-]|[? ?]].
-      * rewrite lookup_insert => [= <-].
-        constructor; first done.
-        - constructor; by rewrite lookup_insert.
-        - by constructor.
-      * rewrite lookup_insert_Some.
-        case => [[? ?]| [? ?]]; by simplify_eq.
+    + by set_solver.
+    + move => x ty arg; rewrite /Get /= !lookup_singleton_Some.
+      case => <- <- [_ <-].
+      constructor; first done.
+      - constructor; by rewrite lookup_insert.
+      - by constructor.
   }
   rewrite /IntBoxSSet /=.
   eapply SubTy; last first.
@@ -353,7 +421,14 @@ Proof.
     case => [[? <-] | [?]]; first by econstructor.
     rewrite lookup_insert_Some.
     case => [[? <-] | [?]]; first by econstructor.
-    by rewrite fmap_empty lookup_empty.
+    rewrite lookup_insert_Some.
+    case => [[? <-] | [?]]; first by econstructor.
+    rewrite lookup_insert_Some.
+    case => [[? <-] | [?]]; last by rewrite fmap_empty lookup_empty.
+    econstructor => //.
+    move => ? ?; rewrite list_lookup_singleton_Some.
+    case => _ <-.
+    by constructor.
   - by apply Main_ty.
   - rewrite /final_lty.
     constructor => //.
@@ -367,20 +442,37 @@ Proof.
   move => A B σ0 h; inv h.
   rewrite /Δ /= lookup_insert_Some in H.
   destruct H as [[<- <-] | [? H]].
-  + by rewrite /Box in H0.
-  + rewrite lookup_insert_Some in H.
-    destruct H as [[<- <-] | [? H]].
-    * rewrite /IntBoxS /= in H0; by simplify_eq.
-    * rewrite lookup_singleton_Some in H.
-      destruct H as [<- <-].
-      rewrite /Main in H0; discriminate.
+  { by rewrite /Box in H0. }
+  rewrite lookup_insert_Some in H.
+  destruct H as [[<- <-] | [? H]].
+  { rewrite /Box /= in H0; by simplify_eq. }
+  rewrite lookup_insert_Some in H.
+  destruct H as [[<- <-] | [? H]].
+  { rewrite /IntBoxS /= in H0; by simplify_eq. }
+  rewrite lookup_singleton_Some in H.
+  destruct H as [<- <-].
+  rewrite /Main in H0; discriminate.
+Qed.
+
+Lemma helper_in_ROBox : ∀ T σt, inherits_using "ROBox" T σt → T = "ROBox" ∧ σt = [GenT 0].
+Proof.
+  move => T σt h; inv h.
+  + rewrite /Δ /=.
+    rewrite lookup_insert in H.
+    by simplify_eq.
+  + apply helper_ext in H.
+    destruct H; discriminate.
+  + apply helper_ext in H.
+    destruct H; discriminate.
 Qed.
 
 Lemma helper_in_Main : ∀ T σt, inherits_using "Main" T σt → T = "Main" ∧ σt = [].
 Proof.
   move => T σt h; inv h.
-  + rewrite /Δ /= lookup_insert_ne // lookup_insert_ne // lookup_insert in H.
-    by case : H => <-.
+  + rewrite /Δ /=.
+    do 3 (rewrite lookup_insert_ne // in H).
+    rewrite lookup_singleton_Some in H.
+    by case : H => _ <-.
   + apply helper_ext in H.
     destruct H; discriminate.
   + apply helper_ext in H.
@@ -390,7 +482,9 @@ Qed.
 Lemma helper_in_Box : ∀ T σt, inherits_using "Box" T σt → T = "Box" ∧ σt = [GenT 0].
 Proof.
   move => T σt h; inv h.
-  + rewrite /Δ /= lookup_insert in H.
+  + rewrite /Δ /=.
+    do 1 (rewrite lookup_insert_ne // in H).
+    rewrite lookup_insert in H.
     by simplify_eq.
   + apply helper_ext in H.
     destruct H; discriminate.
@@ -403,7 +497,9 @@ Lemma helper_in_IntBoxS : ∀ T σt, inherits_using "IntBoxS" T σt →
   (T = "Box" ∧ σt = σ).
 Proof.
   move => T σt h; inv h.
-  + rewrite /Δ /= lookup_insert_ne // lookup_insert in H.
+  + rewrite /Δ /=.
+    do 2 (rewrite lookup_insert_ne // in H).
+    rewrite lookup_insert in H.
     left.
     by simplify_eq.
   + apply helper_ext in H.
@@ -418,17 +514,21 @@ Lemma helper_in: ∀ A B σ0, inherits_using A B σ0 →
      (A = "IntBoxS" ∧ B = "Box" ∧ σ0 = σ) ∨
      (A = "IntBoxS" ∧ B = "IntBoxS" ∧ σ0 = []) ∨
      (A = "Box" ∧ B = "Box" ∧ σ0 = [GenT 0]) ∨
+     (A = "ROBox" ∧ B = "ROBox" ∧ σ0 = [GenT 0]) ∨
      (A = "Main" ∧ B = "Main" ∧ σ0 = []).
 Proof.
   move => A B σ0 h.
   inv h.
-  + rewrite /Δ /= lookup_insert_Some in H.
+  + rewrite /Δ /=.
+    rewrite lookup_insert_Some in H.
+    destruct H as [[<- ?]|[? H]]; first (right; right; right; left; by rewrite -H).
+    rewrite lookup_insert_Some in H.
     destruct H as [[<- ?]|[? H]]; first (right; right; left; by rewrite -H).
     rewrite lookup_insert_Some in H.
     destruct H as [[<- ?]|[? H]]; first (right; left; by rewrite -H).
     rewrite lookup_insert_Some in H.
     destruct H as [[<- ?]|[? H]]; last by (by rewrite lookup_empty in H).
-    right; right; right; by rewrite -H.
+    right; right; right; right; by rewrite -H.
   + apply helper_ext in H as [-> [-> ->]].
     by left.
   + apply helper_ext in H as [-> [-> ->]].
@@ -436,373 +536,537 @@ Proof.
     by left.
 Qed.
 
-Lemma wf: wf_cdefs Δ.
+Lemma wf_extends_wf : wf_no_cycle Δ.
 Proof.
-  rewrite /Δ /=.
-  split.
-  - move => A B σ0 σ1 h0 h1.
-    apply helper_in in h0.
-    destruct h0 as [[-> [-> ->]] | [[-> [-> ->]] | [[-> [-> ->]] | [-> [-> ->]]]]].
-    + apply helper_in_Box in h1; by destruct h1; discriminate.
-    + apply helper_in_IntBoxS in h1 as [[_ ->] | [h ?]]; last discriminate.
-      done.
-    + apply helper_in_Box in h1 as [_ ->].
-      done.
-    + apply helper_in_Main in h1 as [_ ->].
-      done.
-  - apply map_Forall_lookup => c0 d0.
-    rewrite lookup_insert_Some.
-    case => [[? <-] | [?]] => //.
-    rewrite lookup_insert_Some.
-    case => [[? <-] | [?]] => //.
-    { exists Box;repeat split => //.
-      + by apply wfσ.
-      + by apply σbounded.
-    }
-    rewrite lookup_insert_Some.
-    by case => [[? <-] | [?]].
-  - move => A B adef bdef m σ0 mA mB hA hB hin hmA hmB.
-    apply helper_in in hin.
-    destruct hin as [[-> [-> ->]] | [[-> [-> ->]] | [[-> [-> ->]] | [-> [-> ->]]]]]; first last.
-    + simplify_eq.
-      rewrite /Δ /= lookup_insert_ne // lookup_insert_ne // lookup_insert in hA.
-      injection hA; intros; subst; clear hA.
-      rewrite /Main /= in hmA.
-      rewrite lookup_singleton_Some in hmA.
-      destruct hmA as [_ <-].
-      rewrite subst_mdef_nil.
-      by apply mdef_incl_reflexive.
-    + simplify_eq.
-      rewrite /Δ /= lookup_insert in hA.
-      injection hA; intros; subst; clear hA.
-      rewrite /Box /= in hmA.
-      rewrite lookup_insert_Some in hmA.
-      destruct hmA as [[<- <-]|[? hmA]].
-      * rewrite /mdef_incl /BoxSet /subst_mdef /=.
-        split; first by set_solver.
-        split; last done.
-        move => k A B.
-        rewrite lookup_insert_Some.
-        case => [[<- <-]|[?]]; last by rewrite lookup_empty.
-        rewrite lookup_fmap lookup_insert /=.
-        by case => <-.
-      * rewrite lookup_insert_Some in hmA.
-        destruct hmA as [[<- <-]|[? hmA]]; last by rewrite lookup_empty in hmA.
-        rewrite /mdef_incl /BoxGet /subst_mdef /=.
-        split; first by set_solver.
-        split; last done.
-        move => k A B.
-        by rewrite lookup_empty.
-    + simplify_eq.
-      rewrite /Δ /= lookup_insert_ne // lookup_insert in hA.
-      injection hA; intros; subst; clear hA.
-      rewrite /IntBoxS /= in hmA.
-      rewrite lookup_insert_Some in hmA.
-      destruct hmA as [[<- <-]|[? hmA]]; last by rewrite lookup_empty in hmA.
-      rewrite /mdef_incl /IntBoxSSet /subst_mdef /=.
+  move => A B σ0 σ1 h0 h1.
+  apply helper_in in h0.
+  destruct h0 as [[-> [-> ->]] | h0].
+  { apply helper_in_Box in h1; by destruct h1; discriminate. }
+  destruct h0 as [[-> [-> ->]] | h0].
+  { by apply helper_in_IntBoxS in h1 as [[_ ->] | [h ?]]. }
+  destruct h0 as [[-> [-> ->]] | h0].
+  { by apply helper_in_Box in h1 as [_ ->]. }
+  destruct h0 as [[-> [-> ->]] | h0].
+  { by apply helper_in_ROBox in h1 as [_ ->]. }
+  destruct h0 as [-> [-> ->]].
+  by apply helper_in_Main in h1 as [_ ->].
+Qed.
+
+Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent Δ) Δ.
+Proof.
+  apply map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-] | [?]] => //.
+  rewrite lookup_insert_Some.
+  case => [[? <-] | [?]] => //.
+  rewrite lookup_insert_Some.
+  case => [[? <-] | [?]].
+  { exists Box;repeat split => //.
+    + by apply wfσ.
+    + by apply σbounded.
+  }
+  rewrite lookup_singleton_Some.
+  by case => [? <-].
+Qed.
+
+Lemma wf_override : wf_method_override Δ.
+Proof.
+  move => A B adef bdef m σ0 mA mB hA hB hin hmA hmB.
+  apply helper_in in hin.
+  destruct hin as [[-> [-> ->]] | hin].
+  { rewrite /Δ /= in hA, hB.
+    do 2 (rewrite lookup_insert_ne // in hA).
+    do 1 (rewrite lookup_insert_ne // in hB).
+    rewrite !lookup_insert in hA, hB.
+    simplify_eq.
+    rewrite /IntBoxS /= in hmA.
+    rewrite /Box /= in hmB.
+    rewrite lookup_singleton_Some in hmA.
+    destruct hmA as [<- <-].
+    rewrite lookup_insert in hmB.
+    case : hmB => <-.
+    rewrite /mdef_incl /IntBoxSSet /BoxSet /subst_mdef /σ /=.
+    split; first by set_solver.
+    split; last done.
+    move => k A B.
+    rewrite lookup_singleton_Some.
+    case => [<- <-].
+    rewrite lookup_fmap_Some.
+    case => [ty [<-]].
+    rewrite lookup_insert.
+    by case => <-.
+  }
+  destruct hin as [[-> [-> ->]] | hin].
+  { simplify_eq.
+    rewrite /Δ /=.
+    do 2 (rewrite  lookup_insert_ne // in hA).
+    rewrite lookup_insert in hA.
+    injection hA; intros; subst; clear hA.
+    rewrite /Main /= in hmA.
+    rewrite lookup_singleton_Some in hmA.
+    destruct hmA as [_ <-].
+    rewrite subst_mdef_nil.
+    by apply mdef_incl_reflexive.
+  }
+  destruct hin as [[-> [-> ->]] | hin].
+  { simplify_eq.
+    rewrite /Δ /=.
+    do 1 (rewrite  lookup_insert_ne // in hA).
+    rewrite lookup_insert in hA.
+    injection hA; intros; subst; clear hA.
+    rewrite /Box /= in hmA.
+    rewrite lookup_insert_Some in hmA.
+    destruct hmA as [[<- <-]|[? hmA]].
+    + rewrite /mdef_incl /BoxSet /subst_mdef /=.
       split; first by set_solver.
       split; last done.
       move => k A B.
-      rewrite lookup_insert_Some.
-      case => [[<- <-]|[?]]; last by rewrite lookup_empty.
+      rewrite lookup_singleton_Some.
+      case => [<- <-].
       rewrite lookup_fmap lookup_insert /=.
       by case => <-.
-    + rewrite /Δ /= in hA, hB.
-      rewrite lookup_insert_ne // in hA.
-      rewrite !lookup_insert in hA, hB.
-      injection hA; injection hB; intros; subst; clear hA hB.
-      rewrite /IntBoxS /= in hmA.
-      rewrite /Box /= in hmB.
-      rewrite lookup_insert_Some in hmA.
-      destruct hmA as [[<- <-]|[? hmA]]; last by rewrite lookup_empty in hmA.
-      rewrite lookup_insert in hmB.
-      injection hmB; intros; subst; clear hmB.
-      rewrite /mdef_incl /IntBoxSSet /BoxSet /subst_mdef /σ /=.
+    + rewrite lookup_singleton_Some in hmA.
+      destruct hmA as [<- <-].
+      rewrite /mdef_incl /Get /subst_mdef /=.
       split; first by set_solver.
       split; last done.
       move => k A B.
-      rewrite lookup_insert_Some.
-      case => [[<- <-]|[?]]; last by rewrite lookup_empty.
-      rewrite lookup_fmap_Some.
-      case => [ty [<-]].
-      rewrite lookup_insert.
-      by case => <-.
-  - rewrite map_Forall_lookup => c0 d0.
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { by rewrite /wf_cdef_fields /Box. }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { by rewrite /wf_cdef_fields /IntBoxS. }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]]; last by rewrite lookup_empty.
-    by rewrite /wf_cdef_fields /Main.
-  - rewrite map_Forall_lookup => c0 d0.
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { rewrite /wf_cdef_fields_bounded /Box /=.
-      rewrite map_Forall_singleton.
-      econstructor.
+      by rewrite lookup_empty.
+  }
+  destruct hin as [[-> [-> ->]] | hin].
+  { simplify_eq.
+    rewrite /Δ /=.
+    rewrite lookup_insert in hA.
+    injection hA; intros; subst; clear hA.
+    rewrite /IntBoxS /= in hmA.
+    rewrite lookup_singleton_Some in hmA.
+    destruct hmA as [<- <-].
+    rewrite /mdef_incl /IntBoxSSet /subst_mdef /=.
+    split; first by set_solver.
+    split; last done.
+    move => k A B.
+    by rewrite lookup_empty.
+  }
+  destruct hin as [-> [-> ->]].
+  { simplify_eq.
+    rewrite /Δ /=.
+    do 3 (rewrite lookup_insert_ne // in hA).
+    rewrite lookup_singleton_Some in hA.
+    destruct hA as [_ <-].
+    rewrite /Main /= in hmA.
+    rewrite lookup_singleton_Some in hmA.
+    destruct hmA as [<- <-].
+    rewrite /mdef_incl /EntryPoint /subst_mdef /=.
+    split; first by set_solver.
+    split; last done.
+    move => k A B.
+    by rewrite lookup_empty.
+  }
+Qed.
+
+Lemma wf_fields : map_Forall (λ _cname, wf_cdef_fields) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_fields /ROBox. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_fields /Box. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_fields /IntBoxS. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  by rewrite /wf_cdef_fields /Main.
+Qed.
+
+Lemma wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_fields_bounded /ROBox /=.
+    rewrite map_Forall_singleton.
+    econstructor.
+    by auto with arith.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_fields_bounded /Box /=.
+    rewrite map_Forall_singleton.
+    econstructor.
+    by auto with arith.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_fields_bounded /IntBoxS /=.
+    by apply map_Forall_empty.
+  }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  by rewrite /wf_cdef_fields /Main.
+Qed.
+
+Lemma wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_fields_wf /ROBox /=.
+    rewrite map_Forall_singleton.
+    econstructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_fields_wf /Box /=.
+    rewrite map_Forall_singleton.
+    by econstructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_fields_wf /IntBoxS /=.
+    by apply map_Forall_empty.
+  }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  rewrite /wf_cdef_fields_wf /Main /=.
+  by apply map_Forall_empty.
+Qed.
+
+Lemma wf_fields_mono : map_Forall (λ _cname, wf_field_mono) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_field_mono /ROBox /=.
+    rewrite map_Forall_lookup => x mx.
+    rewrite lookup_singleton_Some.
+    case => [? <-].
+    split; by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_field_mono /Box /=.
+    rewrite map_Forall_lookup => x mx.
+    rewrite lookup_singleton_Some.
+    case => [? <-].
+    split; by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_field_mono /IntBoxS /=.
+    by apply map_Forall_empty.
+  }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  rewrite /wf_field_mono /Main /=.
+  by apply map_Forall_empty.
+Qed.
+
+Lemma wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /cdef_methods_bounded /ROBox /=.
+    apply map_Forall_singleton.
+    split.
+    + rewrite /Get /=.
+      by apply map_Forall_empty.
+    + rewrite /Get /=.
+      constructor.
       by auto with arith.
-    }
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /cdef_methods_bounded /Box /=.
+    rewrite map_Forall_lookup => x mx.
     rewrite lookup_insert_Some.
     case => [[? <-]|[?]].
-    { rewrite /wf_cdef_fields_bounded /IntBoxS /=.
-      by apply map_Forall_empty.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]]; last by rewrite lookup_empty.
-    by rewrite /wf_cdef_fields_bounded /Main /=.
-  - rewrite map_Forall_lookup => c0 d0.
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { rewrite /wf_cdef_fields_wf /Box /=.
-      rewrite map_Forall_singleton.
-      by econstructor.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { rewrite /wf_cdef_fields_bounded /IntBoxS /=.
-      by apply map_Forall_empty.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]]; last by rewrite lookup_empty.
-    rewrite /wf_cdef_fields_bounded /Main /=.
-    by apply map_Forall_empty.
-  - rewrite map_Forall_lookup => c0 d0.
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { rewrite /wf_field_mono /Box /=.
-      rewrite map_Forall_lookup => x mx.
-      rewrite lookup_insert_Some.
-      case => [[? <-]|[?]]; last by rewrite lookup_empty.
-      split; by constructor.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { rewrite /wf_field_mono /IntBoxS /=.
-      by apply map_Forall_empty.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]]; last by rewrite lookup_empty.
-    rewrite /wf_field_mono /Main /=.
-    by apply map_Forall_empty.
-  - rewrite map_Forall_lookup => c0 d0.
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { rewrite /cdef_methods_bounded /Box /=.
-      rewrite map_Forall_lookup => x mx.
-      rewrite lookup_insert_Some.
-      case => [[? <-]|[?]].
-      + split; last by constructor.
-        rewrite /BoxSet /=.
-        rewrite map_Forall_singleton.
+    + split; last by constructor.
+      rewrite /BoxSet /=.
+      apply map_Forall_singleton.
+      constructor.
+      by auto with arith.
+    + rewrite lookup_singleton_Some.
+      case => [? <-].
+      split.
+      * rewrite /Get /=.
+        by apply map_Forall_empty.
+      * rewrite /Get /=.
         constructor.
         by auto with arith.
-      + rewrite lookup_insert_Some.
-        case => [[? <-]|[?]]; last by rewrite lookup_empty.
-        split.
-        * rewrite /BoxGet /=.
-          by apply map_Forall_empty.
-        * rewrite /BoxGet /=.
-          constructor.
-          by auto with arith.
-    }
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /cdef_methods_bounded /IntBoxS /=.
+    rewrite map_Forall_singleton.
+    split; last done.
+    rewrite /IntBoxSSet /=.
+    rewrite map_Forall_singleton.
+    by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]]; last by rewrite lookup_empty.
+  rewrite /cdef_methods_bounded /Main /=.
+  apply map_Forall_singleton.
+  split; last done.
+  by apply map_Forall_empty.
+Qed.
+
+Lemma wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_methods_wf /ROBox /=.
+    rewrite map_Forall_singleton.
+    split.
+    + rewrite /Get /=.
+      by apply map_Forall_empty.
+    + rewrite /Get /=.
+      by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_methods_wf /Box /=.
+    rewrite map_Forall_lookup => x mx.
     rewrite lookup_insert_Some.
     case => [[? <-]|[?]].
-    { rewrite /cdef_methods_bounded /IntBoxS /=.
-      rewrite map_Forall_singleton.
-      split; last done.
-      rewrite /IntBoxSSet /=.
+    + split; last by constructor.
+      rewrite /BoxSet /=.
       rewrite map_Forall_singleton.
       by constructor.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]]; last by rewrite lookup_empty.
-    rewrite /cdef_methods_bounded /Main /=.
-    apply map_Forall_singleton.
-    split; last done.
-    by apply map_Forall_empty.
-  - rewrite map_Forall_lookup => c0 d0.
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { rewrite /wf_cdef_methods_wf /Box /=.
-      rewrite map_Forall_lookup => x mx.
-      rewrite lookup_insert_Some.
-      case => [[? <-]|[?]].
-      + split; last by constructor.
-        rewrite /BoxSet /=.
-        rewrite map_Forall_singleton.
-        by constructor.
-      + rewrite lookup_insert_Some.
-        case => [[? <-]|[?]]; last by rewrite lookup_empty.
-        split.
-        * rewrite /BoxGet /=.
-          by apply map_Forall_empty.
-        * rewrite /BoxGet /=.
-          by constructor.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { rewrite /wf_cdef_methods_wf /IntBoxS /=.
-      rewrite map_Forall_singleton.
+    + rewrite lookup_insert_Some.
+      case => [[? <-]|[?]]; last by rewrite lookup_empty.
       split.
-      + rewrite /IntBoxSSet /=.
-        rewrite map_Forall_singleton.
+      * rewrite /Get /=.
+        by apply map_Forall_empty.
+      * rewrite /Get /=.
         by constructor.
-      + rewrite /IntBoxSSet /=.
-        by constructor.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]]; last by rewrite lookup_empty.
-    rewrite /wf_cdef_methods_wf /Main /=.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_methods_wf /IntBoxS /=.
+    rewrite map_Forall_singleton.
+    split.
+    + rewrite /IntBoxSSet /=.
+      rewrite map_Forall_singleton.
+      by constructor.
+    + rewrite /IntBoxSSet /=.
+      by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]]; last by rewrite lookup_empty.
+  rewrite /wf_cdef_methods_wf /Main /=.
+  apply map_Forall_singleton.
+  split; last by constructor.
+  by apply map_Forall_empty.
+Qed.
+
+Lemma wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_methods_mono /ROBox /=.
     apply map_Forall_singleton.
+    rewrite /wf_mdef_mono /Get /=.
     split; last by constructor.
     by apply map_Forall_empty.
-  - rewrite map_Forall_lookup => c0 d0.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_methods_mono /Box /=.
+    rewrite map_Forall_lookup => x mx.
     rewrite lookup_insert_Some.
     case => [[? <-]|[?]].
-    { rewrite /wf_cdef_methods_mono /Box /=.
-      rewrite map_Forall_lookup => x mx.
-      rewrite lookup_insert_Some.
-      case => [[? <-]|[?]].
-      * rewrite /wf_mdef_mono /BoxSet /=.
-        split; last by constructor.
-        apply map_Forall_singleton.
-        by constructor.
-      * rewrite lookup_insert_Some.
-        case => [[? <-]|[?]]; last by rewrite lookup_empty.
-        rewrite /wf_mdef_mono /BoxGet /=.
-        split; first by apply map_Forall_empty.
-        by constructor.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    { rewrite /wf_cdef_methods_mono /IntBoxS /=.
-      apply map_Forall_singleton.
-      rewrite /wf_mdef_mono /IntBoxSSet /=.
+    * rewrite /wf_mdef_mono /BoxSet /=.
       split; last by constructor.
       apply map_Forall_singleton.
       by constructor.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]]; last by rewrite lookup_empty.
-    rewrite /wf_cdef_methods_mono /Main /=.
+    * rewrite lookup_insert_Some.
+      case => [[? <-]|[?]]; last by rewrite lookup_empty.
+      rewrite /wf_mdef_mono /Get /=.
+      split; first by apply map_Forall_empty.
+      by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_methods_mono /IntBoxS /=.
     apply map_Forall_singleton.
+    rewrite /wf_mdef_mono /IntBoxSSet /=.
     split; last by constructor.
-    by apply map_Forall_empty.
-  - rewrite map_Forall_lookup => c0 d0.
-    rewrite lookup_insert_Some.
-    case => [[<- <-]|[?]].
-    { rewrite /cdef_wf_mdef_ty /Box /=.
-      rewrite map_Forall_lookup => x mx.
-      rewrite lookup_insert_Some.
-      case => [[? <-]|[?]].
-      * rewrite /wf_mdef_ty /BoxSet /=.
-        eexists.
-        split; first last.
-        { split ; last by constructor.
-          eapply SetPubTy.
-          - by constructor.
-          - simpl.
-            change Public with (Public, GenT 0).1.
-            by eapply HasField.
-          - by constructor.
-        }
-        split.
-        { rewrite /this_type /=.
-          econstructor => //.
-          by apply gen_targs_wf.
-        }
-        rewrite map_Forall_lookup => k t /=.
-        rewrite lookup_fmap_Some.
-        case => [ty [<- ]].
-        rewrite lookup_singleton_Some.
-        case => ? <-.
-        by constructor.
-      * rewrite lookup_insert_Some.
-        case => [[? <-]|[?]]; last by rewrite lookup_empty.
-        rewrite /wf_mdef_ty /BoxGet /=.
-        eexists; split; first last.
-        { split.
-          - eapply GetPubTy.
-            + by constructor.
-            + change Public with (Public, GenT 0).1.
-              by eapply HasField.
-          - by constructor.
-        }
-        split.
-        { rewrite /this_type /=.
-          econstructor => //.
-          by apply gen_targs_wf.
-        }
-        rewrite map_Forall_lookup => k t /=.
-        rewrite lookup_insert_Some.
-        case => [[? <-]|[?]]; first by constructor.
-        by rewrite fmap_empty lookup_empty.
-    }
-    rewrite lookup_insert_Some.
-    case => [[<- <-]|[?]].
-    { rewrite /cdef_wf_mdef_ty /IntBoxS /=.
-      rewrite map_Forall_singleton.
-      eexists.
-      split; first last.
-      * split; last by constructor.
-        rewrite /IntBoxSSet /=.
-        eapply SetPubTy.
-        { by constructor. }
-        { eapply InheritsField => //.
-          change Public with (Public, GenT 0).1.
-          by eapply HasField.
-        }
-        { constructor => //.
-          - constructor.
-            by rewrite /= lookup_fmap lookup_insert.
-          - by constructor.
-        }
-      * split.
-        { rewrite /this_type /=.
-          by econstructor.
-        }
-        rewrite map_Forall_lookup => x tx /=.
-        rewrite lookup_fmap_Some.
-        case => [ty [<-]].
-        rewrite lookup_singleton_Some.
-        case => [? <-].
-        by constructor.
-    }
-    rewrite lookup_insert_Some.
-    case => [[<- <-]|[?]]; last by rewrite lookup_empty.
-    rewrite /cdef_wf_mdef_ty /Main /=.
     apply map_Forall_singleton.
-    by apply wf_mdef_ty_Main.
-  - rewrite map_Forall_lookup => x cx.
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]]; first done.
+    by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]]; last by rewrite lookup_empty.
+  rewrite /wf_cdef_methods_mono /Main /=.
+  apply map_Forall_singleton.
+  split; last by constructor.
+  by apply map_Forall_empty.
+Qed.
+
+Lemma wf_mdefs : map_Forall cdef_wf_mdef_ty Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[<- <-]|[?]].
+  { rewrite /cdef_wf_mdef_ty /ROBox /=.
+    rewrite map_Forall_singleton.
+    eexists.
+    split; first last.
+    - rewrite /Get /=; split.
+      + eapply GetPrivTy => //.
+        by apply has_fields_ROBox.
+      + by econstructor.
+    - split.
+      { rewrite /this_type /=.
+        econstructor => //.
+        by apply gen_targs_wf.
+      }
+      rewrite map_Forall_lookup => x tx /=.
+      rewrite fmap_empty.
+      rewrite lookup_insert_Some.
+      case => [[? <-]|[?]]; last by rewrite lookup_empty.
+      by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[<- <-]|[?]].
+  { rewrite /cdef_wf_mdef_ty /Box /=.
+    rewrite map_Forall_lookup => x mx.
     rewrite lookup_insert_Some.
     case => [[? <-]|[?]].
-    { rewrite /wf_cdef_mono /IntBoxS /=.
-      econstructor => //.
-      + move => i wi ti //=.
-        rewrite list_lookup_singleton_Some.
-        case => [-> <-].
-        simpl.
-        case => <- _.
-        by constructor.
-      + move => i wi ti //=.
-        rewrite list_lookup_singleton_Some.
-        case => [-> <-].
-        simpl.
-        case => <- _.
-        by constructor.
-    }
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]]; last by rewrite lookup_empty.
-    done.
+    * rewrite /wf_mdef_ty /BoxSet /=.
+      eexists.
+      split; first last.
+      { split ; last by constructor.
+        eapply SetPubTy.
+        - by constructor.
+        - simpl.
+          change Public with (Public, GenT 0).1.
+          by eapply HasField.
+        - by constructor.
+      }
+      split.
+      { rewrite /this_type /=.
+        econstructor => //.
+        by apply gen_targs_wf.
+      }
+      rewrite map_Forall_lookup => k t /=.
+      rewrite lookup_fmap_Some.
+      case => [ty [<- ]].
+      rewrite lookup_singleton_Some.
+      case => ? <-.
+      by constructor.
+    * rewrite lookup_insert_Some.
+      case => [[? <-]|[?]]; last by rewrite lookup_empty.
+      rewrite /wf_mdef_ty /Get /=.
+      eexists; split; first last.
+      { split.
+        - eapply GetPubTy.
+          + by constructor.
+          + change Public with (Public, GenT 0).1.
+            by eapply HasField.
+        - by constructor.
+      }
+      split.
+      { rewrite /this_type /=.
+        econstructor => //.
+        by apply gen_targs_wf.
+      }
+      rewrite map_Forall_lookup => k t /=.
+      rewrite lookup_insert_Some.
+      case => [[? <-]|[?]]; first by constructor.
+      by rewrite fmap_empty lookup_empty.
+  }
+  rewrite lookup_insert_Some.
+  case => [[<- <-]|[?]].
+  { rewrite /cdef_wf_mdef_ty /IntBoxS /=.
+    rewrite map_Forall_singleton.
+    eexists.
+    split; first last.
+    * split; last by constructor.
+      rewrite /IntBoxSSet /=.
+      eapply SetPubTy.
+      { by constructor. }
+      { eapply InheritsField => //.
+        change Public with (Public, GenT 0).1.
+        by eapply HasField.
+      }
+      { constructor => //.
+        - constructor.
+          by rewrite /= lookup_fmap lookup_insert.
+        - by constructor.
+      }
+    * split.
+      { rewrite /this_type /=.
+        by econstructor.
+      }
+      rewrite map_Forall_lookup => x tx /=.
+      rewrite lookup_fmap_Some.
+      case => [ty [<-]].
+      rewrite lookup_singleton_Some.
+      case => [? <-].
+      by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[<- <-]|[?]]; last by rewrite lookup_empty.
+  rewrite /cdef_wf_mdef_ty /Main /=.
+  apply map_Forall_singleton.
+  by apply wf_mdef_ty_Main.
+Qed.
+
+Lemma wf_mono : map_Forall (λ _cname, wf_cdef_mono) Δ.
+Proof.
+  rewrite map_Forall_lookup => x cx.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]]; first done.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]]; first done.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_mono /IntBoxS /=.
+    econstructor => //.
+    + move => i wi ti //=.
+      rewrite list_lookup_singleton_Some.
+      case => [-> <-].
+      simpl.
+      case => <- _.
+      by constructor.
+    + move => i wi ti //=.
+      rewrite list_lookup_singleton_Some.
+      case => [-> <-].
+      simpl.
+      case => <- _.
+      by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]]; last by rewrite lookup_empty.
+  done.
+Qed.
+
+Lemma wf: wf_cdefs Δ.
+Proof.
+  split.
+  by apply wf_extends_wf.
+  by apply wf_parent.
+  by apply wf_override.
+  by apply wf_fields.
+  by apply wf_fields_bounded.
+  by apply wf_fields_wf.
+  by apply wf_fields_mono.
+  by apply wf_methods_bounded.
+  by apply wf_methods_wf.
+  by apply wf_methods_mono.
+  by apply wf_mdefs.
+  by apply wf_mono.
 Qed.
 
 (* Director level theorem: every execution that should produce an int
- * actually produces an int.
+ * actually produceGs an int.
  *)
 Theorem int_adequacy cmd st lty n:
   cmd_eval (main_le, main_heap "Main") cmd st n →

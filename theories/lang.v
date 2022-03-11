@@ -2642,11 +2642,11 @@ Section ProgDef.
   Record wf_cdefs (prog: stringmap classDef) := {
     wf_extends_wf : wf_no_cycle prog;
     wf_parent : map_Forall (λ _cname, wf_cdef_parent prog) prog;
-    wf_override : wf_method_override Δ;
+    wf_override : wf_method_override prog;
     wf_fields : map_Forall (λ _cname, wf_cdef_fields) prog;
     wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) prog;
     wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) prog;
-    (* because all fields are public/mutable *)
+    (* because all public fields are mutable *)
     wf_fields_mono : map_Forall (λ _cname, wf_field_mono) prog;
     wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) prog;
     wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) prog;
