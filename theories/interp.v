@@ -117,22 +117,54 @@ Section proofs.
     (σi: list (interp Σ))
     (C: tag)
     σC
-    (fields: stringmap lang_ty)
+    (dom_fields: stringset)
     (ifields: gmapO string (laterO (sem_typeO Σ)))
     (rec: ty_interpO) : iProp Σ :=
-    (⌜dom stringset fields = dom _ ifields⌝ ∗
-    ∀ f ty, ⌜has_field f C ty⌝ -∗ ifields !! f ≡ Some (Next (interp_car (rec (subst_ty σC ty) σi))))%I.
+    (⌜dom _ ifields = dom_fields⌝ ∗
+    (∀ f vis ty orig, ⌜has_field f C vis ty orig⌝ -∗ ifields !! f ≡ Some (Next (interp_car (rec (subst_ty σC ty) σi))))
+    )%I.
 
   Definition interp_class C σC (σi: list (interp Σ)) (rec : ty_interpO) : interp Σ :=
     Interp (
       λ (w : value),
-      (∃ ℓ t cdef σ σt (fields: stringmap lang_ty) (ifields: gmapO string (laterO (sem_typeO Σ))),
+      (∃ ℓ t cdef σ σt (fields: stringmap ((visibility * lang_ty) * tag)) (ifields: gmapO string (laterO (sem_typeO Σ))),
       ⌜w = LocV ℓ ∧ inherits_using t C σ ∧ wf_ty (ClassT t σt) ∧
        Δ !! C = Some cdef ∧ (subst_ty σt <$> σ) <: cdef.(generics) :> σC ∧
        has_fields t fields⌝ ∗
-      interp_fields σi t σt fields ifields rec ∗
+      interp_fields σi t σt (dom stringset fields) ifields rec ∗
       (ℓ ↦ (t, ifields)))%I
     ).
+
+  Definition interp_class_strict C σC (σi: list (interp Σ)) (rec : ty_interpO) : interp Σ :=
+    Interp (
+      λ (w : value),
+      (∃ ℓ t σ σt (fields: stringmap ((visibility * lang_ty) * tag)) (ifields: gmapO string (laterO (sem_typeO Σ))),
+      ⌜w = LocV ℓ ∧ inherits_using t C σ ∧ wf_ty (ClassT t σt) ∧ (subst_ty σt <$> σ) = σC ∧
+       has_fields t fields⌝ ∗
+      interp_fields σi t σt (dom stringset fields) ifields rec ∗
+      (ℓ ↦ (t, ifields)))%I
+    ).
+
+  Lemma interp_class_from_strict C σC (σi: list (interp Σ)) (rec: ty_interpO) v:
+    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    interp_class_strict C σC σi rec v -∗ interp_class C σC σi rec v.
+  Proof.
+    iIntros (hp) "H".
+    iDestruct "H" as (??????) "[%hpure [Hfields Hl]]".
+    destruct hpure as (-> & hin & hwf & heqp & hfs).
+    assert (hin' := hin).
+    apply inherits_using_wf in hin' => //.
+    destruct hin' as (? & def & ? & ? & ? & hL & ?).
+    iExists _, _, def, _, _, _, _.
+    iSplit; last by iSplit.
+    iPureIntro.
+    repeat split => //.
+    rewrite heqp.
+    apply subtype_targs_refl.
+    rewrite -heqp map_length.
+    simplify_eq.
+    by rewrite hL.
+  Qed.
 
   Definition interp_ex σi (cname: tag) (rec: ty_interpO): interp Σ :=
     Interp (λ (w: value), (∃ σc, ⌜Forall wf_ty σc⌝ ∗ interp_class cname σc σi rec w)%I).
@@ -184,7 +216,7 @@ Section proofs.
     rewrite /interp_fun !interp_car_simpl.
     do 15 f_equiv.
     rewrite /interp_fields.
-    do 10 f_equiv.
+    do 15 f_equiv.
     by apply ty_interpO_ne.
   Qed.
 
@@ -211,12 +243,16 @@ Section proofs.
   Local Instance go_ne (rec: ty_interpO) (ty: lang_ty) :
     NonExpansive (λ σi, go σi rec ty).
   Proof.
-    induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i | cname ] => //= n x y h.
+    induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i | cname ] => /= n x y h.
+    - done.
+    - done.
+    - done.
     - rewrite /interp_mixed => v.
       rewrite /interp_fun !interp_car_simpl.
       do 5 f_equiv.
       by apply interp_ex_ne.
     - by apply interp_class_ne.
+    - done.
     - by apply interp_nonnull_ne.
     - rewrite /interp_union => v.
       rewrite /interp_fun !interp_car_simpl.
@@ -251,10 +287,10 @@ Section proofs.
   Proof.
     rewrite /interp_class => n i1 i2 hdist v.
     rewrite /interp_fun !interp_car_simpl.
-    do 6 (f_equiv; intros ?).
+    do 7 (f_equiv; intros ?).
     f_equiv.
     rewrite /interp_fields.
-    do 11 f_equiv.
+    do 13 f_equiv.
     f_contractive.
     apply interp_car_ne2.
     by f_equiv.
@@ -283,15 +319,20 @@ Section proofs.
   Proof.
     rewrite /interp_type_pre => n rec1 rec2 hdist ty σi /=.
     induction ty
-      as [ | | | | cname σ hi | | | A B hA hB | A B hA hB | i | cname ] => //=.
+      as [ | | | | cname σ hi | | | A B hA hB | A B hA hB | i | cname ] => /=.
+    - done.
+    - done.
+    - done.
     - rewrite /interp_mixed => v.
       rewrite /interp_fun !interp_car_simpl.
       f_equiv.
       revert v; by apply interp_nonnull_contractive.
     - by apply interp_class_contractive.
+    - done.
     - by apply interp_nonnull_contractive.
     - solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
+    - done.
     - by apply interp_ex_contractive.
   Qed.
 
@@ -391,7 +432,7 @@ Section proofs.
       by repeat destruct hin as [? hin].
     }
     rewrite /interp_fields.
-    iDestruct "hsem" as "[%hdom hsem]".
+    iDestruct "hsem" as "[%hdom hfields]".
     iExists ℓ, t, bdef, (subst_ty σ <$> σB), σt, fields, ifields. 
     iSplit.
     { iPureIntro; split; first done.
@@ -425,8 +466,8 @@ Section proofs.
     }
     iSplit; last done.
     iSplit; first by iPureIntro.
-    iIntros (f ty) "%hf".
-    by iApply "hsem".
+    iIntros (f vis ty orig) "%hf".
+    by iApply "hfields".
   Qed.
 
   Definition interp_variance env v ty0 ty1 : iProp Σ :=
@@ -658,7 +699,7 @@ Section proofs.
 
   Definition interp_local_tys
     σi (lty : local_tys) (le : local_env) : iProp Σ :=
-    interp_class lty.(type_of_this).1 lty.(type_of_this).2 σi interp_type (LocV le.(vthis)) ∗
+    interp_class_strict lty.(type_of_this).1 lty.(type_of_this).2 σi interp_type (LocV le.(vthis)) ∗
     (∀ v ty, ⌜lty.(ctxt) !! v = Some ty⌝ -∗
     ∃ val, ⌜le.(lenv) !! v = Some val⌝ ∗ interp_type ty σi val)%I.
 
@@ -693,6 +734,7 @@ Section proofs.
 
   (* Helper to lift the conclusions of interp_class into a super class *)
   Lemma interp_fields_inclusion σi t σt fields ifields σ C rec:
+    wf_no_cycle Δ →
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
@@ -700,13 +742,13 @@ Section proofs.
     interp_fields σi t σt fields ifields rec -∗
     interp_fields σi C (subst_ty σt <$> σ) fields ifields rec.
   Proof.
-    move => ?? hb hin.
+    move => ??? hb hin.
     rewrite /interp_fields.
-    iIntros "[%hdom #H]".
+    iIntros "[%hdom #hfields]".
     iSplit; first done.
-    iIntros (f ty) "%hf".
-    assert (hfC: has_field f t (subst_ty σ ty)) by (by eapply has_field_inherits_using).
-    iSpecialize ("H" $! f (subst_ty σ ty) hfC).
+    iIntros (f vis ty orig) "%hf".
+    assert (hfC: has_field f t vis (subst_ty σ ty) orig) by (by eapply has_field_inherits_using).
+    iSpecialize ("hfields" $! f vis (subst_ty σ ty) orig hfC).
     rewrite subst_ty_subst //.
     apply has_field_bounded in hf => //.
     destruct hf as (def & hdef & hfty).

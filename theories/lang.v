@@ -147,6 +147,13 @@ Proof.
   by apply hi.
 Qed.
 
+Corollary fmap_subst_ty_nil (σ: stringmap lang_ty) : subst_ty [] <$> σ = σ.
+Proof.
+  induction σ as [| s ty ftys Hs IH] using map_ind => //=.
+  - by rewrite fmap_empty.
+  - by rewrite fmap_insert IH subst_ty_nil.
+Qed.
+
 Lemma subst_ty_subst ty l k:
   bounded (length k) ty →
   subst_ty l (subst_ty k ty) = subst_ty (subst_ty l <$> k) ty.
@@ -274,6 +281,12 @@ Definition subst_mdef targs mdef : methodDef := {|
     methodret := mdef.(methodret);
   |}.
 
+Lemma subst_mdef_nil mdef : subst_mdef [] mdef = mdef.
+Proof.
+  rewrite /subst_mdef subst_ty_nil fmap_subst_ty_nil.
+  by destruct mdef.
+Qed.
+
 Lemma subst_mdef_body mdef σ: methodbody (subst_mdef σ mdef) = methodbody mdef.
 Proof. by []. Qed.
 
@@ -345,11 +358,13 @@ Definition not_contra v :=
   end
 .
 
+Inductive visibility := Public | Private.
+
 Record classDef := {
   classname: tag;
   generics: list variance; (* variance of the generics *)
   superclass: option (tag * list lang_ty);
-  classfields : stringmap lang_ty;
+  classfields : stringmap (visibility * lang_ty);
   classmethods : stringmap methodDef;
 }.
 
@@ -984,8 +999,15 @@ Section ProgDef.
   Definition invariant vs ty :=
     mono vs ty ∧ mono (neg_variance <$> vs) ty.
 
+  Definition field_mono vs (vfty: visibility * lang_ty) :=
+    let (vis, fty) := vfty in
+    match vis with
+    | Public => invariant vs fty
+    | Private => True
+    end.
+
   Definition wf_field_mono cdef :=
-    map_Forall (λ _fname, invariant cdef.(generics)) cdef.(classfields).
+    map_Forall (λ _fname, field_mono cdef.(generics)) cdef.(classfields).
 
   Lemma mono_subst vs ty:
     mono vs ty →
@@ -1653,67 +1675,70 @@ Section ProgDef.
     by apply subtype_subst.
   Qed.
 
-  (* has_field f C fty means that class C defines or inherits a field f
-   * of type fty. The type is substituted accordingly so it can be
+  (* has_field f C vis fty orig means that class C defines or inherits a field f
+   * of type fty. Its visibility is vis in the class orig.
+   * The type fty is substituted accordingly so it can be
    * interpreted in C directly.
    *)
-  Inductive has_field (fname: string) : tag -> lang_ty → Prop :=
-    | HasField tag cdef typ:
+  Inductive has_field (fname: string) : tag → visibility → lang_ty → tag → Prop :=
+    | HasField tag cdef vtyp:
         Δ !! tag = Some cdef →
-        cdef.(classfields) !! fname = Some typ →
-        has_field fname tag typ
-    | InheritsField tag targs parent cdef typ:
+        cdef.(classfields) !! fname = Some vtyp →
+        has_field fname tag vtyp.1 vtyp.2 tag
+    | InheritsField tag targs parent cdef vis typ orig:
         Δ !! tag = Some cdef →
         cdef.(classfields) !! fname = None →
         cdef.(superclass) = Some (parent, targs) →
-        has_field fname parent typ →
-        has_field fname tag (subst_ty targs typ)
+        has_field fname parent vis typ orig →
+        has_field fname tag vis (subst_ty targs typ) orig
   .
 
   Hint Constructors has_field : core.
 
   (* has_field is a functional relation *)
-  Lemma has_field_fun fname A typ:
-    has_field fname A typ →
-    ∀ typ', has_field fname A typ' →
-    typ = typ'.
+  Lemma has_field_fun fname A vis typ orig:
+    has_field fname A vis typ orig →
+    ∀ vis' typ' orig', has_field fname A vis' typ' orig' →
+    vis = vis' ∧ typ = typ' ∧ orig = orig'.
   Proof.
-    induction 1 as [ tag cdef typ hΔ hf
-      | tag targs parent cdef typ hΔ hf hs h hi ] => typ' h'.
+    induction 1 as [ tag cdef [vis typ] hΔ hf
+      | tag targs parent cdef vis typ orig hΔ hf hs h hi ] => vis' typ' orig' h'.
     - inv h'; by simplify_eq.
     - inv h'.
       + by simplify_eq.
       + simplify_eq.
-        by rewrite (hi _ H2).
+        by destruct (hi _ _ _ H2) as [-> [-> ->]].
   Qed.
 
   (* A class cannot redeclare a field if it is already present in
    * any of its parent definition.
    * (No field override)
+   * Note: we can probably restrict this to public fields, but to avoid
+   * confusion in the source code, we restrict it to all fields.
    *)
   Definition wf_cdef_fields cdef : Prop :=
-    ∀ f fty super inst,
+    ∀ f vis fty orig super inst,
     cdef.(superclass) = Some (super, inst) →
-    has_field f super fty →
+    has_field f super vis fty orig →
     cdef.(classfields) !! f = None.
 
   (* All field types in a class must be bounded by the class generics *)
   Definition wf_cdef_fields_bounded cdef : Prop :=
-    map_Forall (λ _fname, bounded (length cdef.(generics))) cdef.(classfields).
+    map_Forall (λ _fname vfty, bounded (length cdef.(generics)) vfty.2) cdef.(classfields).
 
   (* All field types in a class must be well-formed *)
   Definition wf_cdef_fields_wf cdef : Prop :=
-    map_Forall (λ _fname, wf_ty) cdef.(classfields). 
+    map_Forall (λ _fname vfty, wf_ty vfty.2) cdef.(classfields). 
 
-  Lemma has_field_wf f t fty :
+  Lemma has_field_wf f t vis fty orig:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _, wf_cdef_fields_wf) Δ →
-    has_field f t fty →
+    has_field f t vis fty orig →
     wf_ty fty.
   Proof.
-    move => /map_Forall_lookup hp /map_Forall_lookup hwf.
-    induction 1 as [ tag cdef typ hΔ hf
-      | tag targs parent cdef typ hΔ hf hs h hi ].
+    move => hp hwf.
+    induction 1 as [ tag cdef [? typ] hΔ hf
+      | tag targs parent cdef vis typ orig hΔ hf hs h hi ].
     - apply hwf in hΔ.
       by apply hΔ in hf.
     - apply wf_ty_subst => //.
@@ -1725,29 +1750,28 @@ Section ProgDef.
   (* If a class has a field f, then any subclass will inherit it,
    * with the right substituted type.
    *)
-  Lemma has_field_extends_using f B typ:
+  Lemma has_field_extends_using f B vis typ orig:
     map_Forall (λ _cname, wf_cdef_fields) Δ →
-    has_field f B typ →
+    has_field f B vis typ orig →
     ∀ A σB,
     extends_using A B σB →
-    has_field f A (subst_ty σB typ).
+    has_field f A vis (subst_ty σB typ) orig.
   Proof.
     move => hwf hf A σB hext.
-    rewrite map_Forall_lookup in hwf.
     inv hext.
     eapply InheritsField => //.
     by eapply hwf.
   Qed.
 
-  Lemma has_field_bounded f t fty:
+  Lemma has_field_bounded f t vis fty orig:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
-    has_field f t fty →
+    has_field f t vis fty orig →
     ∃ def, Δ !! t = Some def ∧ bounded (length def.(generics)) fty.
   Proof.
-    move => /map_Forall_lookup hwfparent /map_Forall_lookup hwfb.
-    induction 1 as [ tag cdef typ hΔ hf
-      | tag targs parent cdef typ hΔ hf hs h hi ].
+    move => hwfparent hwfb.
+    induction 1 as [ tag cdef [? typ] hΔ hf
+      | tag targs parent cdef vis typ orig hΔ hf hs h hi ].
     - exists cdef; split => //.
       apply hwfb in hΔ.
       by apply hΔ in hf.
@@ -1760,14 +1784,14 @@ Section ProgDef.
   Qed.
 
   (* like has_field_extends_using, for any chain of inheritance. *)
-  Lemma has_field_inherits_using f B typ:
+  Lemma has_field_inherits_using f B vis typ orig:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
-    has_field f B typ →
+    has_field f B vis typ orig →
     ∀ A σB,
     inherits_using A B σB →
-    has_field f A (subst_ty σB typ).
+    has_field f A vis (subst_ty σB typ) orig.
   Proof.
     move => hp hfs hfb hf A σB hin.
     induction hin as [ A adef | A B σ hext | A B σ C σC hext h hi].
@@ -1776,7 +1800,7 @@ Section ProgDef.
       destruct hf as [? [? h]].
       by simplify_eq.
     - by eapply has_field_extends_using.
-    - destruct (has_field_bounded _ _ _ hp hfb hf) as (cdef & hcdef & hc).
+    - destruct (has_field_bounded _ _ _ _ _ hp hfb hf) as (cdef & hcdef & hc).
       apply hi in hf; clear hi.
       apply has_field_extends_using with (A := A) (σB := σ) in hf => //.
       rewrite -subst_ty_subst //.
@@ -1786,23 +1810,28 @@ Section ProgDef.
       by rewrite h.
   Qed.
 
-  Lemma has_field_mono f t ty :
+  Lemma has_field_mono f t vis ty orig:
     map_Forall (λ _cname, wf_field_mono) Δ →
     map_Forall (λ _cname, wf_cdef_mono) Δ →
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
-    has_field f t ty →
+    has_field f t vis ty orig →
     ∃ def, Δ !! t = Some def ∧
-    invariant def.(generics) ty.
+    match vis with
+    | Public => invariant def.(generics) ty
+    | Private => True
+    end.
   Proof.
     move => hwfΔ hmono hp hfb.
-    induction 1 as [ tag cdef typ hΔ hf
-      | tag targs parent cdef typ hΔ hf hs h hi ].
+    induction 1 as [ tag cdef [vis typ] hΔ hf
+      | tag targs parent cdef vis typ orig hΔ hf hs h hi ].
       - exists cdef; split => //.
         apply hwfΔ in hΔ.
         by apply hΔ in hf.
-      - destruct hi as [def [hdef [h0 h1]]].
+      - destruct hi as [def [hdef hvis]].
         exists cdef; split => //.
+        destruct vis; last done.
+        destruct hvis as [h0 h1].
         assert (htag := hΔ).
         apply hp in htag.
         rewrite /wf_cdef_parent hs in htag.
@@ -1832,9 +1861,24 @@ Section ProgDef.
             by destruct wi.
   Qed.
 
-  (* Helper predicate to collect all fields of a given class, as a map *)
-  Definition has_fields A (fields: stringmap lang_ty) : Prop :=
-    ∀ fname typ, has_field fname A typ ↔ fields !! fname = Some typ.
+  Lemma has_field_pub_mono f t ty orig:
+    map_Forall (λ _cname, wf_field_mono) Δ →
+    map_Forall (λ _cname, wf_cdef_mono) Δ →
+    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
+    has_field f t Public ty orig →
+    ∃ def, Δ !! t = Some def ∧
+    invariant def.(generics) ty.
+  Proof.
+    move => hwfΔ hmono hp hfb hf.
+    by apply has_field_mono in hf.
+  Qed.
+
+  (* Helper predicate to collect all fields of a given class, as a map.
+   * We collect both public and private fields, and their origins.
+   *)
+  Definition has_fields A (fields: stringmap ((visibility * lang_ty) * tag)) : Prop :=
+    ∀ fname vis typ orig, has_field fname A vis typ orig ↔ fields !! fname = Some (vis, typ, orig).
 
   (* has_method m C orig mdef means that class C inherits a method m,
    * described by the methodDef mdef.
@@ -1883,8 +1927,7 @@ Section ProgDef.
     - apply hm in ht.
       by apply ht in hin.
     - assert (hσ : Forall wf_ty σ).
-      { rewrite map_Forall_lookup in hp.
-        apply hp in ht.
+      { apply hp in ht.
         rewrite /wf_cdef_parent hs in ht.
         by destruct ht as (? & ? & ? & ? & ?).
       }
@@ -1893,7 +1936,6 @@ Section ProgDef.
         rewrite lookup_fmap_Some.
         case => ty' [<- hk].
         apply wf_ty_subst => //.
-        rewrite map_Forall_lookup in hia.
         by apply hia in hk.
       + rewrite /subst_mdef /=.
         by apply wf_ty_subst.
@@ -1994,7 +2036,7 @@ Section ProgDef.
       has_method m orig orig mdef_orig ∧
       ∃ σ, inherits_using A orig σ ∧ mdef = subst_mdef σ mdef_orig.
   Proof.
-    move => /map_Forall_lookup hp /map_Forall_lookup hmb.
+    move => hp hmb.
     induction 1 as [ A adef mdef hΔ hm | A parent orig σ cdef mdef hΔ hm hs h hi ].
     - exists adef, mdef; repeat split => //; first by econstructor.
       exists (gen_targs (length adef.(generics))); split; first by constructor.
@@ -2039,7 +2081,6 @@ Section ProgDef.
       exists cdef, mdef, mdef; repeat split => //.
       + by econstructor.
       + rewrite subst_mdef_gen_targs //.
-        rewrite map_Forall_lookup in hb.
         apply hb in hΔ.
         by apply hΔ in hm.
     - inv hAB.
@@ -2056,7 +2097,6 @@ Section ProgDef.
           apply inherits_using_wf in hBO as (? & ? & ? & ? & hF & hL & _) => //; simplify_eq.
           apply hb in H1.
           apply H1 in hmo.
-          rewrite map_Forall_lookup in hp.
           rewrite map_length in hL.
           by rewrite hL.
       + inv H; simplify_eq; clear hi.
@@ -2220,6 +2260,21 @@ Section ProgDef.
         expr_has_ty lty e t
   .
 
+  Lemma this_has_ty lty ty :
+    expr_has_ty lty ThisE ty →
+    expr_has_ty lty ThisE (this_type lty) ∧ (this_type lty) <: ty.
+  Proof.
+    move => h.
+    remember ThisE as this.
+    move: h Heqthis.
+    induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
+      op e1 e2 hop h1 hi1 h2 hi2 | v ty h | | e s t h hi hsub ] => //= heq; try discriminate.
+    - split; by constructor.
+    - apply hi in heq as [h0 h1].
+      split => //.
+      by eauto.
+  Qed.
+
   Lemma expr_has_ty_subst σ lty e ty:
     map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
     Forall wf_ty σ →
@@ -2301,13 +2356,22 @@ Section ProgDef.
         cmd_has_ty lty1 thn lty2 →
         cmd_has_ty lty1 els lty2 →
         cmd_has_ty lty1 (IfC cond thn els) lty2
-    | GetTy: ∀ lty lhs recv t σ name fty,
+    | GetPrivTy: ∀ lty lhs t σ name fty,
+        type_of_this lty = (t, σ) →
+        has_field name t Private fty t →
+        cmd_has_ty lty (GetC lhs ThisE name) (<[lhs := subst_ty σ fty]>lty)
+    | GetPubTy: ∀ lty lhs recv t σ name fty orig,
         expr_has_ty lty recv (ClassT t σ) →
-        has_field name t fty →
+        has_field name t Public fty orig →
         cmd_has_ty lty (GetC lhs recv name) (<[lhs := subst_ty σ fty]>lty)
-    | SetTy: ∀ lty recv fld rhs fty t σ,
+    | SetPrivTy: ∀ lty fld rhs fty t σ,
+        type_of_this lty = (t, σ) →
+        has_field fld t Private fty t →
+        expr_has_ty lty rhs (subst_ty σ fty) →
+        cmd_has_ty lty (SetC ThisE fld rhs) lty
+    | SetPubTy: ∀ lty recv fld rhs fty orig t σ,
         expr_has_ty lty recv (ClassT t σ) →
-        has_field fld t fty →
+        has_field fld t Public fty orig →
         expr_has_ty lty rhs (subst_ty σ fty) →
         cmd_has_ty lty (SetC recv fld rhs) lty
     | NewTy: ∀ lty lhs t targs args fields (*cdef*),
@@ -2317,7 +2381,7 @@ Section ProgDef.
         (∀ f fty arg,
         fields !! f = Some fty →
         args !! f = Some arg →
-        expr_has_ty lty arg (subst_ty targs fty)) →
+        expr_has_ty lty arg (subst_ty targs fty.1.2)) →
         cmd_has_ty lty (NewC lhs t args) (<[lhs := ClassT t targs]>lty)
     | CallTy: ∀ lty lhs recv t targs name orig mdef args,
         expr_has_ty lty recv (ClassT t targs) →
@@ -2349,8 +2413,8 @@ Section ProgDef.
   Proof.
     move => hp hfields hmethods [hthis hwf].
     induction 1 as [ lty | ????? h1 hi1 h2 hi2 | ???? he |
-      ????? he h1 hi1 h2 hi2 | ??????? he hf |
-      ??????? he hf hr | ?????? ht hf hdom hargs |
+      ????? he h1 hi1 h2 hi2 | ?????? he hf | ???????? he hf |
+      ?????? he hf hr | ???????? he hf hr | ?????? ht hf hdom hargs |
       ????????? he hm hdom hargs |
       ???? hsub h hi | ?????? hin hr h hi ] => //=; try (by eauto).
     - apply hi2.
@@ -2359,6 +2423,14 @@ Section ProgDef.
     - split; first by apply hthis.
       apply map_Forall_insert_2 => //.
       by apply expr_has_ty_wf in he.
+    - destruct lty as [[? ?] lty].
+      rewrite /this_type /= in hthis, he.
+      simplify_eq.
+      simpl in *.
+      split; first by apply hthis.
+      apply map_Forall_insert_2 => //.
+      apply wf_ty_subst; first by apply wf_ty_class_inv in hthis.
+      by apply has_field_wf in hf.
     - split; first by apply hthis.
       apply map_Forall_insert_2 => //.
       apply wf_ty_subst.
@@ -2380,7 +2452,7 @@ Section ProgDef.
       rewrite map_Forall_lookup => k ty hty.
       apply h1 in hty.
       destruct hty as [ty' [ hty' hsub']].
-      rewrite map_Forall_lookup in hwf; apply hwf in hty'.
+      apply hwf in hty'.
       by eapply subtype_wf.
     - apply hi; clear hi.
       + destruct lty as [[lt lσ] ?]; rewrite /this_type /=.
@@ -2407,8 +2479,8 @@ Section ProgDef.
   Proof.
     move => hp hfields hmethods hfb hmb hwf0 hwf1.
     induction 1 as [ lty | ????? h1 hi1 h2 hi2 | ???? he |
-      ????? he h1 hi1 h2 hi2 | ??????? he hf |
-      ??????? he hf hr | ?????? hwf hf hdom hargs |
+      ????? he h1 hi1 h2 hi2 | ?????? he hf | ???????? he hf |
+      ?????? he hf hr | ???????? he hf hr | ?????? hwf hf hdom hargs |
       ????????? he hm hdom hargs |
       ???? hsub h hi | ?????? hin hr h hi ] => //=.
     - by constructor.
@@ -2425,6 +2497,19 @@ Section ProgDef.
       + by apply hi1.
       + apply hi2.
         by apply cmd_has_ty_wf in h1.
+    - destruct lty as [[this σt] lty].
+      destruct hwf0 as [hthis hwf].
+      simpl in *.
+      rewrite /this_type /= in hthis, he.
+      injection he; intros; subst; clear he.
+      rewrite /subst_lty fmap_insert subst_ty_subst; last first.
+      { apply has_field_bounded in hf => //.
+        destruct hf as (hdef & ht & hfty).
+        inv hthis; simplify_eq.
+        by rewrite H2.
+      }
+      simpl in *.
+      by eapply GetPrivTy.
     - rewrite /subst_lty fmap_insert subst_ty_subst; last first.
       { apply has_field_bounded in hf => //.
         destruct hf as (hdef & ht & hfty).
@@ -2432,10 +2517,20 @@ Section ProgDef.
         inv he; simplify_eq.
         by rewrite H2.
       }
-      eapply GetTy; last done.
+      eapply GetPubTy => //.
       change (ClassT t (subst_ty σ <$> σ0)) with (subst_ty σ (ClassT t σ0)).
       by eapply expr_has_ty_subst.
-    - apply SetTy with (fty := fty) (t := t) (σ := subst_ty σ <$> σ0) => //; last first.
+    - apply SetPrivTy with (fty := fty) (t := t) (σ := subst_ty σ <$> σ0) => //; last first.
+      + rewrite -subst_ty_subst; first by eapply expr_has_ty_subst.
+        apply has_field_bounded in hf => //.
+        destruct hf as (hdef & ht & hfty).
+        destruct lty as [this lty]; simpl in he.
+        rewrite he in hwf0; destruct hwf0 as [hwf _].
+        rewrite /this_type /= in hwf.
+        inv hwf; simplify_eq.
+        by rewrite H2.
+      + by rewrite /subst_lty /= he.
+    - apply SetPubTy with (orig := orig) (fty := fty) (t := t) (σ := subst_ty σ <$> σ0) => //; last first.
       + rewrite -subst_ty_subst; first by eapply expr_has_ty_subst.
         apply has_field_bounded in hf => //.
         destruct hf as (hdef & ht & hfty).
@@ -2455,7 +2550,7 @@ Section ProgDef.
         apply wf_ty_subst => //.
         by apply H3 in hty'.
       }
-      move => f fty arg hfty ha.
+      move => f [[vis fty] orig] arg hfty ha.
       rewrite -subst_ty_subst.
       + eapply expr_has_ty_subst => //.
         by eapply hargs.
@@ -2469,7 +2564,6 @@ Section ProgDef.
       { apply has_method_from_def in hm => //.
         destruct hm as (odef & mo & ho & hmo & _ & [σo [hin ->]]).
         rewrite /subst_mdef /=.
-        rewrite map_Forall_lookup in hmb.
         apply inherits_using_wf in hin => //.
         destruct hin as (tdef & ? & ht & ho' & hfo & hlo & htyo); simplify_eq.
         assert (ho' := ho).
@@ -2491,14 +2585,12 @@ Section ProgDef.
         }
         apply has_method_from_def in hm => //.
         destruct hm as (odef & mo & ho & hmo & _ & [σo [hin ->]]).
-        rewrite map_Forall_lookup in hmb.
         apply inherits_using_wf in hin => //.
         destruct hin as (tdef & ? & ht & ho' & hfo & hlo & htyo); simplify_eq.
         assert (ho' := ho).
         apply hmb in ho.
         apply ho in hmo.
         destruct hmo as [hargs' _].
-        rewrite map_Forall_lookup in hargs'.
         rewrite /subst_mdef /= in hty.
         rewrite lookup_fmap_Some in hty.
         destruct hty as [ty' [ <- hty]].
@@ -2619,7 +2711,6 @@ Section ProgDef.
     rewrite /map_args => A B f m n h.
     case_option_guard; last done.
     injection h; intros <-; clear h.
-    rewrite -> map_Forall_lookup in H.
     apply set_eq => x; split; move/elem_of_dom => hx; apply elem_of_dom.
     - rewrite lookup_omap in hx.
       destruct hx as [v hv]; by apply bind_Some in hv as [a [-> ha]].
@@ -2635,7 +2726,6 @@ Section ProgDef.
     rewrite /map_args => A B f m n h k.
     case_option_guard; last done.
     injection h; intros <-; clear h.
-    rewrite -> map_Forall_lookup in H.
     by rewrite lookup_omap.
   Qed.
 
@@ -2671,7 +2761,6 @@ Section ProgDef.
       elim: H0 => i x h.
       rewrite lookup_insert_Some in h.
       destruct h as [[<- <-] | [hne hin]]; first by rewrite hb.
-      rewrite map_Forall_lookup in H.
       now apply H in hin.
   Qed.
 
