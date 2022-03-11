@@ -721,6 +721,22 @@ Section ProgDef.
   Hint Constructors extends : core.
   Definition inherits := rtc extends.
 
+  Lemma extends_using_erase t t' σ: extends_using t t' σ → extends t t'.
+  Proof.
+    move => h; inv h.
+    by econstructor.
+  Qed.
+
+  Lemma inherits_using_erase t t' σ: inherits_using t t' σ → inherits t t'.
+  Proof.
+    induction 1 as [ A adef hΔ | A B σ hext | A B σ C σC hext h hi ].
+    - by constructor.
+    - apply extends_using_erase in hext.
+      by econstructor.
+    - apply extends_using_erase in hext.
+      by econstructor.
+  Qed.
+
   (* Our class inheritance tree/forest doesn't have cycles. Which means
    * inherits A B → inherits B A → A = B.
    *)

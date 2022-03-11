@@ -1096,4 +1096,53 @@ Proof.
   by eauto.
 Qed.
 
+Theorem class_adequacy cmd st lty n:
+  cmd_eval (main_le, main_heap "Main") cmd st n →
+  cmd_has_ty (main_lty "Main") cmd lty →
+  ∀ v T σ, lty.(ctxt) !! v = Some (ClassT T σ) →
+  ∃ l Tdyn vs, st.1.(lenv) !! v = Some (LocV l) ∧
+          st.2 !! l = Some (Tdyn, vs) ∧
+          inherits Tdyn T.
+Proof.
+  assert (wfinit : wf_lty (main_lty "Main")).
+  { rewrite /main_lty; split => /=.
+    - rewrite /this_type /=.
+      by econstructor.
+    - by apply map_Forall_empty.
+  }
+  assert (hinit: Δ !! "Main" = Some (main_cdef "Main" {["entry_point" := EntryPoint ]})) by done.
+  move => he ht v T σ hin.
+  apply (@step_updN_soundness sem_heapΣ n).
+  iMod sem_heap_init as (Hheap) "Hmain" => //.
+  iModIntro.
+  iDestruct ((cmd_adequacy interp_env_empty _ _ _ wf wfinit ht _ _ _ he) with "Hmain") as "H" => /=.
+  iRevert "H".
+  iApply updN_mono.
+  iIntros "[Hh [_ Hl]]".
+  iSpecialize ("Hl" $! v (ClassT T σ) hin).
+  iDestruct "Hl" as (w hw) "Hw".
+  rewrite interp_type_unfold /=.
+  iDestruct "Hw" as (l t cdef σ0 σt fields ifields) "[%hpure [#Hfields #Hl]]".
+  destruct hpure as (-> & htT & hwf & hdef & htargs & hfields).
+  destruct st as [le h]; simpl in *.
+  iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
+  iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
+  iAssert (⌜is_Some (sh !! l)⌝)%I as "%h_sh_l".
+  { by iRewrite "HΦ". }
+  assert (h_h_l : is_Some (h !! l)).
+  { assert (hh: l ∈ dom (gset loc) sh) by (by apply elem_of_dom).
+    rewrite Hdom in hh.
+    by apply elem_of_dom in hh.
+  }
+  destruct h_h_l as [[Tdyn vs] hl].
+  iDestruct ("Hh" with "[//]") as (?) "[H H▷]".
+  iRewrite "H" in "HΦ".
+  rewrite option_equivI prod_equivI /=.
+  iDestruct "HΦ" as "[%Ht HΦ]".
+  fold_leibniz; subst.
+  iPureIntro.
+  exists l, t, vs; repeat split => //.
+  by apply inherits_using_erase in htT.
+Qed.
+
 Print Assumptions int_adequacy.
