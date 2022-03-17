@@ -177,9 +177,9 @@ Section Evaluation.
         tag_match st1 v t →
         cmd_eval st1 cmd st2 n →
         cmd_eval st1 (CondTagC v t cmd) st2 n
-    | CondTag2Ev n st v t cmd :
+    | CondTag2Ev st v t cmd :
         ¬tag_match st v t →
-        cmd_eval st (CondTagC v t cmd) st n
+        cmd_eval st (CondTagC v t cmd) st 0
 .
 
 End Evaluation.
