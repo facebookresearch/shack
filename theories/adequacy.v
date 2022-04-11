@@ -991,6 +991,7 @@ Definition main_le := {|
 Definition main_cdef tag methods := {|
   classname := tag;
   generics := [];
+  constraints := [];
   superclass := None;
   classfields := ∅;
   classmethods := methods;

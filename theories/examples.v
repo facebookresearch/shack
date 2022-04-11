@@ -31,6 +31,7 @@ Definition ROBox := {|
   classname := "ROBox";
   superclass := None;
   generics := [Covariant];
+  constraints := [];
   classfields := {["$data" := (Private, GenT 0)]};
   classmethods := {["get" := Get]};
 |}.
@@ -54,6 +55,7 @@ Definition Box := {|
   classname := "Box";
   superclass := None;
   generics := [Invariant];
+  constraints := [];
   classfields := {["$data" := (Public, GenT 0)]};
   classmethods := {["set" := BoxSet; "get" := Get]};
 |}.
@@ -77,6 +79,7 @@ Definition IntBoxS := {|
   classname := "IntBoxS";
   superclass := Some ("Box", σ);
   generics := [];
+  constraints := [];
   classfields := ∅;
   classmethods := {["set" := IntBoxSSet]};
 |}.
@@ -116,6 +119,7 @@ Definition Main := {|
   classname := "Main";
   superclass := None;
   generics := [];
+  constraints := [];
   classfields := ∅;
   classmethods := {["entry_point" := EntryPoint]};
  |}.

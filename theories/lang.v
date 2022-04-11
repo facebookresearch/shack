@@ -362,7 +362,12 @@ Inductive visibility := Public | Private.
 
 Record classDef := {
   classname: tag;
-  generics: list variance; (* variance of the generics *)
+  (* variance of the generics *)
+  generics: list variance;
+  (* sets of constraints. All generics in this set must be bound
+   * by the `generics` list above.
+   *)
+  constraints : list (lang_ty * lang_ty);
   superclass: option (tag * list lang_ty);
   classfields : stringmap (visibility * lang_ty);
   classmethods : stringmap methodDef;
