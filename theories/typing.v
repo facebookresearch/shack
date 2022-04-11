@@ -419,6 +419,8 @@ Section Typing.
   Record wf_cdefs (prog: stringmap classDef) := {
     wf_extends_wf : wf_no_cycle prog;
     wf_parent : map_Forall (λ _cname, wf_cdef_parent prog) prog;
+    wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) prog;
+    wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) prog;
     wf_override : wf_method_override prog;
     wf_fields : map_Forall (λ _cname, wf_cdef_fields) prog;
     wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) prog;

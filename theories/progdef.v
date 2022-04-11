@@ -105,6 +105,16 @@ Section ProgDef.
     by constructor.
   Qed.
 
+  (* All constraints in a class definition must be well-formed and bounded
+   * by the class generics.
+   *)
+  Definition wf_cdef_constraints_wf cdef :=
+    Forall (λ lu, wf_ty lu.1 ∧ wf_ty lu.2) cdef.(constraints).
+
+  Definition wf_cdef_constraints_bounded cdef :=
+    Forall (λ lu, bounded (length cdef.(generics)) lu.1 ∧
+                  bounded (length cdef.(generics)) lu.2) cdef.(constraints).
+
   (* A class definition 'parent' information is valid
    * if the parent class actually exists, and the subsitution is:
    * - of the right length (must capture all generics of the parent class)

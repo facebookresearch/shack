@@ -1052,11 +1052,48 @@ Proof.
   done.
 Qed.
 
+Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_wf /= Forall_nil. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_wf /= Forall_nil. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_wf /= Forall_nil. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  by rewrite /wf_cdef_constraints_wf /= Forall_nil.
+Qed.
+
+  
+Lemma wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_bounded /= Forall_nil. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_bounded /= Forall_nil. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_bounded /= Forall_nil. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  by rewrite /wf_cdef_constraints_bounded /= Forall_nil.
+Qed.
+
 Lemma wf: wf_cdefs Δ.
 Proof.
   split.
   by apply wf_extends_wf.
   by apply wf_parent.
+  by apply wf_constraints_wf.
+  by apply wf_constraints_bounded.
   by apply wf_override.
   by apply wf_fields.
   by apply wf_fields_bounded.
