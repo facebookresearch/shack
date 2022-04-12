@@ -21,9 +21,8 @@ Section proofs.
   Notation γ := sem_heap_name.
 
   (* Helping the inference with this notation that hides Δ *)
-  Local Notation "s <: t" := (@subtype _ s t) (at level 70, no associativity).
-  Local Notation "lty <:< rty" := (@lty_sub _ lty rty) (at level 70, no associativity).
-  Local Notation "lts <: vs :> rts" := (@subtype_targs _ vs lts rts) (at level 70, vs at next level).
+  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ s t) (at level 70, s at next level, no associativity).
+  Local Notation "Γ ⊢ lts <: vs :> rts" := (@subtype_targs _ Γ vs lts rts) (at level 70, lts, vs at next level).
 
   (* heap models relation; the semantic heap does
      not appear because it is hidden in iProp  *)
@@ -49,7 +48,7 @@ Section proofs.
     map_Forall (λ _ : string, wf_cdef_mono) Δ →
     wf_lty lty →
     expr_eval le e = Some val →
-    expr_has_ty lty e ty →
+    expr_has_ty [] lty e ty →
     interp_local_tys σi lty le -∗
     interp_type ty σi val.
   Proof.
@@ -131,7 +130,7 @@ Section proofs.
     (∀ (x : string) (ty : lang_ty) (arg : expr),
     targs !! x = Some ty →
     args !! x = Some arg →
-    expr_has_ty lty arg ty) →
+    expr_has_ty [] lty arg ty) →
     interp_class_strict t σ σi interp_type (LocV l) -∗
     interp_local_tys σi lty le -∗
     interp_local_tys σi {| type_of_this := (t, σ); ctxt := targs |}
@@ -188,7 +187,7 @@ Section proofs.
        wf_ty (ClassT t' σt') ∧
        Δ !! t = Some def ∧
        match vis with
-       | Public => subst_ty σt' <$> σ' <: generics def :> σt
+       | Public => [] ⊢ subst_ty σt' <$> σ' <: generics def :> σt
        | Private => subst_ty σt' <$> σ' = σt
        end ∧ has_fields t' fields⌝ ∗
       interp_fields σi t' σt' (dom _ fields) ifields interp_type ∗
@@ -264,7 +263,7 @@ Section proofs.
       simplify_eq.
       by rewrite hL.
     }
-    assert (hsub : subst_ty σt fty <: subst_ty (subst_ty σt' <$> σ') fty).
+    assert (hsub : [] ⊢ subst_ty σt fty <: subst_ty (subst_ty σt' <$> σ') fty).
     { destruct vis.
       - (* Public field access *)
         assert (hfwf := hfield).
@@ -287,10 +286,11 @@ Section proofs.
     by apply wf_ty_class_inv in hwf.
   Qed.
 
+  (*TODO things break from here *)
   Lemma cmd_adequacy_ lty cmd lty' :
     wf_cdefs Δ →
     wf_lty lty →
-    ⌜cmd_has_ty lty cmd lty'⌝ -∗
+    ⌜cmd_has_ty [] lty cmd lty'⌝ -∗
     ∀ (σi: interp_env) st st' n, ⌜cmd_eval st cmd st' n⌝ -∗
     heap_models st.2 ∗ interp_local_tys σi lty st.1 -∗ |=▷^n
         heap_models st'.2 ∗ interp_local_tys σi lty' st'.1.
@@ -416,7 +416,7 @@ Section proofs.
       iNext.
       iFrame.
       destruct wfΔ.
-      assert (hsub: subst_ty (subst_ty σt <$> σ) fty <: subst_ty targs fty).
+      assert (hsub: [] ⊢ subst_ty (subst_ty σt <$> σ) fty <: subst_ty targs fty).
       { assert (hfwf := hf).
         apply has_field_wf in hfwf => //.
         apply has_field_mono in hf => //.
@@ -543,7 +543,7 @@ Section proofs.
       { rewrite (map_args_lookup _ _ _ args vargs H6 f) in hv0.
         by rewrite ha0 in hv0.
       }
-      assert (hty0: expr_has_ty lty a0 (subst_ty targs fty.1.2)) by (by apply harg with f).
+      assert (hty0: expr_has_ty [] lty a0 (subst_ty targs fty.1.2)) by (by apply harg with f).
       rewrite !lookup_fmap hty /=  option_equivI later_equivI.
       iNext.
       rewrite discrete_fun_equivI.
@@ -631,10 +631,11 @@ Section proofs.
       (* Get typing information about mdef0 *)
       assert (mdef0_wt:
         ∃ rty, wf_lty rty ∧
-        cmd_has_ty (subst_lty σt {| type_of_this := (orig0, σ0);
-                                 ctxt := subst_ty σ0 <$> methodargs omdef0 |})
+        cmd_has_ty (subst_constraints σt (subst_constraints σ0 odef0.(constraints)))
+                   (subst_lty σt {| type_of_this := (orig0, σ0); ctxt := subst_ty σ0 <$> methodargs omdef0 |})
                    (methodbody omdef0) rty ∧
-        expr_has_ty rty (methodret omdef0) (subst_ty σt (subst_ty σ0 (methodrettype omdef0)))).
+        expr_has_ty (subst_constraints σt (subst_constraints σ0 odef0.(constraints)))
+                    rty (methodret omdef0) (subst_ty σt (subst_ty σ0 (methodrettype omdef0)))).
       { assert (h0 := hodef0).
         assert (h1 := homdef0).
         apply wf_mdefs in h0.
@@ -722,6 +723,7 @@ Section proofs.
           by apply h1 in hk.
       }
       iModIntro; iNext.
+      admit (*
       iSpecialize ("IH" $! _ _ _ wfbody hbody σi _ _ _ heval_body); simpl.
       iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
       { iSplit.
@@ -867,6 +869,7 @@ Section proofs.
          apply hodef0 in homdef0.
          by apply homdef0.
       + by rewrite -subst_ty_subst.
+             *).
     - (* Subtyping *) 
       destruct wfΔ.
       iIntros "H".
@@ -903,7 +906,7 @@ Section proofs.
       rewrite Hlev in hl; simplify_eq.
       iAssert (interp_type MixedT σi (LocV l)) as "Hmixed".
       { destruct wfΔ.
-        assert (hsub : tv <: MixedT) by apply SubMixed.
+        assert (hsub : [] ⊢ tv <: MixedT) by apply SubMixed.
         iApply subtype_is_inclusion => //.
         by apply wflty in hv.
       }
@@ -960,12 +963,13 @@ Section proofs.
         by iApply inherits_is_ex_inclusion.
       }
       by iApply "Hle".
-  Qed.
+  Admitted.
+  (* Qed. *)
 
   Lemma cmd_adequacy (env: interp_env) lty cmd lty' :
     wf_cdefs Δ →
     wf_lty lty →
-    cmd_has_ty lty cmd lty' →
+    cmd_has_ty [] lty cmd lty' →
     ∀ st st' n, cmd_eval st cmd st' n →
     heap_models st.2 ∗ interp_local_tys env lty st.1 -∗ |=▷^n
         heap_models st'.2 ∗ interp_local_tys env lty' st'.1.

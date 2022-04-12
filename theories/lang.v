@@ -360,6 +360,9 @@ Definition not_contra v :=
 
 Inductive visibility := Public | Private.
 
+(* S <: T *)
+Definition constraint := (lang_ty * lang_ty)%type.
+
 Record classDef := {
   classname: tag;
   (* variance of the generics *)
@@ -367,7 +370,7 @@ Record classDef := {
   (* sets of constraints. All generics in this set must be bound
    * by the `generics` list above.
    *)
-  constraints : list (lang_ty * lang_ty);
+  constraints : list constraint;
   superclass: option (tag * list lang_ty);
   classfields : stringmap (visibility * lang_ty);
   classmethods : stringmap methodDef;

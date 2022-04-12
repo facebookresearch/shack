@@ -317,7 +317,7 @@ Definition final_lty lty : local_tys :=
   (<["$robox" := ClassT "ROBox" [IntT]]> lty)))).
 
 Lemma Main_ty lty :
-  cmd_has_ty lty ProgramBody (final_lty lty).
+  cmd_has_ty [] lty ProgramBody (final_lty lty).
 Proof.
   rewrite /final_lty /ProgramBody.
   eapply SeqTy.
@@ -410,7 +410,7 @@ Proof.
       by rewrite lookup_insert_ne.
 Qed.
 
-Lemma wf_mdef_ty_Main: wf_mdef_ty "Main" (gen_targs 0) (gen_targs 0) EntryPoint.
+Lemma wf_mdef_ty_Main: wf_mdef_ty [] "Main" (gen_targs 0) (gen_targs 0) EntryPoint.
 Proof.
   rewrite /wf_mdef_ty.
   exists (final_lty {| type_of_this := ("Main", gen_targs 0); ctxt := subst_ty (gen_targs 0) <$> methodargs EntryPoint|}).
@@ -1111,7 +1111,7 @@ Qed.
  *)
 Theorem int_adequacy cmd st lty n:
   cmd_eval (main_le, main_heap "Main") cmd st n →
-  cmd_has_ty (main_lty "Main") cmd lty →
+  cmd_has_ty [] (main_lty "Main") cmd lty →
   ∀ v, lty.(ctxt) !! v = Some IntT →
   ∃ z, st.1.(lenv) !! v = Some (IntV z).
 Proof.
@@ -1139,7 +1139,7 @@ Qed.
 
 Theorem class_adequacy cmd st lty n:
   cmd_eval (main_le, main_heap "Main") cmd st n →
-  cmd_has_ty (main_lty "Main") cmd lty →
+  cmd_has_ty [] (main_lty "Main") cmd lty →
   ∀ v T σ, lty.(ctxt) !! v = Some (ClassT T σ) →
   ∃ l Tdyn vs, st.1.(lenv) !! v = Some (LocV l) ∧
           st.2 !! l = Some (Tdyn, vs) ∧

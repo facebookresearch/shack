@@ -76,9 +76,9 @@ Section proofs.
   Notation γ := sem_heap_name.
 
   (* Helping the inference with this notation that hides Δ *)
-  Local Notation "s <: t" := (@subtype _ s t) (at level 70, no associativity).
-  Local Notation "lty <:< rty" := (@lty_sub _ lty rty) (at level 70, no associativity).
-  Local Notation "lts <: vs :> rts" := (@subtype_targs _ vs lts rts) (at level 70, vs at next level).
+  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ s t) (at level 70, s at next level, no associativity).
+  Local Notation "Γ ⊢ lts <: vs :> rts" := (@subtype_targs _ Γ vs lts rts) (at level 70, lts, vs at next level).
+  Local Notation "Γ ⊢ lty <:< rty" := (@lty_sub _ Γ lty rty) (lty at next level, at level 70, no associativity).
 
   (* now, let's interpret some types ! *)
 
@@ -129,7 +129,10 @@ Section proofs.
       λ (w : value),
       (∃ ℓ t cdef σ σt (fields: stringmap ((visibility * lang_ty) * tag)) (ifields: gmapO string (laterO (sem_typeO Σ))),
       ⌜w = LocV ℓ ∧ inherits_using t C σ ∧ wf_ty (ClassT t σt) ∧
-       Δ !! C = Some cdef ∧ (subst_ty σt <$> σ) <: cdef.(generics) :> σC ∧
+      (* TODO: fix this. I put [] just so the files compiles for now.
+       * Will need to update when adding more subtyping rules.
+       *)
+       Δ !! C = Some cdef ∧ [] ⊢ (subst_ty σt <$> σ) <: cdef.(generics) :> σC ∧
        has_fields t fields⌝ ∗
       interp_fields σi t σt (dom stringset fields) ifields rec ∗
       (ℓ ↦ (t, ifields)))%I
@@ -488,13 +491,14 @@ Section proofs.
     | _, _, _ => False%I
     end.
 
+  (* TODO: fix this *)
   (* Main meat for A <: B → [|A|] ⊆ [|B|] *)
   Theorem subtype_is_inclusion_aux A B:
     map_Forall (λ _cname, wf_cdef_fields) Δ →
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, wf_cdef_mono) Δ →
-    A <: B →
+    [] ⊢ A <: B →
     ∀ (env: interp_env) v,
     wf_ty A →
     interp_type_pre interp_type A env v -∗
@@ -506,7 +510,7 @@ Section proofs.
     map_Forall (λ _cname, wf_cdef_mono) Δ →
     Forall wf_ty As →
     Forall wf_ty Bs →
-    As <:Vs:> Bs →
+    [] ⊢ As <:Vs:> Bs →
     ∀ (env: interp_env),
     True%I -∗ iForall3 (interp_variance env) Vs As Bs.
   Proof.
@@ -654,7 +658,7 @@ Section proofs.
     map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, wf_cdef_mono) Δ →
-    ∀ A B, A <: B →
+    ∀ A B, [] ⊢ A <: B →
     ∀ (env: interp_env) v,
     wf_ty A →
     interp_type A env v -∗ interp_type B env v.
@@ -710,7 +714,7 @@ Section proofs.
     map_Forall (λ _ : string, wf_cdef_mono) Δ →
     wf_lty lty →
     Forall (λ (i: interp Σ), ∀ v, Persistent (i v)) σi →
-    lty <:< rty →
+    [] ⊢ lty <:< rty →
     interp_local_tys σi lty le -∗
     interp_local_tys σi rty le.
   Proof.
