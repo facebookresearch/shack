@@ -82,8 +82,11 @@ Section proofs.
 
   (* now, let's interpret some types ! *)
 
-  (* Most interpretation functions are parametrized by Σi: tvar -> interp.
-   * This environment is here to interpret generic types.
+  (* Most interpretation functions are parametrized by Σi: tvar -> interp
+   * and Σc: list constraint.
+   * Σi is here to interpret generic types.
+   * Σc is there to put constraints on generic types.
+   *
    * We could only consider closed types and eagerly apply all top level
    * substitution, but this way makes things a bit more compositional.
    *)

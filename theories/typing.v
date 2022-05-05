@@ -15,11 +15,10 @@ Section Typing.
 
   (* Helping the inference with this notation that hides Δ *)
   Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ s t) (at level 70, s at next level, no associativity).
-  Local Notation "Γ ⊢ lts <: vs :> rts" := (@subtype_targs _ Γ vs lts rts) (at level 70, lts, vs at next level).
   Local Notation "Γ ⊢ lty <:< rty" := (@lty_sub _ Γ lty rty) (lty at next level, at level 70, no associativity).
 
   (* At class + substitution is `ok` w.r.t. to a set of constraints `Γ` if
-   * - all the type in the substitution are ok
+   * - all the types in the substitution are ok
    * - all the constraints of that class are satisfied.
    *)
   Inductive ok_ty (Γ: list constraint) : lang_ty → Prop :=
@@ -39,75 +38,6 @@ Section Typing.
     | OkGen n: ok_ty Γ (GenT n)
     | OkEx t: ok_ty Γ (ExT t)
   .
-
-  Lemma subtype_constraint_elim_ G S T:
-    G ⊢ S <: T →
-    ∀ Γ Γ', G = Γ ++ Γ' →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2) →
-    Γ ⊢ S <: T
-  with subtype_targs_constraint_elim_ G lhs vs rhs:
-    G ⊢ lhs <: vs :> rhs →
-    ∀ Γ Γ', G = Γ ++ Γ' →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2) →
-    Γ ⊢ lhs <: vs :> rhs.
-  Proof.
-    - destruct 1 as [ ty | ty hwf | A σA B σB adef hadef hL hext
-      | A adef σ0 σ1 hadef hwf hσ | | | | A targs | s t ht | s t hs
-      | s t u hs ht | s t | s t | s t u hs ht | s | s t u hs ht | s t hin] => Γ Γ' heq hΓ; subst; try by econstructor.
-      + econstructor; [done | done | ].
-        by eapply subtype_targs_constraint_elim_.
-      + econstructor; by eapply subtype_constraint_elim_.
-      + econstructor; by eapply subtype_constraint_elim_.
-      + econstructor; by eapply subtype_constraint_elim_.
-      + apply elem_of_app in hin as [hin | hin].
-        { apply SubConstraint.
-          by set_solver.
-        }
-        apply elem_of_list_lookup_1 in hin as [i hin].
-        by apply hΓ in hin.
-    - destruct 1 as [ | ??????? h | ?????? h | ?????? h ] => Γ Γ' heq hΓ; subst.
-      + by constructor.
-      + econstructor; [ by eapply subtype_constraint_elim_ | by eapply subtype_constraint_elim_ | ].
-        by eapply subtype_targs_constraint_elim_.
-      + econstructor; [ by eapply subtype_constraint_elim_ | ].
-        by eapply subtype_targs_constraint_elim_.
-      + econstructor; [ by eapply subtype_constraint_elim_ | ].
-        by eapply subtype_targs_constraint_elim_.
-  Qed.
-
-  Lemma subtype_constraint_elim Γ Γ' S T:
-    Γ ++ Γ' ⊢ S <: T →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2) →
-    Γ ⊢ S <: T.
-  Proof. intros; by eapply subtype_constraint_elim_. Qed.
-
-  Lemma subtype_targs_constraint_elim Γ Γ' lhs vs rhs:
-    Γ ++ Γ' ⊢ lhs <: vs :> rhs →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2) →
-    Γ ⊢ lhs <: vs :> rhs.
-  Proof. intros; by eapply subtype_targs_constraint_elim_. Qed.
-
-  Lemma lty_sub_constraint_elim_ G lty rty:
-    G ⊢ lty <:< rty →
-    ∀ Γ Γ', G = Γ ++ Γ' →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2) →
-    Γ ⊢ lty <:< rty.
-  Proof.
-    destruct lty as [this0 ctx0].
-    destruct rty as [this1 ctx1].
-    destruct 1 as [[= h0 h1] hctxt] => Γ Γ' heq hΓ; subst.
-    split; rewrite /this_type /=; first by rewrite h0 h1.
-    move => k A hA.
-    apply hctxt in hA as [B [hB hsub]]; simpl in *.
-    exists B; split => //.
-    by eapply subtype_constraint_elim.
-  Qed.
-
-  Lemma lty_sub_constraint_elim Γ Γ' lty rty:
-    (Γ ++ Γ') ⊢ lty <:< rty →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2) →
-    Γ ⊢ lty <:< rty.
-  Proof. intros; by eapply lty_sub_constraint_elim_. Qed.
 
   Lemma ok_ty_constraint_elim_ G T:
     ok_ty G T →
@@ -234,13 +164,10 @@ Section Typing.
     by constructor.
   Qed.
 
-  Definition constraints_impl (Γ Γ' : list constraint) :=
-    ∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2
-  .
-
   Lemma ok_ty_trans Γ ty:
     ok_ty Γ ty →
-    ∀ Γ', constraints_impl Γ' Γ →
+    ∀ Γ',
+    (∀ i c, Γ !! i = Some c → Γ' ⊢ c.1 <: c.2) →
     ok_ty Γ' ty.
   Proof.
     induction 1 as [ | | | | t σ def hσ hi hdef hconstr
