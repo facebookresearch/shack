@@ -12,9 +12,11 @@ From iris.algebra.lib Require Import gmap_view.
 
 From shack Require Import lang progdef subtype typing eval heap modality interp adequacy.
 
+Definition arraykey := UnionT IntT BoolT.
+
 (* TODO: we don't have void atm so I'm using null ;) *)
 
-(* Definition of class ROBox<+T>:
+(* Definition of class ROBox<+T as arraykey>:
  * class ROBox<+T> {
  *   private T $data;
  *   function get(): T { $ret = $this->data; return $ret; }
@@ -31,7 +33,7 @@ Definition ROBox := {|
   classname := "ROBox";
   superclass := None;
   generics := [Covariant];
-  constraints := [];
+  constraints := [(GenT 0, arraykey)];
   classfields := {["$data" := (Private, GenT 0)]};
   classmethods := {["get" := Get]};
 |}.
@@ -326,9 +328,13 @@ Proof.
       move => k ty; rewrite list_lookup_singleton_Some.
       case => _ <-; by constructor.
     + econstructor => //.
-      move => i ty.
-      rewrite list_lookup_singleton_Some => [[? <-]].
-      by constructor.
+      * move => i ty.
+        rewrite list_lookup_singleton_Some => [[? <-]].
+        by constructor.
+      * rewrite /ROBox /= => i [??] h.
+        apply list_lookup_singleton_Some in h as [? heq].
+        case: heq => <- <- /=.
+        by eauto.
     + by apply has_fields_ROBox.
     + by set_solver.
     + move => f fty arg.
@@ -1062,7 +1068,9 @@ Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_constraints_wf /= Forall_nil. }
+  { rewrite /wf_cdef_constraints_wf /ROBox /= Forall_singleton.
+    split; by constructor.
+  }
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]].
   { by rewrite /wf_cdef_constraints_wf /= Forall_nil. }
@@ -1080,7 +1088,9 @@ Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_constraints_bounded /= Forall_nil. }
+  { rewrite /wf_cdef_constraints_bounded /= Forall_singleton.
+    split; by repeat constructor.
+  }
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]].
   { by rewrite /wf_cdef_constraints_bounded /= Forall_nil. }
@@ -1119,7 +1129,9 @@ Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]].
-  { rewrite /wf_cdef_constraints_ok; by constructor. }
+  { rewrite /wf_cdef_constraints_ok /ROBox /= /ok_constraints Forall_singleton.
+    split => /=; by repeat constructor.
+  }
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]].
   { rewrite /wf_cdef_constraints_ok; by constructor. }
