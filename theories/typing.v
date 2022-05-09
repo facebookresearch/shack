@@ -754,18 +754,18 @@ Section Typing.
    * method bodies must be well-formed under a generic substitution mapping
    * Ti -> Ti.
    *)
-  Definition wf_mdef_ty Γ tag σ σ' mdef :=
+  Definition wf_mdef_ty Γ tag σ mdef :=
     ∃ rty,
     wf_lty rty ∧
     cmd_has_ty Γ
-      {| type_of_this := (tag, σ); ctxt := subst_ty σ' <$> mdef.(methodargs) |}
+      {| type_of_this := (tag, σ); ctxt := subst_ty σ <$> mdef.(methodargs) |}
       mdef.(methodbody) rty ∧
-    expr_has_ty Γ rty mdef.(methodret) (subst_ty σ' mdef.(methodrettype))
+    expr_has_ty Γ rty mdef.(methodret) (subst_ty σ mdef.(methodrettype))
   .
 
   Definition cdef_wf_mdef_ty cname cdef :=
     let σ := gen_targs (length cdef.(generics)) in
-    map_Forall (λ _mname mdef, wf_mdef_ty cdef.(constraints) cname σ σ mdef) cdef.(classmethods)
+    map_Forall (λ _mname mdef, wf_mdef_ty cdef.(constraints) cname σ mdef) cdef.(classmethods)
   .
 
   (* Collection of all program invariant (at the source level):

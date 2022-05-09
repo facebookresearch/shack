@@ -421,7 +421,7 @@ Proof.
       by rewrite lookup_insert_ne.
 Qed.
 
-Lemma wf_mdef_ty_Main: wf_mdef_ty [] "Main" (gen_targs 0) (gen_targs 0) EntryPoint.
+Lemma wf_mdef_ty_Main: wf_mdef_ty [] "Main" (gen_targs 0) EntryPoint.
 Proof.
   rewrite /wf_mdef_ty.
   exists (final_lty {| type_of_this := ("Main", gen_targs 0); ctxt := subst_ty (gen_targs 0) <$> methodargs EntryPoint|}).
