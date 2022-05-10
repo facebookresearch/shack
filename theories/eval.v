@@ -1,6 +1,6 @@
 (*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
- * 
+ *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
@@ -32,7 +32,7 @@ Section Evaluation.
   }.
 
   Global Instance local_env_insert : Insert string value local_env :=
-    λ x v le, 
+    λ x v le,
     {| vthis := le.(vthis);
       lenv := <[x := v]>le.(lenv);
     |}.
@@ -43,7 +43,7 @@ Section Evaluation.
     | BoolE b => Some (BoolV b)
     | NullE => Some NullV
     | OpE op e1 e2 =>
-        match expr_eval le e1, expr_eval le e2 with 
+        match expr_eval le e1, expr_eval le e2 with
         | Some (IntV z1), Some (IntV z2) => Some (primop_eval op z1 z2)
         | _, _ => None
         end
@@ -62,7 +62,7 @@ Section Evaluation.
 
   Lemma dom_map_args: ∀ A B (f: A → option B)
     (m: stringmap A) (n: stringmap B),
-    map_args f m = Some n → 
+    map_args f m = Some n →
     dom stringset n = dom _ m.
   Proof.
     rewrite /map_args => A B f m n h.

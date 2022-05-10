@@ -1,6 +1,6 @@
 (*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
- * 
+ *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
@@ -58,7 +58,7 @@ Section Subtype.
         subtype_targs Γ vs ty0s ty1s →
         subtype_targs Γ (Contravariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
   .
- 
+
   Corollary length_subtype_targs_v0 Γ: ∀ vs ty0s ty1s,
     subtype_targs Γ vs ty0s ty1s → length vs = length ty0s.
   Proof.
@@ -508,12 +508,12 @@ Section Subtype.
     exists ty0, ty1.
     by repeat split.
   Qed.
-      
+
   Lemma subtype_targs_forall Γ vs σ0 σ1:
     length σ0 = length vs →
     length σ1 = length vs →
     (∀ k v ty0 ty1,
-         vs !! k = Some v → σ0 !! k = Some ty0 → σ1 !! k = Some ty1 → 
+         vs !! k = Some v → σ0 !! k = Some ty0 → σ1 !! k = Some ty1 →
          check_variance Γ v ty0 ty1) →
     Γ ⊢ σ0 <:vs:> σ1.
   Proof.
@@ -869,7 +869,7 @@ Section Subtype.
   Qed.
 
   Lemma subtype_inter_assoc Γ:
-    ∀ A B C, 
+    ∀ A B C,
     wf_ty A → wf_ty B → wf_ty C →
     Γ ⊢ (InterT (InterT A B) C) <: (InterT A (InterT B C)).
   Proof. by eauto. Qed.
@@ -969,7 +969,7 @@ Section Subtype.
   Qed.
 
   Global Instance local_tys_insert : Insert string lang_ty local_tys :=
-    λ x ty lty, 
+    λ x ty lty,
     {| type_of_this := lty.(type_of_this);
       ctxt := <[x := ty]>lty.(ctxt);
     |}.
@@ -1206,7 +1206,7 @@ Section Subtype.
       }
   Qed.
 End Subtype.
- 
+
 (* Hints and notations are local to the section. Re-exporting them *)
 Global Hint Constructors subtype : core.
 Global Hint Constructors subtype_targs : core.

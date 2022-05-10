@@ -1,6 +1,6 @@
 (*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
- * 
+ *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
@@ -796,3 +796,172 @@ Section Typing.
   }
   .
 End Typing.
+
+(* With wf_mdefs, we have a global invariant for every method: they are
+ * correctly typed in the class they are defined, with a generic(symbolic)
+ * environment.
+ * In practice, we want to get them for some instantiated class, and
+ * inheritance / override might make things more complex.
+ * Let's bundle this into a helper lemma to get that a method is correctly
+ * typed in any suitable context.
+ *)
+Section MethodTyping.
+  (* assume a given set of class definitions *)
+  Context `{PDC: ProgDefContext}.
+
+  (* Helping the inference with this notation that hides Δ *)
+  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ s t) (at level 70, s at next level, no associativity).
+  Local Notation "Γ ⊢ lty <:< rty" := (@lty_sub _ Γ lty rty) (lty at next level, at level 70, no associativity).
+
+  (* Let's consider that class C0 has/inherits a method m from class C1
+   * where it is declared. Then m is correctly typed in C0 for any valid
+   * instantiation of the class.
+   *)
+  Lemma wf_mdef_ty_gen Σc C0 C1 m σ1 def1 mdef:
+    wf_cdefs Δ →
+    (* if m is defined in C1 *)
+    Δ !! C1 = Some def1 →
+    def1.(classmethods) !! m = Some mdef →
+    (* and C0 inherits C1 *)
+    inherits_using C0 C1 σ1 →
+    (* then for all valid instantiation of C0, ... *)
+    ∀ σ0, wf_ty (ClassT C0 σ0) → ok_ty Σc (ClassT C0 σ0) →
+    (* ... the method is well-typed *)
+    ∃ rty, wf_lty rty ∧
+      cmd_has_ty Σc (subst_lty σ0 {| type_of_this := (C1, σ1); ctxt := subst_ty σ1 <$> mdef.(methodargs) |})
+                mdef.(methodbody) rty ∧
+      expr_has_ty Σc rty mdef.(methodret) (subst_ty σ0 (subst_ty σ1 mdef.(methodrettype))).
+  Proof.
+    move => hΔ hdef1 hmdef hinherits σ0 hwf hok.
+    destruct hΔ.
+    (* Let's assert a bunch of helper statements *)
+    assert (h0: is_Some (Δ !! C0) ∧ wf_ty (ClassT C1 σ1)).
+    { apply inherits_using_wf in hinherits => //.
+      repeat destruct hinherits as [? hinherits].
+      split => //.
+      by eapply wf_ty_class.
+    }
+    destruct h0 as [[def0 hdef0] hwf1].
+    assert (hwfσ1 : Forall wf_ty σ1) by (by apply wf_ty_class_inv in hwf1).
+    assert (hwfσ0 : Forall wf_ty σ0) by (by apply wf_ty_class_inv in hwf).
+    assert (hokσ0 : Forall (ok_ty Σc) σ0) by (by apply ok_ty_class_inv in hok).
+    assert (hok01 : Forall (ok_ty (constraints def0)) σ1).
+    { apply inherits_using_ok in hinherits => //.
+      destruct hinherits as (? & ? & h); simplify_eq.
+      by apply ok_ty_class_inv in h.
+    }
+    (* Let's use the general substitution lemma to make the instantiation *)
+    assert (hgen : ∃ rty, wf_lty rty ∧
+      cmd_has_ty (Σc ++ subst_constraints σ0 (def0.(constraints) ++ subst_constraints σ1 def1.(constraints)))
+                 (subst_lty σ0 {| type_of_this := (C1, σ1); ctxt := subst_ty σ1 <$> mdef.(methodargs) |})
+                 mdef.(methodbody) rty ∧
+      expr_has_ty (Σc ++ subst_constraints σ0 (def0.(constraints) ++ subst_constraints σ1 def1.(constraints)))
+                  rty mdef.(methodret) (subst_ty σ0 (subst_ty σ1 mdef.(methodrettype)))).
+    { assert (h1 := hdef1).
+      assert (hm := hmdef).
+      apply wf_mdefs0 in h1.
+      apply h1 in hm as [rty [wf_rty [hbody hret]]].
+      exists (subst_lty σ0 (subst_lty σ1 rty)); split; last split.
+      - apply subst_wf_lty => //.
+          by apply subst_wf_lty.
+      - apply cmd_has_ty_subst => //.
+        { assert (hc1 := hdef1).
+          apply wf_constraints_wf0 in hc1.
+          rewrite /wf_cdef_constraints_wf Forall_forall in hc1.
+          rewrite Forall_forall /subst_constraints => c hc.
+          apply elem_of_app in hc as [hc | hc ].
+          + apply wf_constraints_wf0 in hdef0.
+            rewrite /wf_cdef_constraints_wf Forall_forall in hdef0.
+            by apply hdef0.
+          + apply elem_of_list_fmap_2 in hc as [c' [-> hc]].
+            apply wf_constraints_wf0 in hdef1.
+            rewrite /wf_cdef_constraints_wf Forall_forall in hdef1.
+            move: (hdef1 c' hc).
+            rewrite /wf_constraint /subst_constraint /=.
+            case => ??; split; by apply wf_ty_subst.
+        }
+        { split => /=; first by rewrite /this_type.
+          rewrite map_Forall_lookup => k tk.
+          rewrite lookup_fmap_Some.
+          case => ty [<- hk].
+          apply wf_ty_subst => //.
+          apply wf_methods_wf0 in hdef1.
+          apply hdef1 in hmdef.
+          by apply hmdef in hk.
+        }
+        replace
+          {| type_of_this := (C1, σ1); ctxt := subst_ty σ1 <$> mdef.(methodargs) |}
+        with
+          (subst_lty σ1
+             {| type_of_this := (C1, gen_targs (length def1.(generics)));
+                ctxt := subst_ty (gen_targs (length def1.(generics))) <$> mdef.(methodargs)
+             |}); last first.
+        { inv hwf1; simplify_eq.
+          rewrite /subst_lty subst_ty_gen_targs //= fmap_subst_tys_id //.
+          apply wf_methods_bounded0 in hdef1.
+          apply hdef1 in hmdef.
+          by apply hmdef.
+        }
+        apply cmd_has_ty_subst => //; first by apply wf_constraints_wf0 in hdef1.
+        split => /=.
+        { rewrite /this_type /=.
+          econstructor => //.
+          - by rewrite length_gen_targs.
+          - by apply gen_targs_wf.
+        }
+        rewrite map_Forall_lookup => k tk.
+        rewrite lookup_fmap_Some.
+        case => ty [<- hk].
+        rewrite subst_ty_id //.
+        + apply wf_methods_wf0 in hdef1.
+          apply hdef1 in hmdef.
+          by apply hmdef in hk.
+        + apply wf_methods_bounded0 in hdef1.
+          apply hdef1 in hmdef.
+          by apply hmdef in hk.
+      - apply expr_has_ty_subst => //.
+        rewrite subst_ty_id // in hret; last first.
+        { apply wf_methods_bounded0 in hdef1.
+          apply hdef1 in hmdef.
+          by apply hmdef.
+        }
+        by apply expr_has_ty_subst.
+      }
+    destruct hgen as (rty & hwf_rty & hbody & hret).
+    (* Now, because everything is correctly typed, let's discharge
+     * some redundant constraints.
+     *)
+    assert (hconstraints:
+    ∀ i c,
+      subst_constraints σ0
+        (constraints def0 ++ subst_constraints σ1 (constraints def1)) !! i = Some c →
+      Σc ⊢ c.1 <: c.2).
+    { move => i c hin.
+      apply list_lookup_fmap_inv in hin as [c' [-> hin]].
+      apply lookup_app_Some in hin as [hin | [? hin]].
+      - inv hok; simplify_eq.
+        rewrite /subst_constraint /=.
+        by eauto.
+      - rewrite /subst_constraints in hin.
+        apply list_lookup_fmap_inv in hin as [c'' [-> hin]].
+        apply inherits_using_ok in hinherits as (def0' & ? & h) => //; simplify_eq.
+        destruct c'' as [c0 c1]; simpl in *.
+        inv h; simplify_eq.
+        apply H5 in hin.
+        apply subtype_subst with (σ := σ0) in hin => //.
+        apply subtype_weaken
+        with (Γ' := (Σc ++ subst_constraints σ0 def0'.(constraints))) in hin => //;
+        last by set_solver.
+        apply subtype_constraint_elim in hin => //.
+        move => j c hj.
+        rewrite /subst_constraints in hj.
+        apply list_lookup_fmap_inv in hj as [c' [-> hj]].
+        rewrite /subst_constraint /=.
+        inv hok; simplify_eq.
+        by eauto.
+    }
+    exists rty; split; first done.
+    split; first by eapply cmd_has_ty_constraint_elim.
+    by eapply expr_has_ty_constraint_elim.
+  Qed.
+End MethodTyping.

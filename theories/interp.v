@@ -1,6 +1,6 @@
 (*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
- * 
+ *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
@@ -127,9 +127,14 @@ Section proofs.
     Interp (
       λ (w : value),
       (∃ ℓ t cdef σ σt (fields: stringmap ((visibility * lang_ty) * tag)) (ifields: gmapO string (laterO (sem_typeO Σ))),
-      ⌜w = LocV ℓ ∧ inherits_using t C σ ∧
-       wf_ty (ClassT t σt) ∧ ok_ty Σc (ClassT t σt) ∧
-       Δ !! C = Some cdef ∧ Σc ⊢ (subst_ty σt <$> σ) <: cdef.(generics) :> σC ∧
+      ⌜w = LocV ℓ ∧
+       inherits_using t C σ ∧
+       wf_ty (ClassT t σt) ∧
+       ok_ty Σc (ClassT t σt) ∧
+       Δ !! C = Some cdef ∧
+
+       Σc ⊢ (subst_ty σt <$> σ) <: cdef.(generics) :> σC ∧
+
        has_fields t fields⌝ ∗
       interp_fields t σt (dom stringset fields) ifields rec ∗
       (ℓ ↦ (t, ifields)))%I
@@ -218,7 +223,7 @@ Section proofs.
   Proof. by move => ??; apply _. Qed.
 
   Global Instance interp_class_contractive cname σc:
-    Contractive (interp_class cname σc). 
+    Contractive (interp_class cname σc).
   Proof.
     rewrite /interp_class => n i1 i2 hdist v.
     rewrite /interp_fun !interp_car_simpl.
@@ -360,7 +365,7 @@ Section proofs.
     }
     rewrite /interp_fields.
     iDestruct "hsem" as "[%hdom hfields]".
-    iExists ℓ, t, bdef, (subst_ty σ <$> σB), σt, fields, ifields. 
+    iExists ℓ, t, bdef, (subst_ty σ <$> σB), σt, fields, ifields.
     iSplit.
     { iPureIntro; split; first done.
       split.
@@ -408,7 +413,7 @@ Section proofs.
         interp_type_pre interp_type ty1 w -∗ interp_type_pre interp_type ty0 w
     end.
 
-  Fixpoint iForall3 {A B C : Type} (P : A → B → C → iProp Σ) 
+  Fixpoint iForall3 {A B C : Type} (P : A → B → C → iProp Σ)
     (As : list A) (Bs: list B) (Cs : list C) {struct As}  : iProp Σ :=
     match As, Bs, Cs with
     | [], [], [] => True%I
@@ -420,7 +425,7 @@ Section proofs.
     ∀ i (ϕi: interp Σ),  Σi !! i = Some ϕi → ∀ v,  ϕi v -∗ interp_mixed interp_type v.
 
   Definition Σinterp :=
-    ∀ i c, Σc !! i = Some c → 
+    ∀ i c, Σc !! i = Some c →
     ∀ v, interp_type_pre interp_type c.1 v -∗ interp_type_pre interp_type c.2 v.
 
   Definition interp_local_tys
@@ -455,12 +460,12 @@ Section proofs.
       Forall wf_ty As →
       Forall wf_ty Bs →
       Σc ⊢ As <:Vs:> Bs →
-      True%I -∗ iForall3 interp_variance Vs As Bs.
+      ⊢ iForall3 interp_variance Vs As Bs.
     Proof.
       { move => ????.
         destruct 1 as [A | A h | A σA B σB adef hΔ hlen hext
         | A def σ0 σ1 hΔ hwfσ σ | | | | A | A B h
-        | A B h | A B C h0 h1 | A B | A B | A B C h0 h1 
+        | A B h | A B C h0 h1 | A B | A B | A B C h0 h1
         | A | A B C h0 h1 | A B hin] => v hwfA.
         - rewrite /interp_mixed.
           clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
@@ -567,7 +572,7 @@ Section proofs.
           by apply Σcoherency in hin.
       }
       move => ???? hwfA hwfB.
-      destruct 1 as [ | ????? h0 h1 h | ????? h0 h | ????? h0 h]; iIntros "_".
+      destruct 1 as [ | ????? h0 h1 h | ????? h0 h | ????? h0 h].
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         done.
       - simpl.
@@ -671,7 +676,7 @@ Section proofs.
     rewrite /wf_cdef_parent H0 in H.
     by repeat destruct H as [? H].
   Qed.
-  
+
   (* Helper to lift the conclusions of interp_class into a super class *)
   Lemma interp_fields_inclusion t σt fields ifields σ C rec:
     wf_no_cycle Δ →

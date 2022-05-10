@@ -1,6 +1,6 @@
 (*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
- * 
+ *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
@@ -307,7 +307,7 @@ Proof.
   eapply GetEv.
   - do 3 (rewrite /= lookup_insert_ne //).
     by rewrite lookup_insert.
-  - by rewrite lookup_insert. 
+  - by rewrite lookup_insert.
   - by rewrite lookup_insert.
 Qed.
 
@@ -1082,7 +1082,7 @@ Proof.
   by rewrite /wf_cdef_constraints_wf /= Forall_nil.
 Qed.
 
-  
+
 Lemma wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) Δ.
 Proof.
   rewrite map_Forall_lookup => c0 d0.

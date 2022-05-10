@@ -1,6 +1,6 @@
 (*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
- * 
+ *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
@@ -49,7 +49,7 @@ Section nested_ind.
     | UnionT (s t: lang_ty)
     | InterT (s t: lang_ty)
     | GenT (n: nat)
-    | ExT (cname: tag) (* Ext C == ∃Ti, ClassT C Ti *) 
+    | ExT (cname: tag) (* Ext C == ∃Ti, ClassT C Ti *)
   .
 
   Variable P : lang_ty -> Prop.

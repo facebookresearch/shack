@@ -1,6 +1,6 @@
 (*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
- * 
+ *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
@@ -565,8 +565,8 @@ Section proofs.
       iRewrite -"hiF".
       iDestruct (expr_adequacy Σc Σi a0 with "Hle") as "#Ha0" => //; by apply wfΔ.
     - (* CallC *) inv hc; simpl.
-      destruct wfΔ.
-      (* Get inherits relation between dynamic tag and static tag *)
+      assert (wfΔ0 := wfΔ).
+      destruct wfΔ0.
       iIntros "[Hh #Hle]".
       (* make the script more resilient. Should provide a proper inversion
        * lemma but this is the next best thing.
@@ -577,6 +577,7 @@ Section proofs.
       rename H7 into hhasm0.
       rename H11 into heval_body.
       rename H12 into heval_ret.
+      (* Get inherits relation between dynamic tag and static tag *)
       iDestruct (expr_adequacy Σc Σi recv with "Hle") as "#Hrecv" => //.
       rewrite interp_class_unfold /=.
       iDestruct "Hrecv" as (? t1 def σin σt fields ifields) "[%Hpure [hifields Hl]]".
@@ -648,101 +649,9 @@ Section proofs.
         by rewrite hL.
       }
       assert (hσ0: Forall wf_ty σ0) by by apply wf_ty_class_inv in wf0.
-      (* Get typing information about mdef0.
-       * To make the proof easier, we add all the constraints in the mix.
-       * However as we'll prove just after, Σc imply all the other,
-       * so we can only keep Σc in the end
-       *)
-      assert (mdef0_wt:
-        ∃ rty, wf_lty rty ∧
-        cmd_has_ty (Σc ++ subst_constraints σt (def1.(constraints) ++ subst_constraints σ0 odef0.(constraints)))
-                   (subst_lty σt {| type_of_this := (orig0, σ0); ctxt := subst_ty σ0 <$> methodargs omdef0 |})
-                   (methodbody omdef0) rty ∧
-        expr_has_ty (Σc ++ subst_constraints σt (def1.(constraints) ++ subst_constraints σ0 odef0.(constraints)))
-                    rty (methodret omdef0) (subst_ty σt (subst_ty σ0 (methodrettype omdef0)))).
-      { assert (h0 := hodef0).
-        assert (h1 := homdef0).
-        apply wf_mdefs in h0.
-        apply h0 in h1 as [rty [wfryt [hbody0 hret0]]].
-        apply inherits_using_wf in hin_t1_o0 => //.
-        destruct hin_t1_o0 as (? & ? & ? & ? & hF & hL & hwf); simplify_eq.
-        exists (subst_lty σt (subst_lty σ0 rty)); split; last split.
-        - apply subst_wf_lty => //.
-          by apply subst_wf_lty.
-        - apply cmd_has_ty_subst => //.
-          { assert (hodef0' := hodef0).
-            apply wf_constraints_wf in hodef0'.
-            rewrite /wf_cdef_constraints_wf Forall_forall in hodef0'.
-            rewrite Forall_forall /subst_constraints => c hc.
-            apply elem_of_app in hc as [hc | hc ].
-            + apply wf_constraints_wf in hdef1.
-              rewrite /wf_cdef_constraints_wf Forall_forall in hdef1.
-              by apply hdef1.
-            + apply elem_of_list_fmap_2 in hc as [c' [-> hc]].
-              apply wf_constraints_wf in hdef1.
-              rewrite /wf_cdef_constraints_wf Forall_forall in hdef1.
-              apply wf_constraints_wf in hodef0.
-              rewrite /wf_cdef_constraints_wf Forall_forall in hodef0.
-              move: (hodef0 c' hc).
-              rewrite /wf_constraint /subst_constraint /=.
-              case => h1 h2; split; by apply wf_ty_subst.
-          }
-          { split => /=; first by rewrite /this_type.
-            rewrite map_Forall_lookup => k tk.
-            rewrite lookup_fmap_Some.
-            case => ty [<- hk].
-            apply wf_ty_subst => //.
-            assert (h2 := hodef0).
-            assert (h1 := homdef0).
-            apply wf_methods_wf in h2.
-            apply h2 in h1.
-            by apply h1 in hk.
-          } 
-          { inv hok_t1_σt.
-            rewrite Forall_forall => ty hin.
-            apply elem_of_list_lookup_1 in hin as [i hin].
-            by eauto.
-          }
-          replace 
-            {| type_of_this := (orig0, σ0); ctxt := subst_ty σ0 <$> methodargs omdef0 |}
-          with
-           (subst_lty σ0
-             {| type_of_this := (orig0, gen_targs (length (generics odef0)));
-               ctxt := subst_ty (gen_targs (length (generics odef0))) <$> methodargs omdef0
-             |}); last first.
-          { rewrite /subst_lty subst_ty_gen_targs //= fmap_subst_tys_id //.
-            assert (h2 := hodef0).
-            assert (h1 := homdef0).
-            apply wf_methods_bounded in h2.
-            apply h2 in h1.
-            by apply h1.
-          }
-          apply cmd_has_ty_subst => //; first by apply wf_constraints_wf in hodef0.
-          split => /=.
-          { rewrite /this_type /=.
-            econstructor => //.
-            - by rewrite length_gen_targs.
-            - by apply gen_targs_wf.
-          }
-          rewrite map_Forall_lookup => k tk.
-          rewrite lookup_fmap_Some.
-          case => ty [<- hk].
-          rewrite subst_ty_id //.
-          + assert (h2 := hodef0).
-            assert (h1 := homdef0).
-            apply wf_methods_wf in h2.
-            apply h2 in h1.
-            by apply h1 in hk.
-          + assert (h2 := hodef0).
-            assert (h1 := homdef0).
-            apply wf_methods_bounded in h2.
-            apply h2 in h1.
-            by apply h1 in hk.
-        - apply expr_has_ty_subst => //; first by apply ok_ty_class_inv in hok_t1_σt.
-          rewrite subst_ty_id // in hret0 => //; last by rewrite -hL.
-          by apply expr_has_ty_subst => //.
-      }
-      destruct mdef0_wt as (rty & wfrty & hbody_ & hret_).
+      (* mdef0 is correctly typed in runtime class t1 *)
+      destruct (wf_mdef_ty_gen Σc t1 orig0 name σ0 odef0 omdef0 wfΔ hodef0 homdef0 hin_t1_o0 σt hwf_t1_σt hok_t1_σt)
+        as (rty & wfrty & hbody & hret).
       assert (wfbody:
         wf_lty (subst_lty σt {| type_of_this := (orig0, σ0); ctxt := subst_ty σ0 <$> methodargs omdef0 |})
       ).
@@ -760,11 +669,9 @@ Section proofs.
           case => ty' [<- hk].
           apply wf_ty_subst => //.
           apply wf_ty_subst; first by (by apply wf_ty_class_inv in wf0).
-          assert (h2 := hodef0).
-          assert (h1 := homdef0).
-          apply wf_methods_wf in h2.
-          apply h2 in h1.
-          by apply h1 in hk.
+          apply wf_methods_wf in hodef0.
+          apply hodef0 in homdef0.
+          by apply homdef0 in hk.
       }
       assert (hconstraints:
         ∀ i c,
@@ -794,16 +701,6 @@ Section proofs.
           inv hok_t1_σt; simplify_eq.
           by eauto.
       }
-      assert (hbody:
-        cmd_has_ty Σc 
-                   (subst_lty σt {| type_of_this := (orig0, σ0); ctxt := subst_ty σ0 <$> methodargs omdef0 |})
-                   (methodbody omdef0) rty) by
-        by eapply cmd_has_ty_constraint_elim.
-      clear hbody_.
-      assert (hret:
-        expr_has_ty Σc rty (methodret omdef0) (subst_ty σt (subst_ty σ0 (methodrettype omdef0)))) by
-        by eapply expr_has_ty_constraint_elim.
-      clear hret_.
       iModIntro; iNext.
       iSpecialize ("IH" $! _ _ _ _ wfbody hΣc hbody Σi _ _ _ hΣi hΣcΣi heval_body); simpl.
       iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
@@ -899,7 +796,7 @@ Section proofs.
                 assert (hh: subst_constraints σ0 (constraints odef0) ⊢  (subst_ty σin (subst_ty σot ty')) <: (subst_ty σ0 tx')).
                 { apply hincl1 with x.
                   + by rewrite /subst_mdef /= lookup_fmap hx.
-                  + by rewrite /subst_mdef /= !lookup_fmap hty'. 
+                  + by rewrite /subst_mdef /= !lookup_fmap hty'.
                 }
                 apply subtype_subst with (σ := σt) in hh => //.
                 apply subtype_weaken
@@ -979,7 +876,7 @@ Section proofs.
          apply hodef0 in homdef0.
          by apply homdef0.
       + by rewrite -subst_ty_subst.
-    - (* Subtyping *) 
+    - (* Subtyping *)
       destruct wfΔ.
       iIntros "H".
       iSpecialize ("IHty" $! wflty with "[//] H").
@@ -1134,7 +1031,7 @@ Proof.
     first by apply (gmap_view_alloc _ 1%positive DfracDiscarded (MainTag, ∅)).
   iExists (SemHeapGS _ _ γI).
   iModIntro; iSplit.
-  - iExists _. 
+  - iExists _.
     iSplit; first done.
     iSplit; first by (iPureIntro; by set_solver).
     iModIntro; iIntros (k t vs) "%H".
@@ -1162,7 +1059,7 @@ Proof.
       }
       iSplit.
       * iSplit.
-        { iPureIntro. 
+        { iPureIntro.
           by rewrite !dom_empty_L.
         }
         iIntros (f vis ty orig hf).

@@ -1,6 +1,6 @@
 (*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
- * 
+ *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
@@ -133,7 +133,7 @@ Section ProgDef.
         Forall (bounded (length cdef.(generics))) σ
     end
   .
-  
+
   Definition cdef_methods_bounded cdef : Prop :=
     map_Forall (λ _mname mdef, mdef_bounded (length cdef.(generics)) mdef) cdef.(classmethods).
 
@@ -164,7 +164,7 @@ Section ProgDef.
     destruct H as (pdef & h & hlen & hσ & hf).
     by exists cdef, pdef.
   Qed.
-   
+
   Inductive inherits_using : tag → tag → list lang_ty → Prop :=
     | InheritsRefl A adef:
         Δ !! A = Some adef →
@@ -244,7 +244,7 @@ Section ProgDef.
 
   (* Stripped version of extends_using/inherits_using, mostly for
    * evaluation when we don't care about the generics.
-   *) 
+   *)
   Inductive extends: tag → tag → Prop :=
     | Extends A B cdef σB:
         Δ !! A = Some cdef →
@@ -463,7 +463,7 @@ Section ProgDef.
 
   (* All field types in a class must be well-formed *)
   Definition wf_cdef_fields_wf cdef : Prop :=
-    map_Forall (λ _fname vfty, wf_ty vfty.2) cdef.(classfields). 
+    map_Forall (λ _fname vfty, wf_ty vfty.2) cdef.(classfields).
 
   Lemma has_field_wf f t vis fty orig:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
@@ -556,7 +556,7 @@ Section ProgDef.
    *
    * The method is declared in class orig (which can be C).
    * mdef is substituted accordingly to be interpreted in the class C.
-   * 
+   *
    * Note that we do support method override (see mdef_incl below).
    *)
   Inductive has_method (mname: string) : tag → tag → methodDef → Prop :=
@@ -618,7 +618,7 @@ Section ProgDef.
     orig0 = orig1 ∧ mdef0 = mdef1.
   Proof.
     move => A name mdef0 mdef1 orig0 orig1 h; move: mdef1.
-    induction h as [ current cdef mdef hΔ hm 
+    induction h as [ current cdef mdef hΔ hm
       | current parent orig inst cdef mdef hΔ hm hs hp hi ] => mdef1 h1.
     - inv h1; by simplify_eq.
     - inv h1.
