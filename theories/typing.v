@@ -293,7 +293,7 @@ Section Typing.
   (* Typing Judgements *)
   Definition is_bool_op op : bool :=
     match op with
-    | LeqO | GeqO | EqO => true
+    | LtO | GtO | EqO => true
     | PlusO | MinusO | TimesO | DivO => false
     end
   .
@@ -303,16 +303,23 @@ Section Typing.
     | IntTy : ∀ z, expr_has_ty Γ lty (IntE z) IntT
     | BoolTy: ∀ b, expr_has_ty Γ lty (BoolE b) BoolT
     | NullTy: expr_has_ty Γ lty NullE NullT
-    | OpIntTy: ∀ op e1 e2,
+    | BinOpIntTy: ∀ op e1 e2,
         is_bool_op op = false →
         expr_has_ty Γ lty e1 IntT →
         expr_has_ty Γ lty e2 IntT →
-        expr_has_ty Γ lty (OpE op e1 e2) IntT
-    | OpBoolTy: ∀ op e1 e2,
+        expr_has_ty Γ lty (BinOpE op e1 e2) IntT
+    | BinOpBoolTy: ∀ op e1 e2,
         is_bool_op op = true →
         expr_has_ty Γ lty e1 IntT →
         expr_has_ty Γ lty e2 IntT →
-        expr_has_ty Γ lty (OpE op e1 e2) BoolT
+        expr_has_ty Γ lty (BinOpE op e1 e2) BoolT
+    | EqBoolTy: ∀ e1 e2,
+        expr_has_ty Γ lty e1 BoolT →
+        expr_has_ty Γ lty e2 BoolT →
+        expr_has_ty Γ lty (BinOpE EqO e1 e2) BoolT
+    | UniOpTy: ∀ e,
+        expr_has_ty Γ lty e BoolT →
+        expr_has_ty Γ lty (UniOpE NotO e) BoolT
     | GenTy: ∀ v ty,
         lty.(ctxt) !! v = Some ty →
         expr_has_ty Γ lty (VarE v) ty
@@ -332,7 +339,10 @@ Section Typing.
     expr_has_ty Γ lty e ty.
   Proof.
     induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
-      op e1 e2 hop h1 hi1 h2 hi2 | v ty h | | e s t h hi hok hsub ] => Γ Γ' heq hΓ; subst; try (by constructor).
+      op e1 e2 hop h1 hi1 h2 hi2 | e1 e2 h1 hi1 h2 hi2 | e h hi | v ty h | |
+      e s t h hi hok hsub ] => Γ Γ' heq hΓ; subst; try (by constructor).
+    - constructor; by eauto.
+    - constructor; by eauto.
     - constructor; by eauto.
     - constructor; by eauto.
     - econstructor.
@@ -358,7 +368,8 @@ Section Typing.
   Proof.
     move => hp hb hσwf hσok.
     induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
-      op e1 e2 hop h1 hi1 h2 hi2 | v ty h | | e s t h hi hok hsub ] => //=; try (by constructor).
+      op e1 e2 hop h1 hi1 h2 hi2 | e1 e2 h1 hi1 h2 hi2 | e h hi |
+      v ty h | | e s t h hi hok hsub ] => //=; try (by constructor).
     - constructor.
       rewrite /subst_lty /=.
       by rewrite lookup_fmap h.
@@ -412,7 +423,8 @@ Section Typing.
   Proof.
     move => hwf.
     induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
-      op e1 e2 hop h1 hi1 h2 hi2 | v ty h | | e s t h hi hsub ] => //=; try (by constructor).
+      op e1 e2 hop h1 hi1 h2 hi2 | e1 e2 h1 hi1 h2 hi2 | e h hi |
+      v ty h | | e s t h hi hsub ] => //=; try (by constructor).
     - by apply hwf in h.
     - by apply hwf.
   Qed.

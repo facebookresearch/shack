@@ -57,7 +57,7 @@ Section proofs.
   Proof.
     move => ???????? he h; move: le val he.
     elim: h => [z | b | | op e1 e2 hop he1 hi1 he2 hi2 |
-        op e1 e2 hop he1 hi1 he2 hi2 |
+        op e1 e2 hop he1 hi1 he2 hi2 | e1 e2 h1 hi1 h2 hi2 | e0 h hi |
         v vty hv | | exp S T hS hi hwf hok hsub ] => le val he; iIntros "#Hlty".
     - inv he; rewrite interp_type_unfold /=; by eauto.
     - inv he; rewrite interp_type_unfold /=; by eauto.
@@ -94,6 +94,32 @@ Section proofs.
       case: H0 => <-.
       rewrite interp_type_unfold /= /interp_bool.
       move: hop; rewrite /is_bool_op; destruct op => //= _; by iExists _.
+    - inv he.
+      case heq1 : (expr_eval le e1) => [v1 | ]; rewrite heq1 in H0; last by done.
+      apply hi1 in heq1.
+      iDestruct (heq1 with "Hlty") as "hv1".
+      rewrite interp_type_unfold /=.
+      iDestruct "hv1" as (b1) "%hb1".
+      rewrite hb1 in H0.
+      case heq2 : (expr_eval le e2) => [v2 | ]; rewrite heq2 in H0; last by done.
+      apply hi2 in heq2.
+      iDestruct (heq2 with "Hlty") as "hv2".
+      rewrite interp_type_unfold /=.
+      iDestruct "hv2" as (b2) "%hb2".
+      rewrite hb2 in H0.
+      case: H0 => <-.
+      rewrite interp_type_unfold /= /interp_bool.
+      by iExists _.
+    - inv he.
+      case heq : (expr_eval le e0) => [v0 | ]; rewrite heq in H0; last by done.
+      apply hi in heq.
+      iDestruct (heq with "Hlty") as "hv".
+      rewrite interp_type_unfold /=.
+      iDestruct "hv" as (b) "%hb".
+      rewrite hb in H0.
+      case: H0 => <-.
+      rewrite interp_type_unfold /= /interp_bool.
+      by iExists _.
     - inv he.
       iDestruct "Hlty" as "[? Hlty]".
       iDestruct ("Hlty" with "[//]") as (?) "[% H]".

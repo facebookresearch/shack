@@ -233,15 +233,18 @@ Qed.
 Definition var := string.
 Global Instance var_dec_eq (l l' : var) : Decision (l = l') := _.
 
-Inductive primop :=
-  | PlusO | MinusO | TimesO | DivO | LeqO | GeqO | EqO
+Inductive binop :=
+  | PlusO | MinusO | TimesO | DivO | LtO | GtO | EqO
 .
+
+Inductive uniop := | NotO.
 
 Inductive expr :=
   | IntE (z: Z)
   | BoolE (b: bool)
   | NullE
-  | OpE (op: primop) (e1: expr) (e2: expr)
+  | BinOpE (op: binop) (e1: expr) (e2: expr)
+  | UniOpE (op: uniop) (e: expr)
   | VarE (v: var)
   | ThisE (* $this *)
 .

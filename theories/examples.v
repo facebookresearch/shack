@@ -73,7 +73,7 @@ Definition IntBoxSSet := {|
   methodname := "set";
   methodargs := {["$data" := IntT ]};
   methodrettype := NullT;
-  methodbody := SetC ThisE "$data" (OpE PlusO (VarE "$data") (IntE 1%Z));
+  methodbody := SetC ThisE "$data" (BinOpE PlusO (VarE "$data") (IntE 1%Z));
   methodret := NullE;
 |}.
 
@@ -103,9 +103,9 @@ Definition ProgramBody :=
   (SeqC (CallC "$init" (VarE "$robox") "get" ∅)
   (SeqC (NewC "$box" "IntBoxS" {["$data" := VarE "$init"]})
   (SeqC (CallC "$tmp" (VarE "$box") "get" ∅)
-  (SeqC (LetC "$tmp" (OpE PlusO (VarE "$tmp") (IntE 20)))
+  (SeqC (LetC "$tmp" (BinOpE PlusO (VarE "$tmp") (IntE 20)))
   (SeqC (CallC "$_" (VarE "$box") "set"
-           {["$data" := OpE MinusO (VarE "$tmp") (IntE 10)]})
+           {["$data" := BinOpE MinusO (VarE "$tmp") (IntE 10)]})
         (GetC "$tmp" (VarE "$box") "$data")
   ))))).
 
@@ -114,7 +114,7 @@ Definition EntryPoint := {|
   methodargs := ∅;
   methodrettype := BoolT;
   methodbody := ProgramBody;
-  methodret := OpE EqO (VarE "$tmp") (IntE 43);
+  methodret := BinOpE EqO (VarE "$tmp") (IntE 43);
 |}.
 
 Definition Main := {|

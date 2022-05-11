@@ -14,14 +14,14 @@ Section Evaluation.
   Context `{PDC: ProgDefContext}.
 
   (* Big step reduction *)
-  Definition primop_eval (op: primop) : Z → Z → value :=
+  Definition binop_eval (op: binop) : Z → Z → value :=
     match op with
     | PlusO => fun x y => IntV (x + y)
     | MinusO => fun x y => IntV (x - y)
     | TimesO => fun x y => IntV (x * y)
     | DivO => fun x y => IntV (x / y)
-    | LeqO => fun x y => BoolV (Z.leb x y)
-    | GeqO => fun x y => BoolV (Z.geb x y)
+    | LtO => fun x y => BoolV (Z.ltb x y)
+    | GtO => fun x y => BoolV (Z.gtb x y)
     | EqO => fun x y => BoolV (Z.eqb x y)
     end
   .
@@ -42,9 +42,19 @@ Section Evaluation.
     | IntE z => Some (IntV z)
     | BoolE b => Some (BoolV b)
     | NullE => Some NullV
-    | OpE op e1 e2 =>
+    | BinOpE op e1 e2 =>
         match expr_eval le e1, expr_eval le e2 with
-        | Some (IntV z1), Some (IntV z2) => Some (primop_eval op z1 z2)
+        | Some (IntV z1), Some (IntV z2) => Some (binop_eval op z1 z2)
+        | Some (BoolV b1), Some (BoolV b2) =>
+            match op with
+            | EqO => Some (BoolV (eqb b1 b2))
+            | _ => None
+            end
+        | _, _ => None
+        end
+    | UniOpE op e =>
+        match op, expr_eval le e with
+        | NotO, Some (BoolV b) => Some (BoolV (negb b))
         | _, _ => None
         end
     | VarE v => le.(lenv) !! v
