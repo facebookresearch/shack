@@ -8,12 +8,6 @@ From stdpp Require Import base strings gmap stringmap fin_maps.
 (* Not using iris but importing their ssreflect dependencies *)
 From iris.proofmode Require Import tactics.
 
-(* TODO:
- * - maybe update definitions of bounded and gen_targs to take
- *   a variance list or a class definition as input, and some
- *   of the details away.
- *)
-
 (* Helper tactics *)
 Ltac inv H := inversion H; subst; clear H.
 
@@ -360,9 +354,19 @@ Definition not_contra v :=
 
 Inductive visibility := Public | Private.
 
+(* S <: T *)
+Definition constraint := (lang_ty * lang_ty)%type.
+
+Definition bounded_constraint n c := bounded n c.1 ∧ bounded n c.2.
+
 Record classDef := {
   classname: tag;
-  generics: list variance; (* variance of the generics *)
+  (* variance of the generics *)
+  generics: list variance;
+  (* sets of constraints. All generics in this set must be bound
+   * by the `generics` list above.
+   *)
+  constraints : list constraint;
   superclass: option (tag * list lang_ty);
   classfields : stringmap (visibility * lang_ty);
   classmethods : stringmap methodDef;

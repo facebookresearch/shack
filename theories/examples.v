@@ -12,9 +12,11 @@ From iris.algebra.lib Require Import gmap_view.
 
 From shack Require Import lang progdef subtype typing eval heap modality interp adequacy.
 
+Definition arraykey := UnionT IntT BoolT.
+
 (* TODO: we don't have void atm so I'm using null ;) *)
 
-(* Definition of class ROBox<+T>:
+(* Definition of class ROBox<+T as arraykey>:
  * class ROBox<+T> {
  *   private T $data;
  *   function get(): T { $ret = $this->data; return $ret; }
@@ -31,6 +33,7 @@ Definition ROBox := {|
   classname := "ROBox";
   superclass := None;
   generics := [Covariant];
+  constraints := [(GenT 0, arraykey)];
   classfields := {["$data" := (Private, GenT 0)]};
   classmethods := {["get" := Get]};
 |}.
@@ -54,6 +57,7 @@ Definition Box := {|
   classname := "Box";
   superclass := None;
   generics := [Invariant];
+  constraints := [];
   classfields := {["$data" := (Public, GenT 0)]};
   classmethods := {["set" := BoxSet; "get" := Get]};
 |}.
@@ -77,6 +81,7 @@ Definition IntBoxS := {|
   classname := "IntBoxS";
   superclass := Some ("Box", σ);
   generics := [];
+  constraints := [];
   classfields := ∅;
   classmethods := {["set" := IntBoxSSet]};
 |}.
@@ -116,6 +121,7 @@ Definition Main := {|
   classname := "Main";
   superclass := None;
   generics := [];
+  constraints := [];
   classfields := ∅;
   classmethods := {["entry_point" := EntryPoint]};
  |}.
@@ -313,7 +319,7 @@ Definition final_lty lty : local_tys :=
   (<["$robox" := ClassT "ROBox" [IntT]]> lty)))).
 
 Lemma Main_ty lty :
-  cmd_has_ty lty ProgramBody (final_lty lty).
+  cmd_has_ty [] lty ProgramBody (final_lty lty).
 Proof.
   rewrite /final_lty /ProgramBody.
   eapply SeqTy.
@@ -321,6 +327,14 @@ Proof.
     + econstructor => //.
       move => k ty; rewrite list_lookup_singleton_Some.
       case => _ <-; by constructor.
+    + econstructor => //.
+      * move => i ty.
+        rewrite list_lookup_singleton_Some => [[? <-]].
+        by constructor.
+      * rewrite /ROBox /= => i [??] h.
+        apply list_lookup_singleton_Some in h as [? heq].
+        case: heq => <- <- /=.
+        by eauto.
     + by apply has_fields_ROBox.
     + by set_solver.
     + move => f fty arg.
@@ -338,6 +352,7 @@ Proof.
   }
   eapply SeqTy.
   { eapply NewTy with (targs := []).
+    + by econstructor.
     + by econstructor.
     + by apply has_fields_IntBoxS.
     + by set_solver.
@@ -406,7 +421,7 @@ Proof.
       by rewrite lookup_insert_ne.
 Qed.
 
-Lemma wf_mdef_ty_Main: wf_mdef_ty "Main" (gen_targs 0) (gen_targs 0) EntryPoint.
+Lemma wf_mdef_ty_Main: wf_mdef_ty [] "Main" (gen_targs 0) EntryPoint.
 Proof.
   rewrite /wf_mdef_ty.
   exists (final_lty {| type_of_this := ("Main", gen_targs 0); ctxt := subst_ty (gen_targs 0) <$> methodargs EntryPoint|}).
@@ -1048,11 +1063,139 @@ Proof.
   done.
 Qed.
 
+Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_constraints_wf /ROBox /= Forall_singleton.
+    split; by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_wf /= Forall_nil. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_wf /= Forall_nil. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  by rewrite /wf_cdef_constraints_wf /= Forall_nil.
+Qed.
+
+  
+Lemma wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_constraints_bounded /= Forall_singleton.
+    split; by repeat constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_bounded /= Forall_nil. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_bounded /= Forall_nil. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  by rewrite /wf_cdef_constraints_bounded /= Forall_nil.
+Qed.
+
+Lemma wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_parent_ok . }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_parent_ok. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_parent_ok /=.
+    econstructor => //.
+    rewrite /σ => i ty.
+    rewrite list_lookup_singleton_Some => [[? <-]].
+    by constructor.
+  }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  by rewrite /wf_cdef_parent_ok.
+Qed.
+
+Lemma wf_constraints_ok : map_Forall (λ _cname, wf_cdef_constraints_ok) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_constraints_ok /ROBox /= /ok_constraints Forall_singleton.
+    split => /=; by repeat constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_constraints_ok; by constructor. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_constraints_ok; by constructor. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  rewrite /wf_cdef_constraints_ok; by constructor.
+Qed.
+
+Lemma wf_methods_ok : map_Forall (λ _cname, cdef_methods_ok) Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /cdef_methods_ok /ROBox /=.
+    apply map_Forall_singleton.
+    rewrite /mdef_ok /Get /=.
+    split; last by constructor.
+    by apply map_Forall_empty.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /cdef_methods_ok /Box /=.
+    rewrite map_Forall_lookup => x mx.
+    rewrite lookup_insert_Some.
+    case => [[? <-]|[?]].
+    * rewrite /mdef_ok /BoxSet /=.
+      split; last by constructor.
+      apply map_Forall_singleton.
+      by constructor.
+    * rewrite lookup_insert_Some.
+      case => [[? <-]|[?]]; last by rewrite lookup_empty.
+      rewrite /mdef_ok /Get /=.
+      split; first by apply map_Forall_empty.
+      by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /cdef_methods_ok /IntBoxS /=.
+    apply map_Forall_singleton.
+    rewrite /mdef_ok /IntBoxSSet /=.
+    split; last by constructor.
+    apply map_Forall_singleton.
+    by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]]; last by rewrite lookup_empty.
+  rewrite /cdef_methods_ok /Main /=.
+  apply map_Forall_singleton.
+  split; last by constructor.
+  by apply map_Forall_empty.
+Qed.
+
 Lemma wf: wf_cdefs Δ.
 Proof.
   split.
   by apply wf_extends_wf.
   by apply wf_parent.
+  by apply wf_parent_ok.
+  by apply wf_constraints_wf.
+  by apply wf_constraints_ok.
+  by apply wf_constraints_bounded.
   by apply wf_override.
   by apply wf_fields.
   by apply wf_fields_bounded.
@@ -1061,6 +1204,7 @@ Proof.
   by apply wf_methods_bounded.
   by apply wf_methods_wf.
   by apply wf_methods_mono.
+  by apply wf_methods_ok.
   by apply wf_mdefs.
   by apply wf_mono.
 Qed.
@@ -1070,7 +1214,7 @@ Qed.
  *)
 Theorem int_adequacy cmd st lty n:
   cmd_eval (main_le, main_heap "Main") cmd st n →
-  cmd_has_ty (main_lty "Main") cmd lty →
+  cmd_has_ty [] (main_lty "Main") cmd lty →
   ∀ v, lty.(ctxt) !! v = Some IntT →
   ∃ z, st.1.(lenv) !! v = Some (IntV z).
 Proof.
@@ -1085,7 +1229,11 @@ Proof.
   apply (@step_updN_soundness sem_heapΣ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
   iModIntro.
-  iDestruct ((cmd_adequacy interp_env_empty _ _ _ wf wfinit ht _ _ _ he) with "Hmain") as "H" => /=.
+  assert (Σcoherency : Σinterp [] []) by done.
+  assert (wfΣc : Forall wf_constraint []).
+  { rewrite Forall_forall => ?. by set_solver. }
+  assert (wfΣi : interp_env_as_mixed [] []) by done.
+  iDestruct ((cmd_adequacy [] [] _ _ _ wf wfinit wfΣc wfΣi Σcoherency ht _ _ _ he) with "Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [Hthis Hl]]".
@@ -1098,7 +1246,7 @@ Qed.
 
 Theorem class_adequacy cmd st lty n:
   cmd_eval (main_le, main_heap "Main") cmd st n →
-  cmd_has_ty (main_lty "Main") cmd lty →
+  cmd_has_ty [] (main_lty "Main") cmd lty →
   ∀ v T σ, lty.(ctxt) !! v = Some (ClassT T σ) →
   ∃ l Tdyn vs, st.1.(lenv) !! v = Some (LocV l) ∧
           st.2 !! l = Some (Tdyn, vs) ∧
@@ -1115,7 +1263,11 @@ Proof.
   apply (@step_updN_soundness sem_heapΣ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
   iModIntro.
-  iDestruct ((cmd_adequacy interp_env_empty _ _ _ wf wfinit ht _ _ _ he) with "Hmain") as "H" => /=.
+  assert (Σcoherency : Σinterp [] []) by done.
+  assert (wfΣc : Forall wf_constraint []).
+  { rewrite Forall_forall => ?. by set_solver. }
+  assert (wfΣi : interp_env_as_mixed [] []) by done.
+  iDestruct ((cmd_adequacy [] [] _ _ _ wf wfinit wfΣc wfΣi Σcoherency ht _ _ _ he) with "Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [_ Hl]]".
