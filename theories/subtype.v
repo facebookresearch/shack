@@ -35,10 +35,10 @@ Section Subtype.
     | SubClassNonNull: ∀ A targs, subtype Γ (ClassT A targs) NonNullT
     | SubUnionUpper1: ∀ s t, wf_ty t → subtype Γ s (UnionT s t)
     | SubUnionUpper2: ∀ s t, wf_ty s → subtype Γ t (UnionT s t)
-    | SubUnionLeast : ∀ s t u, subtype Γ s u → subtype Γ t u → subtype Γ (UnionT s t) u
+    | SubUnionLower : ∀ s t u, subtype Γ s u → subtype Γ t u → subtype Γ (UnionT s t) u
     | SubInterLower1: ∀ s t, subtype Γ (InterT s t) s
     | SubInterLower2: ∀ s t, subtype Γ (InterT s t) t
-    | SubInterGreatest: ∀ s t u, subtype Γ u s → subtype Γ u t → subtype Γ u (InterT s t)
+    | SubInterUpper: ∀ s t u, subtype Γ u s → subtype Γ u t → subtype Γ u (InterT s t)
     | SubRefl: ∀ s, subtype Γ s s
     | SubTrans: ∀ s t u, subtype Γ s t → subtype Γ t u → subtype Γ s u
     | SubConstraint: ∀ s t, (s, t) ∈ Γ → subtype Γ s t
@@ -862,8 +862,8 @@ Section Subtype.
     Γ ⊢ (UnionT (UnionT A B) C) <: (UnionT A (UnionT B C)).
   Proof.
     move => A B C wfA wfB wfC.
-    apply SubUnionLeast; last by eauto.
-    apply SubUnionLeast; last by eauto.
+    apply SubUnionLower; last by eauto.
+    apply SubUnionLower; last by eauto.
     apply SubUnionUpper1.
     constructor; by eauto.
   Qed.
