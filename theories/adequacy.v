@@ -296,9 +296,9 @@ Section proofs.
     { apply has_field_bounded in hfield => //.
       destruct hfield as (def' & hdef' & hfty).
       apply inherits_using_wf in hinherits' => //.
-      destruct hinherits' as (? & ? & ? & ? & _ & hL & _).
+      destruct hinherits' as (? & ? & ? & hh); inv hh.
       simplify_eq.
-      by rewrite hL.
+      by rewrite H4.
     }
     assert (hsub : Σc ⊢ subst_ty σt fty <: subst_ty (subst_ty σt' <$> σ') fty).
     { destruct vis.
@@ -312,7 +312,7 @@ Section proofs.
         + apply wf_ty_subst_map.
           * by apply wf_ty_class_inv in hwfσ'.
           * apply inherits_using_wf in hinherits' => //.
-          by repeat destruct hinherits' as [? hinherits'].
+            destruct hinherits' as (? & ? & ? & hh); by apply wf_ty_class_inv in hh.
         + by apply neg_subtype_targs.
       - (* Private field access *)
         by rewrite hσ'.
@@ -412,8 +412,9 @@ Section proofs.
         apply has_field_bounded in hf => //.
         destruct hf as (? & ? & ?).
         apply inherits_using_wf in hinherits => //.
-        destruct hinherits as (? & ? & ? & ?& ? & hL & ?).
-        simplify_eq; by rewrite hL.
+        destruct hinherits as (? & ?& ? & hh).
+        inv hh; simplify_eq.
+        by rewrite H8.
       }
       subst.
       iNext.
@@ -468,7 +469,8 @@ Section proofs.
         apply subtype_lift with (generics tdef) => //.
         - apply wf_ty_subst_map; first by apply wf_ty_class_inv in hwfσt.
           apply inherits_using_wf in hinherits => //.
-          by repeat destruct hinherits as [? hinherits].
+          destruct hinherits as (? & ? & ? & hh).
+          by apply wf_ty_class_inv in hh.
         - apply expr_has_ty_wf in hrecv => //.
           by apply wf_ty_class_inv in hrecv.
       }
@@ -477,7 +479,8 @@ Section proofs.
       apply wf_ty_subst.
       * apply wf_ty_subst_map; first by apply wf_ty_class_inv in hwfσt.
         apply inherits_using_wf in hinherits => //.
-        by repeat destruct hinherits as [? hinherits].
+        destruct hinherits as (? & ? & ? & hh).
+        by apply wf_ty_class_inv in hh.
       * by apply has_field_wf in hf.
     - (* SetPriv *) inv hc.
       assert (wfΔ' := wfΔ).
@@ -648,8 +651,7 @@ Section proofs.
       rewrite subst_mdef_ret in heval_ret.
       assert (wf0: wf_ty (ClassT orig0 σ0)).
       { apply inherits_using_wf in hin_t1_o0 => //.
-        destruct hin_t1_o0 as (? & ? & ? & ? & hF & hL & hwf); simplify_eq.
-        by eapply wf_ty_class.
+        by destruct hin_t1_o0 as (? & ? & hF & hwf).
       }
       assert (hwf_targs: Forall wf_ty targs).
       { apply expr_has_ty_wf in hrecv => //.
@@ -657,17 +659,19 @@ Section proofs.
       }
       assert (hwf_σin: Forall wf_ty σin).
       { apply inherits_using_wf in hin_t1_t => //.
-        by repeat destruct hin_t1_t as [? hin_t1_t].
+        destruct hin_t1_t as (? & ? & ? &hh).
+        by apply wf_ty_class_inv in hh.
       }
       assert (hwf_σt: Forall wf_ty σt) by (by apply wf_ty_class_inv in hwf_t1_σt).
       assert (hwf_σt_σin: Forall wf_ty (subst_ty σt <$> σin)) by (by apply wf_ty_subst_map).
       assert (hb_σin_σot : Forall (bounded (length σin)) σot).
       { apply inherits_using_wf in hin_t1_t => //.
-        destruct hin_t1_t as (? & ? & ? & ? & hF & hL & hwf).
+        destruct hin_t1_t as (? & ? & ? &hh).
+        inv hh; simplify_eq.
         apply inherits_using_wf in hin_t_o => //.
-        destruct hin_t_o as (? & ? & ? & ? & hF' & hL' & hwf').
-        simplify_eq.
-        by rewrite hL.
+        destruct hin_t_o as (? & ? & ? & hh).
+        inv hh; simplify_eq.
+        by rewrite H4.
       }
       assert (hb_ret0: bounded (length σ0) (methodrettype omdef0)).
       { assert (h0 := hodef0).
@@ -675,8 +679,8 @@ Section proofs.
         apply h0 in homdef0.
         destruct homdef0 as [_ hret].
         apply inherits_using_wf in hin_t1_o0 => //.
-        destruct hin_t1_o0 as (? & ? & ? & ? & ? & hL &?); simplify_eq.
-        by rewrite hL.
+        destruct hin_t1_o0 as (? & ? & ? & hh); inv hh; simplify_eq.
+        by rewrite H4.
       }
       assert (hσ0: Forall wf_ty σ0) by by apply wf_ty_class_inv in wf0.
       (* mdef0 is correctly typed in runtime class t1 *)
@@ -689,8 +693,8 @@ Section proofs.
         - rewrite /this_type /=.
           eapply wf_ty_class => //.
           + apply inherits_using_wf in hin_t1_o0 => //.
-            destruct hin_t1_o0 as (? & ? & ? & ? & hF & hL & hwf); simplify_eq.
-            by rewrite map_length hL.
+            destruct hin_t1_o0 as (? & ? & hF & hwf); inv hwf; simplify_eq.
+            by rewrite map_length H3.
           + by apply wf_ty_subst_map.
         - rewrite map_Forall_lookup => k tk.
           rewrite lookup_fmap_Some.
@@ -756,8 +760,8 @@ Section proofs.
                 apply ho in homdef.
                 apply homdef in hty'.
                 apply inherits_using_wf in hin_t_o => //.
-                destruct hin_t_o as ( ? & ? & ? & ? & _ & hL & _); simplify_eq.
-                by rewrite hL.
+                destruct hin_t_o as ( ? & ? & ? & hh); inv hh; simplify_eq.
+                by rewrite H4.
               }
               eapply ESubTy.
               - apply hi with x => //.
@@ -797,7 +801,7 @@ Section proofs.
                       by apply homdef in hty'.
                     + rewrite map_length.
                       apply inherits_using_wf in hin_t_o => //.
-                      repeat destruct hin_t_o as [? hin_t_o]; by simplify_eq.
+                      destruct hin_t_o as (? & ? & ? & hh); inv hh; by simplify_eq.
                     + rewrite neg_variance_fmap_idem => i vi ti hvi.
                       apply list_lookup_fmap_inv in hvi.
                       destruct hvi as [wi [-> hwi]].
@@ -814,7 +818,8 @@ Section proofs.
                       destruct wi; by eauto.
                   - apply wf_ty_subst => //.
                     * apply inherits_using_wf in hin_t_o => //.
-                      by repeat destruct hin_t_o as [? hin_t_o].
+                      destruct hin_t_o as (? & ? & ? & hh).
+                      by apply wf_ty_class_inv in hh.
                     * apply wf_methods_wf in hodef.
                       apply hodef in homdef.
                       by apply homdef in hty'.
@@ -864,7 +869,7 @@ Section proofs.
               apply hodef in homdef.
               by apply homdef.
             * apply inherits_using_wf in hin_t_o => //.
-              repeat destruct hin_t_o as [? hin_t_o]; by simplify_eq.
+              repeat destruct hin_t_o as [? hin_t_o]; inv hin_t_o; by simplify_eq.
             * move => i vi ti hvi hti hc.
               apply inherits_using_mono with (def := def) in hin_t_o => //.
               inv hin_t_o; simplify_eq.
@@ -875,7 +880,7 @@ Section proofs.
               by eauto.
           + apply wf_ty_subst => //.
             * apply inherits_using_wf in hin_t_o => //.
-              by repeat destruct hin_t_o as [? hin_t_o].
+              repeat destruct hin_t_o as [? hin_t_o]; by apply wf_ty_class_inv in hin_t_o.
             * apply wf_methods_wf in hodef.
               apply hodef in homdef.
               by apply homdef.
@@ -890,12 +895,12 @@ Section proofs.
             by apply subtype_constraint_elim in hret1.
           + apply bounded_subst with (length σot) => //.
             apply inherits_using_wf in hin_t_o => //.
-            destruct hin_t_o as (? & ? & ? & ? & ? & hL & _).
+            destruct hin_t_o as (? & ? & ? & hh); inv hh.
             simplify_eq.
             assert (ho := hodef).
             apply wf_methods_bounded in ho.
             apply ho in homdef.
-            rewrite hL.
+            rewrite H6.
             by apply homdef.
       }
       iDestruct (expr_adequacy Σc Σi (methodret omdef0) with "Hle2") as "#Hret" => //.

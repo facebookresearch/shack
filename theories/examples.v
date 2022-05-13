@@ -576,8 +576,9 @@ Proof.
   case => [[? <-] | [?]] => //.
   rewrite lookup_insert_Some.
   case => [[? <-] | [?]].
-  { exists Box;repeat split => //.
-    + by apply wfσ.
+  { split.
+    + eapply wf_ty_class => //.
+      by apply wfσ.
     + by apply σbounded.
   }
   rewrite lookup_singleton_Some.

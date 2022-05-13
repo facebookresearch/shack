@@ -161,16 +161,13 @@ Section proofs.
     destruct hpure as (-> & hin & hwf & hok & heqp & hfs).
     assert (hin' := hin).
     apply inherits_using_wf in hin' => //.
-    destruct hin' as (? & def & ? & ? & ? & hL & ?).
-    iExists _, _, def, _, _, _, _.
+    destruct hin' as (def & ? & ? & hwfC); inv hwfC; simplify_eq.
+    iExists _, _, def0, _, _, _, _.
     iSplit; last by iSplit.
     iPureIntro.
     repeat split => //.
-    rewrite heqp.
     apply subtype_targs_refl.
-    rewrite -heqp map_length.
-    simplify_eq.
-    by rewrite hL.
+    by rewrite map_length.
   Qed.
 
   Definition interp_ex (cname: tag) (rec: ty_interpO): interp Σ :=
@@ -356,16 +353,18 @@ Section proofs.
     iIntros "h".
     iDestruct "h" as (ℓ t adef σ σt fields ifields) "[%h [hsem hl]]".
     destruct h as (-> & hin & hσwf & hσok & hadef & hσ & hfields).
-    destruct (extends_using_wf _ _ _ hwp hext) as (adef' & bdef & hadef' & hbdef & hF & hL & hwfσB).
+    destruct (extends_using_wf _ _ _ hwp hext) as (adef' & hadef' & hF & hwfB).
     simplify_eq.
     assert (hwfσt : Forall wf_ty σt) by (by apply wf_ty_class_inv in hσwf).
     assert (hwfσ : Forall wf_ty σ).
     { apply inherits_using_wf in hin => //.
-      by repeat destruct hin as [? hin].
+      destruct hin as (? & ? & ? &h).
+      by apply wf_ty_class_inv in h.
     }
     rewrite /interp_fields.
     iDestruct "hsem" as "[%hdom hfields]".
-    iExists ℓ, t, bdef, (subst_ty σ <$> σB), σt, fields, ifields.
+    inv hwfB.
+    iExists ℓ, t, def, (subst_ty σ <$> σB), σt, fields, ifields.
     iSplit.
     { iPureIntro; split; first done.
       split.
@@ -374,13 +373,14 @@ Section proofs.
       split; first done.
       split; first done.
       split; last done.
+      assert (hwfB: wf_ty (ClassT B σB)).
+      { apply extends_using_wf in hext => //.
+        by repeat destruct hext as [? hext].
+      }
       rewrite map_subst_ty_subst; last first.
       { apply inherits_using_wf in hin => //.
-        destruct hin as (? & ? &? &? & ? & hL' & _).
-        apply extends_using_wf in hext => //.
-        destruct hext as (? & ? & ? & ? & hF' & ? & _).
-        clear hdom; simplify_eq.
-        by rewrite hL'.
+        destruct hin as (? & ? & ? & h); inv h; simplify_eq.
+        by rewrite H7.
       }
       assert (hadef' := hadef).
       apply hmono in hadef'.
@@ -389,13 +389,14 @@ Section proofs.
       inv hext; simplify_eq.
       rewrite H0 in hadef'.
       apply subtype_targs_lift with (vs := adef.(generics)) => //.
+      - by apply wf_ty_class_inv in hwfB.
       - by apply wf_ty_subst_map.
       - move => i wi ti hwi hti hc.
         inv hadef'; simplify_eq.
-        by apply (H4 i wi).
+        by apply (H7 i wi).
       - move => i wi ti hwi hti hc.
         inv hadef'; simplify_eq.
-        by apply (H5 i wi).
+        by apply (H8 i wi).
     }
     iSplit; last done.
     iSplit; first by iPureIntro.
@@ -677,7 +678,7 @@ Section proofs.
     assert (hydef : is_Some (Δ !! y)).
     { apply hp in hxdef.
       rewrite /wf_cdef_parent hsuper in hxdef.
-      by repeat destruct hxdef as [? hxdef].
+      destruct hxdef as [h _]; inv h; by simplify_eq.
     }
     destruct hydef as [ydef hydef].
     iAssert (interp_type (ClassT y (subst_ty σx <$> σy)) v) with "[H]" as "Hext".
@@ -692,12 +693,13 @@ Section proofs.
     { rewrite map_length.
       apply hp in hxdef.
       rewrite /wf_cdef_parent hsuper in hxdef.
-      by repeat destruct hxdef as [? hxdef]; simplify_eq.
+      destruct hxdef as [h _]; inv h; by simplify_eq.
     }
     apply wf_ty_subst_map; first by apply wf_ty_class_inv in hσx.
     apply hp in hxdef.
     rewrite /wf_cdef_parent hsuper in hxdef.
-    by repeat destruct hxdef as [? hxdef].
+    destruct hxdef as [h _].
+    by apply wf_ty_class_inv in h.
   Qed.
 
   (* Helper to lift the conclusions of interp_class into a super class *)
@@ -721,9 +723,9 @@ Section proofs.
     apply has_field_bounded in hf => //.
     destruct hf as (def & hdef & hfty).
     apply inherits_using_wf in hin => //.
-    destruct hin as (? & ? & ? & ? & _ & hL & _).
-    simplify_eq.
-    by rewrite hL.
+    destruct hin as (? & ? & ? & hwf).
+    inv hwf; simplify_eq.
+    by rewrite H4.
   Qed.
 
 End proofs.

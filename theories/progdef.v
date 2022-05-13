@@ -116,20 +116,16 @@ Section ProgDef.
   Definition wf_cdef_constraints_bounded cdef :=
     Forall (bounded_constraint (length cdef.(generics))) cdef.(constraints).
 
-  (* A class definition 'parent' information is valid
-   * if the parent class actually exists, and the subsitution is:
-   * - of the right length (must capture all generics of the parent class)
+  (* A class definition 'parent' information is valid if the parent type is:
+   * - well-formed (tag exists, class is fully applied)
    * - bounded by the current class (must only mention generics of the current class)
-   * - be well-formed.
    * - respect variance (see wf_cdef_mono)
    *)
   Definition wf_cdef_parent (prog: stringmap classDef) cdef : Prop :=
     match cdef.(superclass) with
     | None => True
     | Some (parent, σ) =>
-        ∃ pdef, prog !! parent = Some pdef ∧
-        length σ = length pdef.(generics) ∧
-        Forall wf_ty σ ∧
+        wf_ty (ClassT parent σ) ∧
         Forall (bounded (length cdef.(generics))) σ
     end
   .
@@ -139,9 +135,9 @@ Section ProgDef.
 
   (* source relation `class A<...> extends B<...>` *)
   Inductive extends_using : tag → tag → list lang_ty → Prop :=
-    | ExtendsUsing A B cdef σB:
-        Δ !! A = Some cdef →
-        cdef.(superclass) = Some (B, σB) →
+    | ExtendsUsing A B adef σB:
+        Δ !! A = Some adef →
+        adef.(superclass) = Some (B, σB) →
         extends_using A B σB.
 
   Hint Constructors extends_using : core.
@@ -149,20 +145,18 @@ Section ProgDef.
   Lemma extends_using_wf A B σ:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     extends_using A B σ →
-    ∃ adef bdef,
+    ∃ adef,
     Δ !! A = Some adef ∧
-    Δ !! B = Some bdef ∧
     Forall (bounded (length adef.(generics))) σ ∧
-    length σ = length bdef.(generics) ∧
-    Forall wf_ty σ.
+    wf_ty (ClassT B σ).
   Proof.
     move => /map_Forall_lookup hwf hext.
-    inv hext.
-    assert (H' := H).
-    apply hwf in H.
-    rewrite /wf_cdef_parent H0 in H.
-    destruct H as (pdef & h & hlen & hσ & hf).
-    by exists cdef, pdef.
+    destruct hext as [A B adef σB hadef hsuper].
+    exists adef; split => //.
+    apply hwf in hadef.
+    rewrite /wf_cdef_parent hsuper in hadef.
+    destruct hadef as [hwfB hf].
+    by split.
   Qed.
 
   Inductive inherits_using : tag → tag → list lang_ty → Prop :=
@@ -183,38 +177,34 @@ Section ProgDef.
   Lemma inherits_using_wf A B σ:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     inherits_using A B σ →
-    ∃ adef bdef,
+    ∃ adef,
     Δ !! A = Some adef ∧
-    Δ !! B = Some bdef ∧
     Forall (bounded (length adef.(generics))) σ ∧
-    length σ = length bdef.(generics) ∧
-    Forall wf_ty σ.
+    wf_ty (ClassT B σ).
   Proof.
     move => hwf.
     induction 1 as [ A adef hΔ | A B σ hext | A B σ C σC hext h hi ].
-    - exists adef, adef; repeat split => //.
+    - exists adef; repeat split => //.
       + by apply bounded_gen_targs.
-      + by rewrite length_gen_targs.
-      + rewrite Forall_forall => x hx.
-        apply elem_of_list_lookup_1 in hx.
-        destruct hx as [i hi].
-        by apply gen_targs_wf in hi.
+      + econstructor => //; first by rewrite length_gen_targs.
+        move => x hx h.
+        by apply gen_targs_wf in h.
     - by apply extends_using_wf.
     - apply extends_using_wf in hext => //.
-      destruct hext as [adef [bdef [ha0 [hb0 [hf0 [hl0 hσ]]]]]].
-      destruct hi as [? [cdef [hb1 [hc1 [hf1 [hl1 hσC]]]]]].
-      simplify_eq.
-      exists adef, cdef; repeat split => //.
+      destruct hext as (adef & hadef & hF0 & hwfB).
+      destruct hi as (bdef & hbdef & hF1 & hwfC).
+      exists adef; repeat split => //.
       + rewrite Forall_forall => ty hin.
         apply elem_of_list_fmap_2 in hin as [ty' [-> hin]].
-        rewrite Forall_forall in hf1; apply hf1 in hin.
-        by eapply bounded_subst.
-      + by rewrite map_length.
-      + apply Forall_forall => x hx.
-        apply elem_of_list_fmap_2 in hx as [ty [ -> hty]].
-        apply wf_ty_subst => //.
-        rewrite Forall_forall in hσC.
-        by apply hσC in hty.
+        rewrite Forall_forall in hF1; apply hF1 in hin.
+        eapply bounded_subst => //.
+        inv hwfB; by simplify_eq.
+      + inv hwfC.
+        econstructor => //; first by rewrite map_length.
+        move => k x hx.
+        apply list_lookup_fmap_inv in hx as [ty [-> hty]].
+        apply wf_ty_subst => //; first by apply wf_ty_class_inv in hwfB.
+        by eauto.
   Qed.
 
   Lemma inherits_using_trans A B C σB σC:
@@ -228,7 +218,7 @@ Section ProgDef.
     induction 1 as [ A cdef hΔ | A B s hext | A B s C t hext h hi] => Z σ' hin.
     - rewrite subst_tys_id //.
       apply inherits_using_wf in hin => //.
-      destruct hin as (? & ? & ? & ? & hF & _ ).
+      destruct hin as (? & ? & hF & _ ).
       by simplify_eq.
     - by econstructor.
     - assert (hCZ := hin).
@@ -236,10 +226,9 @@ Section ProgDef.
       rewrite -map_subst_ty_subst; first by eapply InheritsTrans.
       apply inherits_using_wf in h => //.
       apply inherits_using_wf in hCZ => //.
-      destruct h as [bdef [cdef [hB [hC [hF0 [hlen0 _]]]]]].
-      destruct hCZ as [? [zdef [hC' [hZ [hF1 [hlen1 _]]]]]].
-      simplify_eq.
-      by rewrite hlen0.
+      destruct h as (bdef & hbdef & hF0 & hwfC).
+      destruct hCZ as (cdef & hcdef & hF1 & hwfZ).
+      inv hwfC; simplify_eq; by rewrite H2.
   Qed.
 
   (* Stripped version of extends_using/inherits_using, mostly for
@@ -290,7 +279,7 @@ Section ProgDef.
     - exists σ'; left; split => //.
       apply subst_tys_id.
       apply inherits_using_wf in hz => //.
-      destruct hz as (? & ? & ? & ? & hF & _ ).
+      destruct hz as (? & ? & hF & _ ).
       by simplify_eq.
     - inv hext; inv hz.
       + simplify_eq.
@@ -298,18 +287,19 @@ Section ProgDef.
         apply subst_tys_id.
         apply hwf in H.
         rewrite /wf_cdef_parent H0 in H.
-        by destruct H as (? & ? & _ & _ & hF).
+        by destruct H as (_ & hF).
       + inv H1.
         simplify_eq.
         apply hwf in H.
         rewrite /wf_cdef_parent H0 in H.
-        destruct H as (bdef & hB & hL & _ & hF).
-        exists (gen_targs (length bdef.(generics))); left; split; last by econstructor.
+        destruct H as (hwfB & hF).
+        inv hwfB.
+        exists (gen_targs (length def.(generics))); left; split; last by econstructor.
         by rewrite subst_ty_gen_targs.
       + inv H1.
         simplify_eq.
         exists σC; by left.
-    - destruct (inherits_using_wf _ _ _ hwf hz) as (adef & zdef & hA & hZ & hF0 & hL0 & _).
+    - destruct (inherits_using_wf _ _ _ hwf hz) as (adef & hadef & hF0 & hwfZ).
       inv hext; inv hz.
       + simplify_eq.
         exists (subst_ty s <$> t); right; split; last first.
@@ -318,13 +308,14 @@ Section ProgDef.
         }
         rewrite subst_tys_id // Forall_forall => ty hty.
         apply elem_of_list_fmap_2 in hty as [ ty' [ -> hty']].
-        apply hwf in hA.
-        rewrite /wf_cdef_parent H0 in hA.
-        destruct hA as (bdef & hB & hL & _ & hF).
-        apply bounded_subst with (length (generics bdef)) => //.
+        apply hwf in hadef.
+        rewrite /wf_cdef_parent H0 in hadef.
+        destruct hadef as (hwfB & hF1).
+        inv hwfB.
+        apply bounded_subst with (length (generics def)) => //.
         apply inherits_using_wf in h => //.
-        destruct h as (? & cdef & ? & hC & hF' & hL' & _); simplify_eq.
-        by rewrite Forall_forall in hF'; apply hF'.
+        destruct h as (? & ? & hF2 & hwfC); simplify_eq.
+        by rewrite Forall_forall in hF2; apply hF2.
       + inv H1.
         simplify_eq.
         exists t; by right.
@@ -335,19 +326,20 @@ Section ProgDef.
           rewrite map_subst_ty_subst //.
           apply inherits_using_wf in h => //.
           apply inherits_using_wf in hx => //.
-          destruct h as (bdef & Cdef & ? & ? & hf0 & hl0 & _).
-          destruct hx as (? & zdef' & ? & ? & hf1 & hl1 & _).
+          destruct h as (bdef & hbdef & hF1 & hwfC).
+          destruct hx as (cdef & hcdef & hF2 & hwfZ').
           simplify_eq.
-          by rewrite hl0.
+          inv hwfC; simplify_eq.
+          by rewrite H3.
         * exists σ''; right; split; last done.
           rewrite map_subst_ty_subst //.
           apply inherits_using_wf in h => //.
           apply inherits_using_wf in hx => //.
-          destruct h as (bdef & Cdef & ? & ? & hf0 & hl0 & _).
-          destruct hx as (zdef' & ? & ? & ? & hf1 & hl1 & _).
-          simplify_eq.
-          rewrite map_length in hL0.
-          by rewrite hL0.
+          destruct h as (bdef & hbdef & hF1 & hwfC).
+          destruct hx as (zdef & hzdef & hF2 & hwfC').
+          inv hwfZ; simplify_eq.
+          rewrite map_length in H3.
+          by rewrite H3.
   Qed.
 
   Lemma inherits_using_refl A σ:
@@ -360,9 +352,9 @@ Section ProgDef.
     { inv hA.
       - by exists adef.
       - inv H.
-        by exists cdef.
+        by exists adef.
       - inv H.
-        by exists cdef.
+        by exists adef.
     }
     destruct h as [adef hΔ].
     exists adef; split => //.
@@ -391,7 +383,8 @@ Section ProgDef.
         rewrite subst_ty_gen_targs //.
         apply hp in H.
         rewrite /wf_cdef_parent H0 in H.
-        destruct H as [? [? [ -> _ ]]].
+        destruct H as [H ?].
+        inv H.
         by simplify_eq.
     - inv hext; inv hother.
       + simplify_eq.
@@ -404,7 +397,8 @@ Section ProgDef.
         rewrite subst_ty_gen_targs //.
         apply hp in H.
         rewrite /wf_cdef_parent H0 in H.
-        destruct H as [? [? [ -> _ ]]].
+        destruct H as [H ?].
+        inv H.
         by simplify_eq.
       + inv H1; simplify_eq.
         apply hi in H2; by subst.
@@ -479,7 +473,8 @@ Section ProgDef.
     - apply wf_ty_subst => //.
       apply hp in hΔ.
       rewrite /wf_cdef_parent hs in hΔ.
-      by destruct hΔ as (pdef & ? & ? & htargs & _).
+      destruct hΔ as [hwft _].
+      by apply wf_ty_class_inv in hwft.
   Qed.
 
   (* If a class has a field f, then any subclass will inherit it,
@@ -513,8 +508,9 @@ Section ProgDef.
     - exists cdef; split => //.
       destruct hi as [pdef [ hp hb]].
       apply hwfparent in hΔ.
-      rewrite /wf_cdef_parent hs hp in hΔ.
-      destruct hΔ as (? & [= <-] & h0 & _ & h1).
+      rewrite /wf_cdef_parent hs in hΔ.
+      destruct hΔ as [hΔ hF].
+      inv hΔ; simplify_eq.
       by eapply bounded_subst.
   Qed.
 
@@ -540,9 +536,10 @@ Section ProgDef.
       apply has_field_extends_using with (A := A) (σB := σ) in hf => //.
       rewrite -subst_ty_subst //.
       apply inherits_using_wf in h => //.
-      destruct h as (? & ? & ? & ? & ? & h & _).
+      destruct h as (bdef & hbdef & hF & hwfC).
+      inv hwfC.
       simplify_eq.
-      by rewrite h.
+      by rewrite H2.
   Qed.
 
   (* Helper predicate to collect all fields of a given class, as a map.
@@ -600,7 +597,8 @@ Section ProgDef.
     - assert (hσ : Forall wf_ty σ).
       { apply hp in ht.
         rewrite /wf_cdef_parent hs in ht.
-        by destruct ht as (? & ? & ? & ? & ?).
+        destruct ht as [ht _].
+        by apply wf_ty_class_inv in ht.
       }
       split.
       + apply map_Forall_lookup => k ty.
@@ -660,9 +658,9 @@ Section ProgDef.
       assert (ho' := ho).
       apply hmb in ho.
       apply ho in hom.
-      apply inherits_using_wf in hin as (? & ? & ? & ? & ? & hlen & _) => //.
-      simplify_eq.
-      by rewrite hlen.
+      apply inherits_using_wf in hin as (? & ? & hf & hwf0) => //.
+      inv hwf0; simplify_eq.
+      by rewrite H3.
   Qed.
 
   (* Helper lemma: If A inherits a method m from class orig, and
@@ -701,11 +699,12 @@ Section ProgDef.
             by econstructor.
           }
           rewrite subst_mdef_mdef; first by rewrite hσ.
-          apply inherits_using_wf in hBO as (? & ? & ? & ? & hF & hL & _) => //; simplify_eq.
-          apply hb in H1.
-          apply H1 in hmo.
-          rewrite map_length in hL.
-          by rewrite hL.
+          apply inherits_using_wf in hBO as (? & ? & hF & hwf0) => //.
+          inv hwf0; simplify_eq.
+          apply hb in H.
+          apply H in hmo.
+          rewrite map_length in H4.
+          by rewrite H4.
       + inv H; simplify_eq; clear hi.
         destruct (has_method_from_def _ _ _ _ hp hb h) as (odef & modef & ? & hmo & _ & [σo [hin ->]]).
         exists odef, modef, (subst_mdef σo modef); repeat split => //.

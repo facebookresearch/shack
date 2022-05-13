@@ -371,10 +371,10 @@ Section Subtype.
           by rewrite list_lookup_fmap hgi.
     - by apply extends_using_mono with (def := def) in h.
     - apply inherits_using_wf in h => //.
-      destruct h as (bdef & cdef & hb & hc & hF & hL & hwf).
-      assert (hb' := hb).
+      destruct h as (bdef & hbdef & hF & hwf).
+      assert (hbdef' := hbdef).
       assert (hext' := hext).
-      apply hi in hb'.
+      apply hi in hbdef.
       apply extends_using_mono with (def := def) in hext' => //.
       inv hext'.
       simplify_eq.
@@ -382,8 +382,9 @@ Section Subtype.
       apply mono_subst with (generics bdef) => //.
       + by constructor.
       + apply extends_using_wf in hext => //.
-        repeat destruct hext as [? hext].
-        by simplify_eq.
+        destruct hext as (? & ? & ? & hwfB).
+        inv hwfB; simplify_eq.
+        by rewrite H6.
   Qed.
 
   Lemma has_field_mono f t vis ty orig:
@@ -411,7 +412,8 @@ Section Subtype.
         assert (htag := hΔ).
         apply hp in htag.
         rewrite /wf_cdef_parent hs in htag.
-        destruct htag as (? & ? & hlen & hwf & hb); simplify_eq.
+        destruct htag as (hwf & hf0); simplify_eq.
+        inv hwf.
         apply has_field_bounded in h => //.
         destruct h as (? & ? & hbt).
         assert (htag := hΔ).
@@ -428,12 +430,12 @@ Section Subtype.
             move => i vi ti hvi hti hc.
             apply list_lookup_fmap_inv in hvi.
             destruct hvi as [wi [-> hwi]].
-            eapply H4 => //.
+            eapply H7 => //.
             by destruct wi.
           * move => i vi ti hvi hti hc.
             apply list_lookup_fmap_inv in hvi.
             destruct hvi as [wi [-> hwi]].
-            eapply H5 => //.
+            eapply H8 => //.
             by destruct wi.
   Qed.
 
@@ -577,7 +579,8 @@ Section Subtype.
       rewrite /map_Forall_lookup in hp.
       apply hp in hΔ.
       rewrite /wf_cdef_parent H0 in hΔ.
-      destruct hΔ as (bdef & hB & hL & hσB & hb).
+      destruct hΔ as (hwfB & hF).
+      inv hwfB.
       econstructor; first done.
       + by rewrite map_length.
       + move => k ty.
@@ -585,9 +588,7 @@ Section Subtype.
         destruct (σB !! k) as [ tyk | ] eqn:hty => //=.
         case => <-.
         apply wf_ty_subst; first by apply wf_ty_class_inv in hwf.
-        rewrite Forall_forall in hσB.
-        apply elem_of_list_lookup_2 in hty.
-        by apply hσB in hty.
+        by eauto.
     - econstructor; by eauto.
     - apply length_subtype_targs_v1 in hσ.
       inv hwf; simplify_eq; econstructor.
@@ -631,8 +632,8 @@ Section Subtype.
         * econstructor; [exact hΔ | | by assumption].
           by rewrite map_length.
         * apply extends_using_wf in hext; last done.
-          destruct hext as (? & bdef & ? & hB & hF & hL).
-          simplify_eq.
+          destruct hext as (? & hadef & hF & hwfB).
+          inv hwfB; simplify_eq.
           by rewrite hA.
       + eapply SubEx0 => //.
       + eapply SubVariance.
@@ -899,11 +900,11 @@ Section Subtype.
     - by econstructor.
     - eapply SubTrans; first by eapply SubClass.
       apply extends_using_wf in hext => //.
-      destruct hext as (? & bdef & hadef' & hbdef & hF0 & hL0 & _).
+      destruct hext as (? & hadef' & hF0 & hwfB).
       apply inherits_using_wf in h => //.
-      destruct h as (? & cdef & hbdef' & hcdef & hF1 & hL1 & _).
-      simplify_eq.
-      rewrite map_subst_ty_subst; last by rewrite hL0.
+      destruct h as (bdef & hbdef & hF1 & hwfC).
+      inv hwfB; simplify_eq.
+      rewrite map_subst_ty_subst; last by rewrite H2.
       apply hi with bdef => //.
       by rewrite map_length.
   Qed.
@@ -1145,7 +1146,8 @@ Section Subtype.
       split.
       { rewrite subst_ty_gen_targs //.
         apply inherits_using_wf in hiA => //.
-        repeat destruct hiA as [? hiA]; by simplify_eq.
+        destruct hiA as (? & ? & hF & hwf).
+        inv hwf; by simplify_eq.
       }
       do 4 (split => //).
       split; first by econstructor.
@@ -1167,17 +1169,18 @@ Section Subtype.
         apply hm in hoA'.
         apply hoA' in hmA.
         apply inherits_using_wf in h => //.
-        repeat destruct h as [? h]; simplify_eq.
-        by rewrite H2.
+        destruct h as (? & ? & hf & hwf).
+        inv hwf; simplify_eq.
+        by rewrite H3.
     - exists (subst_ty σ'' <$> σB), σA, σB, oadef, obdef, oaorig, oborig.
       split.
       { rewrite map_subst_ty_subst //.
         apply inherits_using_wf in hiB => //.
         repeat destruct hiB as [? hiB].
         apply inherits_using_wf in h => //.
-        repeat destruct h as [? h].
-        simplify_eq.
-        by rewrite H6.
+        destruct h as (? & ? & hf & hwf).
+        inv hwf; simplify_eq.
+        by rewrite H5.
       }
       assert (hh: inherits_using origA origB (subst_ty σ'' <$> σB))
         by (by eapply inherits_using_trans).
@@ -1192,26 +1195,28 @@ Section Subtype.
         repeat destruct hiB as [? hiB].
         simplify_eq.
         apply bounded_subst_mdef with (length (generics obdef)) => //.
+        { inv hiB; by simplify_eq. }
         apply inherits_using_wf in h => //.
-        repeat destruct h as [? h].
-        simplify_eq.
+        destruct h as (? & ? & hf & hwf).
+        inv hwf; simplify_eq.
         rewrite Forall_forall => ty hty.
         rewrite H5.
-        rewrite Forall_forall in H1.
-        by apply H1 in hty.
+        rewrite Forall_forall in H0.
+        by apply H0 in hty.
       }
       apply mdef_incl_subst => //.
       { apply inherits_using_wf in hiA => //.
-        by repeat destruct hiA as [? hiA].
+        destruct hiA as (? & ? & ? & hwf).
+        by apply wf_ty_class_inv in hwf.
       }
       rewrite subst_mdef_mdef //.
       { assert (hoB' := hoB).
         apply hm in hoB'.
         apply hoB' in hmB.
         apply inherits_using_wf in hiB => //.
-        repeat destruct hiB as [? hiB].
-        simplify_eq.
-        by rewrite H2.
+        destruct hiB as (? & ?& hF & hwf).
+        inv hwf; simplify_eq.
+        by rewrite H3.
       }
   Qed.
 End Subtype.

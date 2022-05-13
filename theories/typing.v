@@ -210,34 +210,28 @@ Section Typing.
           by apply hΔ in hc as [].
     - by apply extends_using_ok in hext.
     - destruct hi as (bdef & hB & hokB).
-      destruct hext as [A B adef σ hΔ hsuper].
-      assert (hσ: Forall wf_ty σ).
-      { apply hp in hΔ.
-        rewrite /wf_cdef_parent hsuper in hΔ.
-        by repeat destruct hΔ as [? hΔ].
+      assert (hwfB: wf_ty (ClassT B σ)).
+      { apply extends_using_wf in hext => //.
+        by repeat destruct hext as [? hext].
       }
+      assert (hwfC: wf_ty (ClassT C σC)).
+      { apply inherits_using_wf in h => //.
+        by repeat destruct h as [? h].
+      }
+      inv hwfC.
+      destruct hext as [A B adef σ hΔ hsuper].
       exists adef; split => //.
-      assert (hA := hΔ).
-      apply hok in hΔ.
-      rewrite /wf_cdef_parent_ok hsuper in hΔ.
-      inv hΔ; inv hokB; simplify_eq.
-      rename def0 into cdef.
-      rename H5 into hC.
       econstructor => //.
       { move => i ty hi.
         apply list_lookup_fmap_inv in hi as [ty' [-> hi]].
         eapply ok_ty_trans.
         + eapply ok_ty_subst => //.
+          { inv hokB; by eauto. }
           { by eauto. }
-          { apply inherits_using_wf in h as (? & ? & ? & ? & ? & ? & hF)=> //.
-            rewrite Forall_forall in hF.
-            apply hF.
-            by apply elem_of_list_lookup_2 in hi.
-          }
-          apply hok in hA.
-          rewrite /wf_cdef_parent_ok hsuper in hA.
-          apply ok_ty_class_inv in hA.
-          exact hA.
+          { by apply wf_ty_class_inv in hwfB. }
+          apply hok in hΔ.
+          rewrite /wf_cdef_parent_ok hsuper in hΔ.
+          by apply ok_ty_class_inv in hΔ.
         + move => j c.
           rewrite lookup_app_Some.
           case => [hc | [? ]].
@@ -247,38 +241,40 @@ Section Typing.
           * rewrite /subst_constraints => hc.
             apply list_lookup_fmap_inv in hc as [c' [-> hc]].
             rewrite /subst_constraint /=.
-            apply hok in hA.
-            rewrite /wf_cdef_parent_ok hsuper in hA.
-            inv hA; simplify_eq.
+            apply hok in hΔ.
+            rewrite /wf_cdef_parent_ok hsuper in hΔ.
+            inv hΔ; simplify_eq.
             by eauto.
       }
       move => i c hc.
-      simplify_eq.
       rewrite -!subst_ty_subst.
       + eapply subtype_constraint_trans.
-        * apply subtype_subst => //.
-          by eauto.
+        * apply subtype_subst => //; last by apply wf_ty_class_inv in hwfB.
+          inv hokB; simplify_eq; by eauto.
         * move => j c'.
           rewrite /subst_constraints => hc'.
           apply list_lookup_fmap_inv in hc' as [c'' [-> hc']].
           rewrite /subst_constraint /=.
+          apply hok in hΔ.
+          rewrite /wf_cdef_parent_ok hsuper in hΔ.
+          inv hΔ; simplify_eq.
           by eauto.
-      + assert (hC' := hC).
+      + assert (hC := H1).
         apply hcb in hC.
         rewrite /wf_cdef_constraints_bounded Forall_forall in hC.
         apply elem_of_list_lookup_2 in hc.
         apply hC in hc as [].
-        apply inherits_using_wf in h as (? & ? & ? & ? & ? & hL & ?)=> //.
-        simplify_eq.
-        by rewrite hL.
-      + assert (hC' := hC).
+        apply inherits_using_wf in h as (? & ? & ? & hwf)=> //.
+        inv hwf; simplify_eq.
+        by rewrite H9.
+      + assert (hC := H1).
         apply hcb in hC.
         rewrite /wf_cdef_constraints_bounded Forall_forall in hC.
         apply elem_of_list_lookup_2 in hc.
         apply hC in hc as [].
-        apply inherits_using_wf in h as (? & ? & ? & ? & ? & hL & ?)=> //.
-        simplify_eq.
-        by rewrite hL.
+        apply inherits_using_wf in h as (? & ? & ? & hwf)=> //.
+        inv hwf; simplify_eq.
+        by rewrite H9.
   Qed.
 
   Definition wf_cdef_constraints_ok cdef :=
@@ -788,7 +784,7 @@ Section Typing.
         destruct hm as (odef & mo & ho & hmo & _ & [σo [hin ->]]).
         rewrite /subst_mdef /=.
         apply inherits_using_wf in hin => //.
-        destruct hin as (tdef & ? & ht & ho' & hfo & hlo & htyo); simplify_eq.
+        destruct hin as (tdef & htdef & hF& hwfo); inv hwfo; simplify_eq.
         assert (ho' := ho).
         apply hmb in ho.
         apply ho in hmo.
@@ -796,7 +792,7 @@ Section Typing.
         apply bounded_subst with (n := length (generics odef)) => //.
         apply expr_has_ty_wf in he => //.
         inv he; simplify_eq.
-        by rewrite H2.
+        by rewrite H4.
       }
       eapply CallTy => //.
       + change (ClassT t (subst_ty σ <$> targs)) with (subst_ty σ (ClassT t targs)).
@@ -809,7 +805,7 @@ Section Typing.
         apply has_method_from_def in hm => //.
         destruct hm as (odef & mo & ho & hmo & _ & [σo [hin ->]]).
         apply inherits_using_wf in hin => //.
-        destruct hin as (tdef & ? & ht & ho' & hfo & hlo & htyo); simplify_eq.
+        destruct hin as (tdef & htdef & hF & hwfo); inv hwfo; simplify_eq.
         assert (ho' := ho).
         apply hmb in ho.
         apply ho in hmo.
@@ -821,7 +817,7 @@ Section Typing.
         apply bounded_subst with (n := length (generics odef)) => //.
         apply expr_has_ty_wf in he => //.
         inv he; simplify_eq.
-        by rewrite H2.
+        by rewrite H4.
     - econstructor; last by apply hi.
       apply lty_sub_weaken with (subst_constraints σ Γ); last by set_solver.
       by apply lty_sub_subst.
@@ -980,8 +976,7 @@ Section MethodTyping.
     assert (h0: is_Some (Δ !! C0) ∧ wf_ty (ClassT C1 σ1)).
     { apply inherits_using_wf in hinherits => //.
       repeat destruct hinherits as [? hinherits].
-      split => //.
-      by eapply wf_ty_class.
+      by split.
     }
     destruct h0 as [[def0 hdef0] hwf1].
     assert (hwfσ1 : Forall wf_ty σ1) by (by apply wf_ty_class_inv in hwf1).
