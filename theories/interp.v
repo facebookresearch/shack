@@ -119,7 +119,7 @@ Section proofs.
     (dom_fields: stringset)
     (ifields: gmapO string (laterO (sem_typeO Σ)))
     (rec: ty_interpO) : iProp Σ :=
-    (⌜dom _ ifields = dom_fields⌝ ∗
+    (⌜dom ifields = dom_fields⌝ ∗
     (∀ f vis ty orig, ⌜has_field f C vis ty orig⌝ -∗ ifields !! f ≡ Some (Next (interp_car (rec (subst_ty σC ty)))))
     )%I.
 
@@ -136,7 +136,7 @@ Section proofs.
        Σc ⊢ (subst_ty σt <$> σ) <: cdef.(generics) :> σC ∧
 
        has_fields t fields⌝ ∗
-      interp_fields t σt (dom stringset fields) ifields rec ∗
+      interp_fields t σt (dom fields) ifields rec ∗
       (ℓ ↦ (t, ifields)))%I
     ).
 
@@ -148,7 +148,7 @@ Section proofs.
        wf_ty (ClassT t σt) ∧ ok_ty Σc (ClassT t σt) ∧
        (subst_ty σt <$> σ) = σC ∧
        has_fields t fields⌝ ∗
-      interp_fields t σt (dom stringset fields) ifields rec ∗
+      interp_fields t σt (dom fields) ifields rec ∗
       (ℓ ↦ (t, ifields)))%I
     ).
 

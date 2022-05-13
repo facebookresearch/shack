@@ -1039,8 +1039,8 @@ Section Subtype.
    * - return type must be a subtype
    * - argument types must be a supertype
    *)
-  Definition mdef_incl Γ sub super :=
-    dom stringset sub.(methodargs) = dom _ super.(methodargs) ∧
+  Definition mdef_incl (Γ: list constraint) (sub super: methodDef) :=
+    dom sub.(methodargs) = dom super.(methodargs) ∧
     (∀ k A B, sub.(methodargs) !! k = Some A →
     super.(methodargs) !! k = Some B → Γ ⊢ B <: A) ∧
     Γ ⊢ sub.(methodrettype) <: super.(methodrettype).

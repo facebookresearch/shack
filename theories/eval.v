@@ -73,7 +73,7 @@ Section Evaluation.
   Lemma dom_map_args: ∀ A B (f: A → option B)
     (m: stringmap A) (n: stringmap B),
     map_args f m = Some n →
-    dom stringset n = dom _ m.
+    dom n = dom m.
   Proof.
     rewrite /map_args => A B f m n h.
     case_option_guard; last done.

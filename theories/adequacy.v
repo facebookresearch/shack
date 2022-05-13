@@ -29,13 +29,13 @@ Section proofs.
   (* Helper defintion to state that fields are correctly modeled *)
   Definition heap_models_fields
     (iFs: gmapO string (laterO (sem_typeO Σ))) (vs: stringmap value) : iProp Σ :=
-    ⌜dom (gset string) vs ≡ dom _ iFs⌝  ∗
+    ⌜dom vs ≡ dom iFs⌝  ∗
     ∀ f (iF: sem_typeO Σ),
     iFs !! f ≡ Some (Next iF) -∗ ∃ v, (⌜vs !! f = Some v⌝ ∗ ▷iF v).
 
   Definition heap_models (h : heap) : iProp Σ :=
     ∃ (sh: gmap loc (prodO tagO (gmapO string (laterO (sem_typeO Σ))))),
-    own γ (gmap_view_auth (DfracOwn 1) sh) ∗ ⌜dom (gset loc) sh = dom _ h⌝ ∗
+    own γ (gmap_view_auth (DfracOwn 1) sh) ∗ ⌜dom sh = dom h⌝ ∗
     □ ∀ (ℓ : loc) (t : tag) (vs : stringmap value),
     ⌜h !! ℓ = Some (t, vs)⌝ -∗
     ∃ (iFs : gmapO string (laterO (sem_typeO Σ))),
@@ -157,7 +157,7 @@ Section proofs.
     interp_env_as_mixed Σc Σi →
     Forall wf_constraint Σc →
     wf_lty lty →
-    dom stringset targs = dom stringset args →
+    dom targs = dom args →
     map_args (expr_eval le) args = Some vargs →
     (∀ (x : string) (ty : lang_ty) (arg : expr),
     targs !! x = Some ty →
@@ -225,7 +225,7 @@ Section proofs.
        | Public => Σc ⊢ subst_ty σt' <$> σ' <: generics def :> σt
        | Private => subst_ty σt' <$> σ' = σt
        end ∧ has_fields t' fields⌝ ∗
-      interp_fields t' σt' (dom _ fields) ifields (interp_type Σc Σi) ∗
+      interp_fields t' σt' (dom fields) ifields (interp_type Σc Σi) ∗
       l↦(t',ifields))%I with "[hrecv]" as "hrecv".
     { destruct vis.
       - rewrite interp_class_unfold.
@@ -443,7 +443,7 @@ Section proofs.
         fold_leibniz; subst.
         iSplitR; first done.
         iSplitL. { iExists _. iFrame. by iSplit. }
-        iAssert (interp_fields t (subst_ty σt <$> σ) (dom _ fields) ifields (interp_type Σc Σi)) with "[Hifields]" as "Hifields_t".
+        iAssert (interp_fields t (subst_ty σt <$> σ) (dom fields) ifields (interp_type Σc Σi)) with "[Hifields]" as "Hifields_t".
         { destruct wfΔ.
           by iApply interp_fields_inclusion.
         }
@@ -524,7 +524,7 @@ Section proofs.
       iIntros "!> !>". (* kill the modalities *)
       iAssert (interp_type Σc Σi (ClassT t targs) (LocV new)) with "[]" as "#Hl".
       {
-        iAssert (interp_fields t targs (dom _ fields) iFs (interp_type Σc Σi)) as "HiFs".
+        iAssert (interp_fields t targs (dom fields) iFs (interp_type Σc Σi)) as "HiFs".
         { rewrite /interp_fields; iSplit; first by rewrite /iFs !dom_fmap_L.
           iIntros (f vis fty orig) "%hfty".
           apply hf in hfty.
@@ -559,7 +559,7 @@ Section proofs.
         by rewrite /iFs !dom_fmap_L H6 -hdom.
       }
       iIntros (f iF) "hiF".
-      iAssert (⌜f ∈ dom stringset fields⌝)%I as "%hfield".
+      iAssert (⌜f ∈ dom fields⌝)%I as "%hfield".
       {
         rewrite !lookup_fmap.
         rewrite elem_of_dom.
@@ -802,14 +802,14 @@ Section proofs.
                       apply list_lookup_fmap_inv in hvi.
                       destruct hvi as [wi [-> hwi]].
                       move => hti hc.
-                      apply inherits_using_mono with (def0 := def) in hin_t_o => //.
+                      apply inherits_using_mono with (def := def) in hin_t_o => //.
                       inv hin_t_o; simplify_eq.
                       destruct wi; by eauto.
                     + move => i vi ti hvi.
                       apply list_lookup_fmap_inv in hvi.
                       destruct hvi as [wi [-> hwi]].
                       move => hti hc.
-                      apply inherits_using_mono with (def0 := def) in hin_t_o => //.
+                      apply inherits_using_mono with (def := def) in hin_t_o => //.
                       inv hin_t_o; simplify_eq.
                       destruct wi; by eauto.
                   - apply wf_ty_subst => //.
@@ -854,7 +854,7 @@ Section proofs.
       assert (hsub: Σc ⊢ subst_ty (subst_ty σt <$> σ0) (methodrettype omdef0) <:
                          subst_ty targs (subst_ty σot (methodrettype omdef))).
       { eapply SubTrans; last first.
-        - apply subtype_lift with (σ1 := subst_ty σt <$> σin) (vs0 := generics def) => //.
+        - apply subtype_lift with (σ0 := subst_ty σt <$> σin) (vs := generics def) => //.
           + assert (hmono := hodef).
             apply wf_methods_mono in hmono.
             assert (hm := homdef).
@@ -866,11 +866,11 @@ Section proofs.
             * apply inherits_using_wf in hin_t_o => //.
               repeat destruct hin_t_o as [? hin_t_o]; by simplify_eq.
             * move => i vi ti hvi hti hc.
-              apply inherits_using_mono with (def0 := def) in hin_t_o => //.
+              apply inherits_using_mono with (def := def) in hin_t_o => //.
               inv hin_t_o; simplify_eq.
               by eauto.
             * move => i vi ti hvi hti hc.
-              apply inherits_using_mono with (def0 := def) in hin_t_o => //.
+              apply inherits_using_mono with (def := def) in hin_t_o => //.
               inv hin_t_o; simplify_eq.
               by eauto.
           + apply wf_ty_subst => //.

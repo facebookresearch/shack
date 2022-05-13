@@ -1282,7 +1282,7 @@ Proof.
   iAssert (⌜is_Some (sh !! l)⌝)%I as "%h_sh_l".
   { by iRewrite "HΦ". }
   assert (h_h_l : is_Some (h !! l)).
-  { assert (hh: l ∈ dom (gset loc) sh) by (by apply elem_of_dom).
+  { assert (hh: l ∈ dom sh) by (by apply elem_of_dom).
     rewrite Hdom in hh.
     by apply elem_of_dom in hh.
   }

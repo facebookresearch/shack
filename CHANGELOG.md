@@ -2,3 +2,9 @@
 
 ### shack
 Creation of the repository
+
+1.alpha (May 13, 2022)
+
+### shack
+Upgrade to Coq 8.15.1 + more recent iris
+Core language is formalized. Starting to work on dynamic aspects of Hack

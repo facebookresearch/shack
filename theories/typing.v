@@ -466,7 +466,7 @@ Section Typing.
         wf_ty (ClassT t targs) →
         ok_ty Γ (ClassT t targs) →
         has_fields t fields →
-        dom (gset string) fields = dom _ args →
+        dom fields = dom args →
         (∀ f fty arg,
         fields !! f = Some fty →
         args !! f = Some arg →
@@ -475,7 +475,7 @@ Section Typing.
     | CallTy: ∀ lty lhs recv t targs name orig mdef args,
         expr_has_ty Γ lty recv (ClassT t targs) →
         has_method name t orig mdef →
-        dom (gset string) mdef.(methodargs) = dom _ args →
+        dom mdef.(methodargs) = dom args →
         (∀ x ty arg,
         mdef.(methodargs) !! x = Some ty →
         args !! x = Some arg →
