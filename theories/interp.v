@@ -174,7 +174,7 @@ Section proofs.
   Qed.
 
   Definition interp_ex (cname: tag) (rec: ty_interpO): interp Σ :=
-    Interp (λ (w: value), (∃ σc, ⌜Forall wf_ty σc⌝ ∗ interp_class cname σc rec w)%I).
+    Interp (λ (w: value), (∃ σc, ⌜wf_ty (ClassT cname σc)⌝ ∗ interp_class cname σc rec w)%I).
 
   Definition interp_nonnull (rec : ty_interpO) : interp Σ :=
     Interp (
@@ -464,7 +464,7 @@ Section proofs.
     Proof.
       { move => ????.
         destruct 1 as [A | A h | A σA B σB adef hΔ hlen hext
-        | A def σ0 σ1 hΔ hwfσ σ | | | | A | A B h
+        | A adef hadef hL | A def σ0 σ1 hΔ hwfσ σ | | | | A | A B h
         | A B h | A B C h0 h1 | A B | A B | A B C h0 h1
         | A | A B C h0 h1 | A B hin] => v hwfA.
         - rewrite /interp_mixed.
@@ -473,8 +473,7 @@ Section proofs.
           + move => v _; iIntros "h"; by repeat iLeft.
           + move => v _; iIntros "h"; by iLeft; iRight; iLeft.
           + move => v _; by rewrite /interp_nothing; iIntros "h".
-          + move => cname targs _ v hwf.
-            apply wf_ty_class_inv in hwf.
+          + move => cname targs ? v hwf.
             iIntros "h".
             iLeft; iRight; iRight.
             iExists cname, targs.
@@ -515,6 +514,18 @@ Section proofs.
           apply wf_ty_class_inv in hwfA.
           rewrite -!interp_type_unfold; by iApply extends_using_is_inclusion.
         - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
+          simpl.
+          iIntros "h".
+          iDestruct "h" as (σc hσc l t cdef σ σt fields ifields hpure) "[h hl]".
+          repeat destruct hpure as [? hpure]; simplify_eq.
+          iExists l, t, adef, σ, σt , fields, ifields; iSplit; last by iSplit.
+          iPureIntro.
+          repeat split => //.
+          inv hσc; simplify_eq.
+          replace [] with σc => //.
+          apply nil_length_inv.
+          by rewrite -hL.
+        - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
           iIntros "h".
           iDestruct "h" as (l t adef Σin σt fields ifields) "[%hpure [#hifields #hl]]".
           destruct hpure as (-> & hin & hwft & hokt & hadef & hsub & hfields).
@@ -535,8 +546,7 @@ Section proofs.
           iRight; iRight.
           iExists A, targs.
           iSplitR; last done.
-          iPureIntro.
-          by apply wf_ty_class_inv in hwfA.
+          by iPureIntro.
         - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
           by iIntros "h"; iLeft.
         - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
@@ -662,19 +672,32 @@ Section proofs.
     iIntros "H".
     iApply hi; clear hyz hi.
     iDestruct "H" as (σx) "[%hσx H]".
-    inv hxy.
-    iAssert (interp_type (ClassT y (subst_ty σx <$> σB)) v) with "[H]" as "Hext".
+    destruct hxy as [x y xdef σy hxdef hsuper].
+    assert (hext: extends_using x y σy) by (econstructor; by eauto).
+    assert (hydef : is_Some (Δ !! y)).
+    { apply hp in hxdef.
+      rewrite /wf_cdef_parent hsuper in hxdef.
+      by repeat destruct hxdef as [? hxdef].
+    }
+    destruct hydef as [ydef hydef].
+    iAssert (interp_type (ClassT y (subst_ty σx <$> σy)) v) with "[H]" as "Hext".
     { iApply extends_using_is_inclusion => //.
-      - by econstructor.
+      - by apply wf_ty_class_inv in hσx.
       - by rewrite interp_class_unfold.
     }
     rewrite interp_class_unfold interp_ex_unfold.
-    iExists (subst_ty σx <$> σB); iSplitR; last done.
+    iExists (subst_ty σx <$> σy); iSplitR; last done.
     iPureIntro.
-    apply wf_ty_subst_map => //.
-    apply hp in H.
-    rewrite /wf_cdef_parent H0 in H.
-    by repeat destruct H as [? H].
+    apply wf_ty_class with ydef => //.
+    { rewrite map_length.
+      apply hp in hxdef.
+      rewrite /wf_cdef_parent hsuper in hxdef.
+      by repeat destruct hxdef as [? hxdef]; simplify_eq.
+    }
+    apply wf_ty_subst_map; first by apply wf_ty_class_inv in hσx.
+    apply hp in hxdef.
+    rewrite /wf_cdef_parent hsuper in hxdef.
+    by repeat destruct hxdef as [? hxdef].
   Qed.
 
   (* Helper to lift the conclusions of interp_class into a super class *)

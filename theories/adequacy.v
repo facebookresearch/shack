@@ -973,10 +973,7 @@ Section proofs.
         }
         destruct hrt as [rdef hrt].
         iExists σt.
-        iSplitR.
-        { iPureIntro.
-          by apply wf_ty_class_inv in hwf'.
-        }
+        iSplitR; first by iPureIntro.
         iExists l, rt, rdef, (gen_targs (length rdef.(generics))), σt, exfields, ifields.
         iSplit.
         + iPureIntro; repeat split => //.
@@ -1179,10 +1176,7 @@ Section proofs.
           }
           destruct hrt as [rdef hrt].
           iExists σt.
-          iSplitR.
-          { iPureIntro.
-            by apply wf_ty_class_inv in hwf'.
-          }
+          iSplitR; first by iPureIntro.
           iExists l, rt, rdef, (gen_targs (length rdef.(generics))), σt, exfields, ifields.
           iSplit.
           + iPureIntro; repeat split => //.

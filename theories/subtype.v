@@ -21,9 +21,13 @@ Section Subtype.
     | SubNothing: ∀ ty, wf_ty ty → subtype Γ NothingT ty
     | SubClass: ∀ A σA B σB adef,
         Δ !! A = Some adef →
-        length σA = length (adef.(generics)) →
+        length σA = length adef.(generics) →
         extends_using A B σB →
         subtype Γ (ClassT A σA) (ClassT B (subst_ty σA <$> σB))
+    | SubEx0: ∀ A adef,
+        Δ !! A = Some adef →
+        length adef.(generics) = 0 →
+        subtype Γ (ExT A) (ClassT A [])
     | SubVariance: ∀ A adef σ0 σ1,
         Δ !! A = Some adef →
         Forall wf_ty σ1 →
@@ -99,8 +103,9 @@ Section Subtype.
      Γ ⊢ lhs <: vs :> rhs → ∀ Γ', Γ ⊆ Γ' → Γ' ⊢ lhs <: vs :> rhs.
   Proof.
     - destruct 1 as [ ty | ty hwf | A σA B σB adef hadef hL hext
-      | A adef σ0 σ1 hadef hwf hσ | | | | A targs | s t ht | s t hs
-      | s t u hs ht | s t | s t | s t u hs ht | s | s t u hs ht | s t hin] => Γ' hΓ; try by econstructor.
+      | A adef hadef hL | A adef σ0 σ1 hadef hwf hσ | | | | A targs | s t ht
+      | s t hs | s t u hs ht | s t | s t | s t u hs ht | s | s t u hs ht
+      | s t hin] => Γ' hΓ; try by econstructor.
       + econstructor; [ done | done | ].
         by eapply subtype_targs_weaken.
       + econstructor; by eapply subtype_weaken.
@@ -130,8 +135,9 @@ Section Subtype.
     Γ ⊢ lhs <: vs :> rhs.
   Proof.
     - destruct 1 as [ ty | ty hwf | A σA B σB adef hadef hL hext
-      | A adef σ0 σ1 hadef hwf hσ | | | | A targs | s t ht | s t hs
-      | s t u hs ht | s t | s t | s t u hs ht | s | s t u hs ht | s t hin] => Γ Γ' heq hΓ; subst; try by econstructor.
+      | A adef hadef hL | A adef σ0 σ1 hadef hwf hσ | | | | A targs
+      | s t ht | s t hs | s t u hs ht | s t | s t | s t u hs ht | s
+      | s t u hs ht | s t hin] => Γ Γ' heq hΓ; subst; try by econstructor.
       + econstructor; [done | done | ].
         by eapply subtype_targs_constraint_elim_.
       + econstructor; by eapply subtype_constraint_elim_.
@@ -175,8 +181,9 @@ Section Subtype.
     Γ' ⊢ lhs <: vs :> rhs.
   Proof.
     - destruct 1 as [ ty | ty hwf | A σA B σB adef hadef hL hext
-      | A adef σ0 σ1 hadef hwf hσ | | | | A targs | s t ht | s t hs
-      | s t u hs ht | s t | s t | s t u hs ht | s | s t u hs ht | s t hin] => Γ' hΓ; try by econstructor.
+      | A adef hadef hL | A adef σ0 σ1 hadef hwf hσ | | | | A targs | s t ht
+      | s t hs | s t u hs ht | s t | s t | s t u hs ht | s | s t u hs ht
+      | s t hin] => Γ' hΓ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
         eapply subtype_targs_constraint_trans.
         * by apply hσ.
@@ -563,7 +570,7 @@ Section Subtype.
   Proof.
     move => hp hΓ hwf.
     induction 1 as [ ty | ty h | A σA B σB adef hΔ hA hext
-      | A adef σ0 σ1 hΔ hwfσ hσ | | | | A args | s t h
+      | A adef hadef hL | A adef σ0 σ1 hΔ hwfσ hσ | | | | A args | s t h
       | s t h | s t u hs his ht hit | s t | s t | s t u hs his ht hit | s
       | s t u hst hist htu hitu | s t hin ] => //=; try (by constructor).
     - inv hext; simplify_eq.
@@ -581,6 +588,7 @@ Section Subtype.
         rewrite Forall_forall in hσB.
         apply elem_of_list_lookup_2 in hty.
         by apply hσB in hty.
+    - econstructor; by eauto.
     - apply length_subtype_targs_v1 in hσ.
       inv hwf; simplify_eq; econstructor.
       + exact hΔ.
@@ -614,7 +622,7 @@ Section Subtype.
   Proof.
     - move => hp.
       destruct 1 as [ ty | ty h | A σA B σB adef hΔ hA hext
-      | A adef σ0 σ1 hΔ hwfσ hσ01 | | | | A args
+      | A adef hadef hL | A adef σ0 σ1 hΔ hwfσ hσ01 | | | | A args
       | s t h | s t h | s t u hs ht | s t | s t | s t u hs ht | s
       | s t u hst htu | s t hin] => σ hσ => /=; try (by constructor).
       + constructor.
@@ -626,6 +634,7 @@ Section Subtype.
           destruct hext as (? & bdef & ? & hB & hF & hL).
           simplify_eq.
           by rewrite hA.
+      + eapply SubEx0 => //.
       + eapply SubVariance.
         * exact hΔ.
         * rewrite Forall_forall => ty /elem_of_list_fmap [ty' [-> hin]].
