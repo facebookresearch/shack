@@ -249,6 +249,14 @@ Inductive expr :=
   | ThisE (* $this *)
 .
 
+Inductive runtime_check :=
+  | RCTag of tag
+  | RCInt
+  | RCBool
+  | RCNull
+  | RCNonNull
+.
+
 Inductive cmd : Set :=
   | SkipC
   | SeqC (fstc: cmd) (sndc: cmd)
@@ -258,8 +266,12 @@ Inductive cmd : Set :=
   | NewC (lhs: var) (class_name: tag) (args: stringmap expr)
   | GetC (lhs: var) (recv: expr) (name: string)
   | SetC (recv: expr) (fld: string) (rhs: expr)
-      (* tag test "if ($v is C<_>) { ... }" *)
-  | CondTagC (v : var) (t : tag) (body : cmd)
+      (* tag test "if ($v is C<_>) { ... }".
+       * For now, we'll only support the runtime check on
+       * classes without generics. We'll support classes with
+       * generics in a second phase.
+       *)
+  | RuntimeCheckC (v : var) (rc: runtime_check) (body : cmd)
 .
 
 Record methodDef := {

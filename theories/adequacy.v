@@ -347,7 +347,11 @@ Section proofs.
         lty lhs t targs args fields hwf hok hf hdom harg |
         lty lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
         lty c rty' rty hsub h hi |
-        lty rty v tv t cmd hv hr h hi
+        lty rty v tv t cmd hv hr h hi |
+        lty rty v tv cmd hv hr h hi |
+        lty rty v tv cmd hv hr h hi |
+        lty rty v tv cmd hv hr h hi |
+        lty rty v tv cmd hv hr h hi
       ] "IHty" forall (st st' n hc).
     - (* SkipC *) inv hc.
       rewrite updN_zero.
@@ -912,7 +916,7 @@ Section proofs.
       + by apply cmd_has_ty_wf in h.
       + rewrite Forall_forall => i hi v.
         by apply _.
-    - (* CondTagC *) inv hc; last first.
+    - (* RuntimeCheck tag *) inv hc; last first.
       { iIntros "[Hh H]".
         iAssert (heap_models st'.2 ∗ interp_local_tys Σc Σi rty st'.1)%I with "[Hh H]" as "H".
         + iFrame.
@@ -988,13 +992,219 @@ Section proofs.
       iIntros (w tw).
       rewrite lookup_insert_Some.
       iIntros "%Hw".
-      destruct Hw as [[<- <-] | [hne hw]].
-      { iExists (LocV l); rewrite Hlev; iSplitR; first done.
+      destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
+      iExists (LocV l); rewrite Hlev; iSplitR; first done.
+      rewrite interp_inter_unfold /=; iSplit; first done.
+      destruct wfΔ.
+      by iApply inherits_is_ex_inclusion.
+    - (* RuntimeCheck Int *) inv hc; last first.
+      { iIntros "[Hh H]".
+        iAssert (heap_models st'.2 ∗ interp_local_tys Σc Σi rty st'.1)%I with "[Hh H]" as "H".
+        + iFrame.
+          destruct wfΔ.
+          iApply interp_local_tys_is_inclusion => //.
+          rewrite Forall_forall => ???.
+          by apply _.
+        + iRevert "H".
+          by iApply updN_intro.
+      }
+      iIntros "H".
+      assert (hwf: wf_lty (<[v:=InterT tv IntT]> lty)).
+      { apply insert_wf_lty => //.
+        constructor; first by apply wflty in hv.
+        by constructor.
+      }
+      iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
+      clear H6 h.
+      destruct H5 as (z & hz).
+      iDestruct "H" as "[H #Hle]".
+      iDestruct "Hle" as "[Hthis Hle]".
+      iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
+      rewrite Hlev in hz; simplify_eq.
+      iFrame.
+      iSplit => /=; first done.
+      iIntros (w tw).
+      rewrite lookup_insert_Some.
+      iIntros "%Hw".
+      destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
+      iExists (IntV z); rewrite Hlev; iSplitR; first done.
+      rewrite interp_inter_unfold /=; iSplit; first done.
+      rewrite !interp_type_unfold /=.
+      by iExists z.
+    - (* RuntimeCheck Bool *) inv hc; last first.
+      { iIntros "[Hh H]".
+        iAssert (heap_models st'.2 ∗ interp_local_tys Σc Σi rty st'.1)%I with "[Hh H]" as "H".
+        + iFrame.
+          destruct wfΔ.
+          iApply interp_local_tys_is_inclusion => //.
+          rewrite Forall_forall => ???.
+          by apply _.
+        + iRevert "H".
+          by iApply updN_intro.
+      }
+      iIntros "H".
+      assert (hwf: wf_lty (<[v:=InterT tv BoolT]> lty)).
+      { apply insert_wf_lty => //.
+        constructor; first by apply wflty in hv.
+        by constructor.
+      }
+      iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
+      clear H6 h.
+      destruct H5 as (b & hb).
+      iDestruct "H" as "[H #Hle]".
+      iDestruct "Hle" as "[Hthis Hle]".
+      iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
+      rewrite Hlev in hb; simplify_eq.
+      iFrame.
+      iSplit => /=; first done.
+      iIntros (w tw).
+      rewrite lookup_insert_Some.
+      iIntros "%Hw".
+      destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
+      iExists (BoolV b); rewrite Hlev; iSplitR; first done.
+      rewrite interp_inter_unfold /=; iSplit; first done.
+      rewrite !interp_type_unfold /=.
+      by iExists b.
+    - (* RuntimeCheck Null *) inv hc; last first.
+      { iIntros "[Hh H]".
+        iAssert (heap_models st'.2 ∗ interp_local_tys Σc Σi rty st'.1)%I with "[Hh H]" as "H".
+        + iFrame.
+          destruct wfΔ.
+          iApply interp_local_tys_is_inclusion => //.
+          rewrite Forall_forall => ???.
+          by apply _.
+        + iRevert "H".
+          by iApply updN_intro.
+      }
+      iIntros "H".
+      assert (hwf: wf_lty (<[v:=InterT tv NullT]> lty)).
+      { apply insert_wf_lty => //.
+        constructor; first by apply wflty in hv.
+        by constructor.
+      }
+      iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
+      clear H6 h.
+      simpl in H5.
+      iDestruct "H" as "[H #Hle]".
+      iDestruct "Hle" as "[Hthis Hle]".
+      iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
+      rewrite Hlev in H5; simplify_eq.
+      iFrame.
+      iSplit => /=; first done.
+      iIntros (w tw).
+      rewrite lookup_insert_Some.
+      iIntros "%Hw".
+      destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
+      iExists NullV; rewrite Hlev; iSplitR; first done.
+      rewrite interp_inter_unfold /=; iSplit; first done.
+      by rewrite !interp_type_unfold.
+    - (* RuntimeCheck NonNull *) inv hc; last first.
+      { iIntros "[Hh H]".
+        iAssert (heap_models st'.2 ∗ interp_local_tys Σc Σi rty st'.1)%I with "[Hh H]" as "H".
+        + iFrame.
+          destruct wfΔ.
+          iApply interp_local_tys_is_inclusion => //.
+          rewrite Forall_forall => ???.
+          by apply _.
+        + iRevert "H".
+          by iApply updN_intro.
+      }
+      iIntros "H".
+      assert (hwf: wf_lty (<[v:=InterT tv NonNullT]> lty)).
+      { apply insert_wf_lty => //.
+        constructor; first by apply wflty in hv.
+        by constructor.
+      }
+      iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
+      clear H6 h.
+      simpl in H5.
+      iDestruct "H" as "[H #Hle]".
+      iDestruct "Hle" as "[Hthis Hle]".
+      iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
+      rewrite Hlev in H5; simplify_eq.
+      destruct val as [z | b |  | l]; [ | | by elim H5 | ].
+      + iFrame.
+        iSplit => /=; first done.
+        iIntros (w tw).
+        rewrite lookup_insert_Some.
+        iIntros "%Hw".
+        destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
+        iExists (IntV z); rewrite Hlev; iSplitR; first done.
+        rewrite interp_inter_unfold /=; iSplit; first done.
+        rewrite !interp_type_unfold.
+        iLeft.
+        by iExists _.
+      + iFrame.
+        iSplit => /=; first done.
+        iIntros (w tw).
+        rewrite lookup_insert_Some.
+        iIntros "%Hw".
+        destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
+        iExists (BoolV b); rewrite Hlev; iSplitR; first done.
+        rewrite interp_inter_unfold /=; iSplit; first done.
+        rewrite !interp_type_unfold.
+        iRight; iLeft.
+        by iExists _.
+      + iAssert (interp_type Σc Σi MixedT (LocV l)) as "Hmixed".
+        { destruct wfΔ.
+          assert (hsub : Σc ⊢ tv <: MixedT) by apply SubMixed.
+          iApply subtype_is_inclusion => //.
+          by apply wflty in hv.
+        }
+        destruct H5 as (t' & fields & hlt).
+        rewrite interp_mixed_unfold /=.
+        iDestruct "Hmixed" as "[Hnonnull | Hnull]"; last first.
+        { iDestruct "Hnull" as "%Hnull"; discriminate. }
+        iDestruct "Hnonnull" as "[Hint | Hl]".
+        { iDestruct "Hint" as "%Hint"; by destruct Hint. }
+        iDestruct "Hl" as "[Hbool | Hl]".
+        { iDestruct "Hbool" as "%Hbool"; by destruct Hbool. }
+        iDestruct "Hl" as (exTag exσ) "[wfex Hl]".
+        iDestruct "Hl" as (k rt def σ σt exfields ifields) "[%H [#Hfields #Hl]]".
+        destruct H as ([= <-] & hinherits' & hwf' & hok & hdef & heq' & hfields').
+        iAssert (⌜t' = rt⌝ ∗ heap_models st.2 ∗ interp_type Σc Σi (ExT rt) (LocV l))%I with "[H]" as "[%heq [Hh #Hv2]]".
+        { iDestruct "H" as (sh) "(H● & %hdom & #Hh)".
+          iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
+          iDestruct ("Hh" with "[//]") as (iFs) "[H H▷]".
+          iRewrite "H" in "HΦ".
+          rewrite option_equivI prod_equivI /=.
+          iDestruct "HΦ" as "[%Ht HΦ]".
+          fold_leibniz; subst.
+          iSplitR; first by iPureIntro.
+          iSplitL. { iExists _. iFrame. by iSplit. }
+          rewrite interp_ex_unfold /=.
+          assert (hrt: is_Some(Δ !! rt)).
+          { inv hwf'.
+            by rewrite H1.
+          }
+          destruct hrt as [rdef hrt].
+          iExists σt.
+          iSplitR.
+          { iPureIntro.
+            by apply wf_ty_class_inv in hwf'.
+          }
+          iExists l, rt, rdef, (gen_targs (length rdef.(generics))), σt, exfields, ifields.
+          iSplit.
+          + iPureIntro; repeat split => //.
+            * by constructor.
+            * inv hwf'; simplify_eq.
+              rewrite subst_ty_gen_targs //.
+              by apply subtype_targs_refl.
+          + by iSplit.
+        }
+        subst.
+        iFrame.
+        iSplit => /=; first done.
+        iIntros (w tw).
+        rewrite lookup_insert_Some.
+        iIntros "%Hw".
+        destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
+        iExists (LocV l); rewrite Hlev; iSplitR; first done.
         rewrite interp_inter_unfold /=; iSplit; first done.
         destruct wfΔ.
-        by iApply inherits_is_ex_inclusion.
-      }
-      by iApply "Hle".
+        rewrite !interp_type_unfold.
+        iRight; iRight.
+        by iExists rt.
   Qed.
 
   Lemma cmd_adequacy Σc Σi lty cmd lty' :

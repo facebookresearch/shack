@@ -131,11 +131,25 @@ Section Evaluation.
       now apply H in hin.
   Qed.
 
-  Definition tag_match (st : local_env * heap) (v: string) (t: tag) :=
-    ∃ l, st.1.(lenv) !! v = Some (LocV l) ∧
-    ∃ t' (fields: stringmap value), st.2 !! l = Some (t', fields) ∧
-    inherits t' t
-  .
+  Definition rc_match (st : local_env * heap) (v: string) (rc: runtime_check) :=
+    match rc with
+    | RCTag t =>
+        ∃ l, st.1.(lenv) !! v = Some (LocV l) ∧
+        ∃ t' (fields: stringmap value), st.2 !! l = Some (t', fields) ∧
+        inherits t' t
+    | RCInt => ∃ z, st.1.(lenv) !! v = Some (IntV z)
+    | RCBool => ∃ b, st.1.(lenv) !! v = Some (BoolV b)
+    | RCNull => st.1.(lenv) !! v = Some NullV
+    | RCNonNull =>
+        match st.1.(lenv) !! v with
+        | None => False
+        | Some (IntV z) => True
+        | Some (BoolV b) => True
+        | Some (LocV l) =>
+            ∃ t' (fields: stringmap value), st.2 !! l = Some (t', fields)
+        | Some NullV => False
+        end
+    end.
 
   Inductive cmd_eval:
     (local_env * heap) → cmd →
@@ -182,14 +196,13 @@ Section Evaluation.
         cmd_eval (run_env, h) mdef.(methodbody) (run_env', h') n →
         expr_eval run_env' mdef.(methodret) = Some ret →
         cmd_eval (le, h) (CallC lhs recv name args) (<[lhs := ret]>le, h') (S n)
-    | CondTag1Ev n st1 st2 v t cmd :
-        (* tag in heap must <: requested tag to move forward *)
-        tag_match st1 v t →
+    | RuntimeCheck1Ev n st1 st2 v rc cmd :
+        rc_match st1 v rc →
         cmd_eval st1 cmd st2 n →
-        cmd_eval st1 (CondTagC v t cmd) st2 n
-    | CondTag2Ev st v t cmd :
-        ¬tag_match st v t →
-        cmd_eval st (CondTagC v t cmd) st 0
+        cmd_eval st1 (RuntimeCheckC v rc cmd) st2 n
+    | RuntimeCheck2Ev st v rc cmd :
+        ¬rc_match st v rc →
+        cmd_eval st (RuntimeCheckC v rc cmd) st 0
 .
 
 End Evaluation.
