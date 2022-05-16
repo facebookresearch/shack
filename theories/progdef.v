@@ -719,6 +719,6 @@ End ProgDef.
 (* Hints and notations are local to the section. Re-exporting them *)
 Global Hint Constructors has_field : core.
 Global Hint Constructors has_method : core.
-Global  Hint Constructors wf_ty : core.
+Global Hint Constructors wf_ty : core.
 Global Hint Constructors extends_using : core.
 Global Hint Constructors inherits_using : core.
