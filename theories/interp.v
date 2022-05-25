@@ -1157,7 +1157,7 @@ Section proofs.
     by iApply subtype_is_inclusion_aux.
   Qed.
 
-  Definition interp_this_def
+  Definition interp_this
     (C: tag)
     (Σi : list (interp Σ))
     : interp Σ :=
@@ -1170,28 +1170,13 @@ Section proofs.
        has_fields t fields ∧
        dom fields = dom ifields⌝ ∗
 
-       □ ▷ (∀ k i0 i1,
-         ((λ ty, interp_type ty Σt) <$> σ) !! k ≡ Some i0 →
-         Σi !! k ≡ Some i1 →
-         i0 ≡ i1) ∗
+      ((λ ty, interp_type ty Σt) <$> σ) ≡ Σi ∗
 
       (∀ f vis ty orig, ⌜has_field f t vis ty orig⌝ -∗
         ifields !! f ≡ Some (Next (interp_car (interp_type ty Σt)))) ∗
 
       (ℓ ↦ (t, ifields)))%I
     ).
-
-   Local Definition interp_this_aux
-     (C: tag) (Σi : list (interp Σ)) : seal (@interp_this_def C Σi).
-   Proof. by eexists. Qed.
-
-  Definition interp_this C Σi : interp Σ := (interp_this_aux C Σi).(unseal).
-
-   Definition interp_this_unseal 
-     (C: tag)
-     (Σi : list (interp Σ))
-     : interp_this C Σi = interp_this_def C Σi :=
-     (interp_this_aux C Σi).(seal_eq).
 
   Definition interp_this_type C (σC: list lang_ty) Σi : interp Σ :=
     interp_this C (interp_list Σi σC).
