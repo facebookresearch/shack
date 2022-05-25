@@ -1104,27 +1104,33 @@ Section Subtype.
    * the origins must be ordered in the same way, meaning origA <: origB.
    * This implies some relations on all the inheritance substitution.
    *)
-  Lemma has_method_ordered A B σ m origA mdefA origB mdefB:
+  Lemma has_method_ordered A B σAB m origA mdefA origB mdefB:
     wf_no_cycle Δ →
     wf_method_override Δ →
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _cname, cdef_methods_bounded) Δ →
-    inherits_using A B σ →
+    inherits_using A B σAB →
     has_method m A origA mdefA →
     has_method m B origB mdefB →
-    ∃ σin σA σB oA oB mA mB,
-      subst_ty σ <$> σB = subst_ty σA <$> σin ∧
+    ∃ oA oB σA σB mA mB,
       Δ !! origA = Some oA ∧
       Δ !! origB = Some oB ∧
       oA.(classmethods) !! m = Some mA ∧
       oB.(classmethods) !! m = Some mB ∧
-      inherits_using origA origB σin ∧
       inherits_using A origA σA ∧
       inherits_using B origB σB ∧
       mdefA = subst_mdef σA mA ∧
       mdefB = subst_mdef σB mB ∧
-      mdef_incl oA.(constraints) mA (subst_mdef σin mB) ∧
-      mdef_incl (subst_constraints σA oA.(constraints)) mdefA (subst_mdef σ mdefB).
+      mdef_incl (subst_constraints σA oA.(constraints)) mdefA (subst_mdef σAB mdefB) ∧
+      (* A <: B <: orig A = orig B *)
+      ((inherits_using B origA σB ∧
+          origA = origB ∧
+          mA = mB ∧
+          subst_ty σAB <$> σB = σA) ∨
+      (* A <: origA <: B <: origB *)
+       (∃ σ, inherits_using origA B σ ∧
+             subst_ty σA <$> σ = σAB ∧
+             mdef_incl oA.(constraints) mA (subst_mdef σ (subst_mdef σB mB)))).
   Proof.
     move => hc ho hp hm hin hA hB.
     assert (hhA := hA).
@@ -1133,91 +1139,64 @@ Section Subtype.
     apply has_method_from_def in hB => //.
     destruct hA as (oadef & oaorig & hoA & hmA & hmoA & [σA [hiA ->]]).
     destruct hB as (obdef & oborig & hoB & hmB & hmoB & [σB [hiB ->]]).
+    exists oadef, obdef, σA, σB, oaorig, oborig.
+    do 8 split => //.
     destruct (inherits_using_chain _ _ _ hp hin _ _ hiA) as [σ'' [ [<- h] | [<- h]]].
     - destruct (has_method_below_orig _ _ _ _ hc hp hm hhA _ _ _ hin h) as
         (? & ? & mbdef & ? & ? & hbm & ->); simplify_eq.
       destruct (has_method_fun _ _ _ _ _ _ hhB hbm) as [-> ->].
       simplify_eq.
-      exists (gen_targs (length oadef.(generics))),
-             (subst_ty σ <$> σ''),
-             σ'',
-             oadef, oadef,
-             oaorig, oaorig.
+      assert (mdef_bounded (length σ'') oaorig).
+      { assert (hoA' := hoA).
+        apply hm in hoA.
+        apply hoA in hmA.
+        apply inherits_using_wf in h => //.
+        destruct h as (? & ? & ? & h).
+        inv h; simplify_eq.
+        by rewrite H4.
+      }
       split.
-      { rewrite subst_ty_gen_targs //.
+      { rewrite subst_mdef_mdef //.
+        by apply mdef_incl_reflexive.
+      }
+      left.
+      repeat split => //.
+      assert (hh : inherits_using A origA (subst_ty σAB <$> σB))
+        by by eapply inherits_using_trans.
+      by rewrite (inherits_using_fun _ _ _ hc hp hiA _ hh).
+    - assert (mdef_bounded (length σB) oborig).
+      { assert (hoB' := hoB).
+        apply hm in hoB.
+        apply hoB in hmB.
+        apply inherits_using_wf in hiB => //.
+        destruct hiB as (? & ? & ? & hiB).
+        inv hiB; simplify_eq.
+        by rewrite H4.
+      }
+      assert (mdef_bounded (length σ'') (subst_mdef σB oborig)).
+      { apply bounded_subst_mdef with (n := length σB) => //.
+        apply inherits_using_wf in hiB => //.
+        destruct hiB as (bdef & ? & ? & ?).
+        apply inherits_using_wf in h => //.
+        destruct h as (? & ? & ? & h).
+        inv h; simplify_eq.
+        by rewrite H8.
+      }
+      assert ( mdef_incl (constraints oadef) oaorig (subst_mdef σ'' (subst_mdef σB oborig))).
+      { rewrite subst_mdef_mdef //.
+        eapply ho => //.
+        by eapply inherits_using_trans.
+      }
+      split.
+      { rewrite -subst_mdef_mdef //.
+        apply mdef_incl_subst => //.
         apply inherits_using_wf in hiA => //.
-        destruct hiA as (? & ? & hF & hwf).
-        inv hwf; by simplify_eq.
+        destruct hiA as (? & ? & ? & hiA).
+        by apply wf_ty_class_inv in hiA.
       }
-      do 4 (split => //).
-      split; first by econstructor.
-      do 4 (split => //).
-      split.
-      + repeat split.
-        * by rewrite /subst_mdef /= dom_fmap_L.
-        * move => k X Y hX.
-          rewrite /subst_mdef /= lookup_fmap hX /= subst_ty_id.
-          { by case => ->. }
-          apply hm in hoA.
-          apply hoA in hmA.
-          by apply hmA in hX.
-        * rewrite /subst_mdef /= subst_ty_id //.
-          apply hm in hoA.
-          by apply hoA in hmA as [].
-      + rewrite subst_mdef_mdef; first by apply mdef_incl_reflexive.
-        assert (hoA' := hoA).
-        apply hm in hoA'.
-        apply hoA' in hmA.
-        apply inherits_using_wf in h => //.
-        destruct h as (? & ? & hf & hwf).
-        inv hwf; simplify_eq.
-        by rewrite H3.
-    - exists (subst_ty σ'' <$> σB), σA, σB, oadef, obdef, oaorig, oborig.
-      split.
-      { rewrite map_subst_ty_subst //.
-        apply inherits_using_wf in hiB => //.
-        repeat destruct hiB as [? hiB].
-        apply inherits_using_wf in h => //.
-        destruct h as (? & ? & hf & hwf).
-        inv hwf; simplify_eq.
-        by rewrite H5.
-      }
-      assert (hh: inherits_using origA origB (subst_ty σ'' <$> σB))
-        by (by eapply inherits_using_trans).
-      assert (hincl : mdef_incl oadef.(constraints) oaorig (subst_mdef (subst_ty σ'' <$> σB) oborig))
-        by (by eapply (ho origA origB) in hh).
-      do 10 (split => //).
-      rewrite -subst_mdef_mdef; last first.
-      { assert (hoB' := hoB).
-        apply hm in hoB'.
-        apply hoB' in hmB.
-        apply inherits_using_wf in hiB => //.
-        repeat destruct hiB as [? hiB].
-        simplify_eq.
-        apply bounded_subst_mdef with (length (generics obdef)) => //.
-        { inv hiB; by simplify_eq. }
-        apply inherits_using_wf in h => //.
-        destruct h as (? & ? & hf & hwf).
-        inv hwf; simplify_eq.
-        rewrite Forall_forall => ty hty.
-        rewrite H5.
-        rewrite Forall_forall in H0.
-        by apply H0 in hty.
-      }
-      apply mdef_incl_subst => //.
-      { apply inherits_using_wf in hiA => //.
-        destruct hiA as (? & ? & ? & hwf).
-        by apply wf_ty_class_inv in hwf.
-      }
-      rewrite subst_mdef_mdef //.
-      { assert (hoB' := hoB).
-        apply hm in hoB'.
-        apply hoB' in hmB.
-        apply inherits_using_wf in hiB => //.
-        destruct hiB as (? & ?& hF & hwf).
-        inv hwf; simplify_eq.
-        by rewrite H3.
-      }
+      right.
+      exists σ''.
+      by repeat split => //.
   Qed.
 End Subtype.
 
