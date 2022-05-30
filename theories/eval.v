@@ -59,6 +59,7 @@ Section Evaluation.
         end
     | VarE v => le.(lenv) !! v
     | ThisE => Some (LocV le.(vthis))
+    | UpcastE e _ => expr_eval le e
     end
   .
 
@@ -204,21 +205,4 @@ Section Evaluation.
         ¬rc_match st v rc →
         cmd_eval st (RuntimeCheckC v rc cmd) st 0
 .
-
-Lemma cmd_eval_subst:
-  ∀ st cmd st' n σ,
-  cmd_eval st cmd st' n ↔ cmd_eval st (subst_cmd σ cmd) st' n.
-Proof.
-  move => st cmd st' n σ; split => h.
-  - induction h; by (econstructor; eauto).
-  - revert st st' n σ h.
-    induction cmd as [ | fst hi0 snd hi1 | | ? thn hi0 els hi1 |
-    | lhs C σ0 args | | | v rc body hi] => st st' n σ h //=.
-    + inv h.
-      by econstructor; eauto.
-    + inv h; by econstructor; eauto.
-    + inv h; by econstructor; eauto.
-    + inv h; by econstructor; eauto.
-Qed.
-
 End Evaluation.

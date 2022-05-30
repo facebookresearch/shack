@@ -788,11 +788,15 @@ Proof.
   { rewrite /cdef_methods_bounded /ROBox /=.
     apply map_Forall_singleton.
     split.
-    + rewrite /Get /=.
+    { rewrite /Get /=.
       by apply map_Forall_empty.
-    + rewrite /Get /=.
-      constructor; first by auto with arith.
-      by constructor.
+    }
+    split.
+    { rewrite /Get /=.
+      constructor; by auto with arith.
+    }
+    split; first by repeat constructor.
+    by repeat constructor.
   }
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]].
@@ -806,7 +810,7 @@ Proof.
         constructor.
         by auto with arith.
       }
-      split; by constructor.
+      split; by repeat constructor.
     + rewrite lookup_singleton_Some.
       case => [? <-].
       split.
@@ -814,7 +818,7 @@ Proof.
         by apply map_Forall_empty.
       * rewrite /Get /=.
         constructor; first by auto with arith.
-        by constructor.
+        by repeat constructor.
   }
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]].
@@ -825,7 +829,7 @@ Proof.
       rewrite map_Forall_singleton.
       by constructor.
     }
-    split; by constructor.
+    split; by repeat constructor.
   }
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]]; last by rewrite lookup_empty.
@@ -833,6 +837,30 @@ Proof.
   apply map_Forall_singleton.
   split; first by apply map_Forall_empty.
   split; first by constructor.
+  split.
+  { constructor.
+    - constructor.
+      + by repeat constructor.
+      + rewrite map_Forall_singleton.
+        by repeat constructor.
+    - constructor; first by repeat constructor.
+      constructor.
+      { constructor; first by repeat constructor.
+        rewrite map_Forall_singleton.
+        by repeat constructor.
+      }
+      constructor.
+      { constructor; first by repeat constructor.
+        by apply map_Forall_empty.
+      }
+      constructor; first by repeat constructor.
+      constructor.
+      { constructor; first by repeat constructor.
+        rewrite map_Forall_singleton.
+        by repeat constructor.
+      }
+      by repeat constructor.
+  }
   by repeat constructor.
 Qed.
 

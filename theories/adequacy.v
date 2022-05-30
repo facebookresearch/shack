@@ -56,7 +56,8 @@ Section proofs.
     move => ??? wflty he h; move: le val he.
     elim: h => [z | b | | op e1 e2 hop he1 hi1 he2 hi2 |
         op e1 e2 hop he1 hi1 he2 hi2 | e1 e2 h1 hi1 h2 hi2 | e0 h hi |
-        v vty hv | | exp S T hS hi hwf hok hsub ] => le val he; iIntros "#wfΣi #Σcoherency #Hlty".
+        v vty hv | | exp S T hS hi hwf hok hsub | exp S T hS hi hwf hok hsub]
+        => le val he; iIntros "#wfΣi #Σcoherency #Hlty".
     - inv he; rewrite interp_type_unfold /=; by eauto.
     - inv he; rewrite interp_type_unfold /=; by eauto.
     - inv he; rewrite interp_type_unfold /=; by eauto.
@@ -166,6 +167,10 @@ Section proofs.
       + iApply "IH" => //.
         iModIntro; rewrite /interp_list list_equivI; iIntros (k).
         by iSpecialize ("hinst" $! (S k)).
+    - apply hi in he.
+      iApply subtype_is_inclusion => //.
+      + by apply expr_has_ty_wf in hS.
+      + by iApply he.
     - apply hi in he.
       iApply subtype_is_inclusion => //.
       + by apply expr_has_ty_wf in hS.
@@ -755,8 +760,8 @@ Section proofs.
       }
       assert (hΣ1 : Forall wf_constraint def1.(constraints)).
       { by apply wf_constraints_wf in hdef1.  }
-      rewrite subst_mdef_body in heval_body.
-      rewrite subst_mdef_ret in heval_ret.
+      rewrite /subst_mdef /= in heval_body.
+      rewrite /subst_mdef /= in heval_ret.
       assert (hh: Forall wf_ty σt1_o0 ∧ length odef0.(generics) = length σt1_o0).
       { apply inherits_using_wf in hin_t1_o0 => //.
         destruct hin_t1_o0 as (?&?&?&hh).

@@ -1173,7 +1173,7 @@ Section Subtype.
         by rewrite H4.
       }
       assert (mdef_bounded (length σ'') (subst_mdef σB oborig)).
-      { apply bounded_subst_mdef with (n := length σB) => //.
+      { apply mdef_bounded_subst with (n := length σB) => //.
         apply inherits_using_wf in hiB => //.
         destruct hiB as (bdef & ? & ? & ?).
         apply inherits_using_wf in h => //.

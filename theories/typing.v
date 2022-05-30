@@ -327,6 +327,16 @@ Section Typing.
         ok_ty Γ t →
         Γ ⊢ s <: t →
         expr_has_ty Γ lty e t
+    (* SD.V1 we don't distinguish between plain subtyping vs
+       dynamic aware subtyping. But we do add the new
+       rule in preparation for that.
+     *)
+    | UpcastTy: ∀ e s t,
+        expr_has_ty Γ lty e s →
+        wf_ty t →
+        ok_ty Γ t →
+        Γ ⊢ s <: t →
+        expr_has_ty Γ lty (UpcastE e t) t
   .
 
   Lemma expr_has_ty_constraint_elim_ G lty e ty:
@@ -337,12 +347,17 @@ Section Typing.
   Proof.
     induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
       op e1 e2 hop h1 hi1 h2 hi2 | e1 e2 h1 hi1 h2 hi2 | e h hi | v ty h | |
-      e s t h hi hok hsub ] => Γ Γ' heq hΓ; subst; try (by constructor).
+      e s t h hi hok hsub | e s t h hi hok hsub] => Γ Γ' heq hΓ; subst; try (by constructor).
     - constructor; by eauto.
     - constructor; by eauto.
     - constructor; by eauto.
     - constructor; by eauto.
     - econstructor.
+      + by eauto.
+      + done.
+      + by eapply ok_ty_constraint_elim.
+      + by eapply subtype_constraint_elim.
+    - eapply UpcastTy.
       + by eauto.
       + done.
       + by eapply ok_ty_constraint_elim.
@@ -361,16 +376,21 @@ Section Typing.
     Forall wf_ty σ →
     Forall (ok_ty Γ') σ →
     expr_has_ty Γ lty e ty →
-    expr_has_ty (Γ' ++ (subst_constraints σ Γ)) (subst_lty σ lty) e (subst_ty σ ty).
+    expr_has_ty (Γ' ++ (subst_constraints σ Γ)) (subst_lty σ lty) (subst_expr σ e) (subst_ty σ ty).
   Proof.
     move => hp hb hσwf hσok.
     induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
       op e1 e2 hop h1 hi1 h2 hi2 | e1 e2 h1 hi1 h2 hi2 | e h hi |
-      v ty h | | e s t h hi hok hsub ] => //=; try (by constructor).
+      v ty h | | e s t h hi hok hsub | e s t h hi hok hsub ] => //=; try (by constructor).
     - constructor.
       rewrite /subst_lty /=.
       by rewrite lookup_fmap h.
     - econstructor; first by apply hi.
+      + by apply wf_ty_subst.
+      + by apply ok_ty_subst.
+      + apply subtype_weaken with (subst_constraints σ Γ); first by apply subtype_subst.
+        by set_solver.
+    - eapply UpcastTy; first by apply hi.
       + by apply wf_ty_subst.
       + by apply ok_ty_subst.
       + apply subtype_weaken with (subst_constraints σ Γ); first by apply subtype_subst.
@@ -421,7 +441,7 @@ Section Typing.
     move => hwf.
     induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
       op e1 e2 hop h1 hi1 h2 hi2 | e1 e2 h1 hi1 h2 hi2 | e h hi |
-      v ty h | | e s t h hi hsub ] => //=; try (by constructor).
+      v ty h | | e s t h hi hsub | e s t h hi hsub] => //=; try (by constructor).
     - by apply hwf in h.
     - by apply hwf.
   Qed.
@@ -439,7 +459,7 @@ Section Typing.
     move => hok.
     induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
       op e1 e2 hop h1 hi1 h2 hi2 | e1 e2 h1 hi1 h2 hi2 | e h hi |
-      v ty h | | e s t h hi hsub ] => //=; try (by constructor).
+      v ty h | | e s t h hi hsub | e s t h hi hsub] => //=; try (by constructor).
     - by apply hok in h.
     - by apply hok.
   Qed.
@@ -788,15 +808,18 @@ Section Typing.
       { change (ClassT t (subst_ty σ <$> targs)) with (subst_ty σ (ClassT t targs)).
         by apply ok_ty_subst.
       }
-      move => f [[vis fty] orig] arg hfty ha.
-      rewrite -subst_ty_subst.
-      + eapply expr_has_ty_subst => //.
-        by eapply hargs.
-      + apply hf in hfty.
-        apply has_field_bounded in hfty => //.
-        destruct hfty as (hdef & ht & hfty).
-        inv hwf; simplify_eq.
-        by rewrite H2.
+      { by rewrite dom_fmap_L. }
+      { move => f [[vis fty] orig] arg hfty ha.
+        apply lookup_fmap_Some in ha as [e [<- he]].
+        rewrite -subst_ty_subst.
+        + eapply expr_has_ty_subst => //.
+          by eapply hargs.
+        + apply hf in hfty.
+          apply has_field_bounded in hfty => //.
+          destruct hfty as (hdef & ht & hfty).
+          inv hwf; simplify_eq.
+          by rewrite H2.
+      }
     - rewrite /subst_lty fmap_insert /=.
       rewrite subst_ty_subst; last first.
       { apply has_method_from_def in hm => //.
@@ -816,7 +839,9 @@ Section Typing.
       eapply CallTy => //.
       + change (ClassT t (subst_ty σ <$> targs)) with (subst_ty σ (ClassT t targs)).
         by eapply expr_has_ty_subst.
+      + by rewrite hdom dom_fmap_L.
       + move => x ty arg hty ha.
+        apply lookup_fmap_Some in ha as [e [<- ha]].
         rewrite -subst_ty_subst.
         { eapply expr_has_ty_subst => //.
           by eapply hargs.
@@ -982,7 +1007,7 @@ Section MethodTyping.
     ∃ rty, wf_lty rty ∧
       cmd_has_ty Σc {| type_of_this := (C, σ); ctxt := subst_ty σ <$> mdef.(methodargs) |}
                 (subst_cmd σ mdef.(methodbody)) rty ∧
-      expr_has_ty Σc rty mdef.(methodret) (subst_ty σ mdef.(methodrettype)).
+      expr_has_ty Σc rty (subst_expr σ mdef.(methodret)) (subst_ty σ mdef.(methodrettype)).
   Proof.
     move => hΔ hdef hmdef hwf hok.
     destruct hΔ.
@@ -995,7 +1020,7 @@ Section MethodTyping.
                  (subst_lty σ {| type_of_this := (C, gen_targs (length def.(generics))); ctxt := mdef.(methodargs) |})
                  (subst_cmd σ mdef.(methodbody)) rty ∧
       expr_has_ty (Σc ++ subst_constraints σ def.(constraints))
-                  rty mdef.(methodret) (subst_ty σ mdef.(methodrettype))).
+                  rty (subst_expr σ mdef.(methodret)) (subst_ty σ mdef.(methodrettype))).
     { assert (hd := hdef).
       assert (hm := hmdef).
       apply wf_mdefs0 in hd.
