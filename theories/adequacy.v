@@ -659,8 +659,8 @@ Section proofs.
       rewrite /heap_models_fields.
       iSplitR.
       {
-        apply dom_map_args in H6.
-        by rewrite /iFs !dom_fmap_L H6 -hdom.
+        apply dom_map_args in H7.
+        by rewrite /iFs !dom_fmap_L H7 -hdom.
       }
       iIntros (f iF) "hiF".
       iAssert (⌜f ∈ dom fields⌝)%I as "%hfield".
@@ -679,8 +679,8 @@ Section proofs.
       assert (h1: is_Some (vargs !! f)).
       {
         apply elem_of_dom.
-        apply dom_map_args in H6.
-        by rewrite H6 -hdom.
+        apply dom_map_args in H7.
+        by rewrite H7 -hdom.
       }
       destruct h1 as [v0 hv0].
       assert (h2: is_Some (fields !! f)) by (by apply elem_of_dom).
@@ -688,7 +688,7 @@ Section proofs.
       iExists v0; iSplitR; first done.
       rewrite lookup_fmap.
       assert (heval0: expr_eval le a0 = Some v0).
-      { rewrite (map_args_lookup _ _ _ args vargs H6 f) in hv0.
+      { rewrite (map_args_lookup _ _ _ args vargs H7 f) in hv0.
         by rewrite ha0 in hv0.
       }
       assert (hty0: expr_has_ty Σc lty a0 (subst_ty targs fty.1.2)) by (by apply harg with f).

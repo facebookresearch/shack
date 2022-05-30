@@ -158,11 +158,11 @@ Section Evaluation.
     | LetEv: ∀ le h v e val,
         expr_eval le e = Some val →
         cmd_eval (le, h) (LetC v e) (<[v := val]> le, h) 0
-    | NewEv: ∀ le h lhs new t args vargs,
+    | NewEv: ∀ le h lhs new t targs args vargs,
         (* targs are not stored in the heap: erased generics *)
         h !! new = None →
         map_args (expr_eval le) args = Some vargs →
-        cmd_eval (le, h) (NewC lhs t args) (<[lhs := LocV new]>le, <[new := (t, vargs)]>h) 1
+        cmd_eval (le, h) (NewC lhs t targs args) (<[lhs := LocV new]>le, <[new := (t, vargs)]>h) 1
     | GetEv: ∀ le h lhs recv name l t vs v,
         expr_eval le recv = Some (LocV l) →
         h !! l = Some (t, vs) →
@@ -204,5 +204,21 @@ Section Evaluation.
         ¬rc_match st v rc →
         cmd_eval st (RuntimeCheckC v rc cmd) st 0
 .
+
+Lemma cmd_eval_subst:
+  ∀ st cmd st' n σ,
+  cmd_eval st cmd st' n ↔ cmd_eval st (subst_cmd σ cmd) st' n.
+Proof.
+  move => st cmd st' n σ; split => h.
+  - induction h; by (econstructor; eauto).
+  - revert st st' n σ h.
+    induction cmd as [ | fst hi0 snd hi1 | | ? thn hi0 els hi1 |
+    | lhs C σ0 args | | | v rc body hi] => st st' n σ h //=.
+    + inv h.
+      by econstructor; eauto.
+    + inv h; by econstructor; eauto.
+    + inv h; by econstructor; eauto.
+    + inv h; by econstructor; eauto.
+Qed.
 
 End Evaluation.

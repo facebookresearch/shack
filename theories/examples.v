@@ -99,9 +99,9 @@ Definition IntBoxS := {|
  * }
  *)
 Definition ProgramBody :=
-   SeqC (NewC "$robox" "ROBox" {["$data" := IntE 32]})
+   SeqC (NewC "$robox" "ROBox" [IntT] {["$data" := IntE 32]})
   (SeqC (CallC "$init" (VarE "$robox") "get" ∅)
-  (SeqC (NewC "$box" "IntBoxS" {["$data" := VarE "$init"]})
+  (SeqC (NewC "$box" "IntBoxS" [] {["$data" := VarE "$init"]})
   (SeqC (CallC "$tmp" (VarE "$box") "get" ∅)
   (SeqC (LetC "$tmp" (BinOpE PlusO (VarE "$tmp") (IntE 20)))
   (SeqC (CallC "$_" (VarE "$box") "set"
@@ -791,8 +791,8 @@ Proof.
     + rewrite /Get /=.
       by apply map_Forall_empty.
     + rewrite /Get /=.
-      constructor.
-      by auto with arith.
+      constructor; first by auto with arith.
+      by constructor.
   }
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]].
@@ -800,35 +800,40 @@ Proof.
     rewrite map_Forall_lookup => x mx.
     rewrite lookup_insert_Some.
     case => [[? <-]|[?]].
-    + split; last by constructor.
-      rewrite /BoxSet /=.
-      apply map_Forall_singleton.
-      constructor.
-      by auto with arith.
+    + split.
+      { rewrite /BoxSet /=.
+        apply map_Forall_singleton.
+        constructor.
+        by auto with arith.
+      }
+      split; by constructor.
     + rewrite lookup_singleton_Some.
       case => [? <-].
       split.
       * rewrite /Get /=.
         by apply map_Forall_empty.
       * rewrite /Get /=.
-        constructor.
-        by auto with arith.
+        constructor; first by auto with arith.
+        by constructor.
   }
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]].
   { rewrite /cdef_methods_bounded /IntBoxS /=.
     rewrite map_Forall_singleton.
-    split; last done.
-    rewrite /IntBoxSSet /=.
-    rewrite map_Forall_singleton.
-    by constructor.
+    split.
+    { rewrite /IntBoxSSet /=.
+      rewrite map_Forall_singleton.
+      by constructor.
+    }
+    split; by constructor.
   }
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]]; last by rewrite lookup_empty.
   rewrite /cdef_methods_bounded /Main /=.
   apply map_Forall_singleton.
-  split; last done.
-  by apply map_Forall_empty.
+  split; first by apply map_Forall_empty.
+  split; first by constructor.
+  by repeat constructor.
 Qed.
 
 Lemma wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) Δ.

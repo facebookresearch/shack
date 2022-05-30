@@ -485,7 +485,7 @@ Section Typing.
         fields !! f = Some fty →
         args !! f = Some arg →
         expr_has_ty Γ lty arg (subst_ty targs fty.1.2)) →
-        cmd_has_ty Γ lty (NewC lhs t args) (<[lhs := ClassT t targs]>lty)
+        cmd_has_ty Γ lty (NewC lhs t targs args) (<[lhs := ClassT t targs]>lty)
     | CallTy: ∀ lty lhs recv t targs name orig mdef args,
         expr_has_ty Γ lty recv (ClassT t targs) →
         has_method name t orig mdef →
@@ -707,7 +707,7 @@ Section Typing.
     Forall wf_ty σ →
     Forall (ok_ty Γ') σ →
     cmd_has_ty Γ lty cmd lty' →
-    cmd_has_ty (Γ' ++ (subst_constraints σ Γ)) (subst_lty σ lty) cmd (subst_lty σ lty').
+    cmd_has_ty (Γ' ++ (subst_constraints σ Γ)) (subst_lty σ lty) (subst_cmd σ cmd) (subst_lty σ lty').
   Proof.
     move => hp hfields hmethods hfb hmb hcb hΓ hwf0 hwf1 hwf2.
     induction 1 as [ lty | ????? h1 hi1 h2 hi2 | ???? he |
@@ -806,11 +806,11 @@ Section Typing.
         assert (ho' := ho).
         apply hmb in ho.
         apply ho in hmo.
-        destruct hmo as [_ hret].
+        destruct hmo as [_ [hret hbody]].
         apply bounded_subst with (n := length (generics odef)) => //.
-        apply expr_has_ty_wf in he => //.
-        inv he; simplify_eq.
-        by rewrite H4.
+        + apply expr_has_ty_wf in he => //.
+          inv he; simplify_eq.
+          by rewrite H4.
       }
       eapply CallTy => //.
       + change (ClassT t (subst_ty σ <$> targs)) with (subst_ty σ (ClassT t targs)).
@@ -980,7 +980,7 @@ Section MethodTyping.
     wf_ty (ClassT C σ) → ok_ty Σc (ClassT C σ) →
     ∃ rty, wf_lty rty ∧
       cmd_has_ty Σc {| type_of_this := (C, σ); ctxt := subst_ty σ <$> mdef.(methodargs) |}
-                mdef.(methodbody) rty ∧
+                (subst_cmd σ mdef.(methodbody)) rty ∧
       expr_has_ty Σc rty mdef.(methodret) (subst_ty σ mdef.(methodrettype)).
   Proof.
     move => hΔ hdef hmdef hwf hok.
@@ -992,7 +992,7 @@ Section MethodTyping.
     assert (hgen : ∃ rty, wf_lty rty ∧
       cmd_has_ty (Σc ++ subst_constraints σ def.(constraints))
                  (subst_lty σ {| type_of_this := (C, gen_targs (length def.(generics))); ctxt := mdef.(methodargs) |})
-                 mdef.(methodbody) rty ∧
+                 (subst_cmd σ mdef.(methodbody)) rty ∧
       expr_has_ty (Σc ++ subst_constraints σ def.(constraints))
                   rty mdef.(methodret) (subst_ty σ mdef.(methodrettype))).
     { assert (hd := hdef).

@@ -263,7 +263,7 @@ Inductive cmd : Set :=
   | LetC (lhs: var) (e: expr)
   | IfC (cond: expr) (thn: cmd) (els: cmd)
   | CallC (lhs: var) (recv: expr) (name: string) (args: stringmap expr)
-  | NewC (lhs: var) (class_name: tag) (args: stringmap expr)
+  | NewC (lhs: var) (class_name: tag) (type_args: list lang_ty) (args: stringmap expr)
   | GetC (lhs: var) (recv: expr) (name: string)
   | SetC (recv: expr) (fld: string) (rhs: expr)
       (* tag test "if ($v is C<_>) { ... }".
@@ -273,6 +273,88 @@ Inductive cmd : Set :=
        *)
   | RuntimeCheckC (v : var) (rc: runtime_check) (body : cmd)
 .
+
+Fixpoint subst_cmd (σ:list lang_ty) (cmd: cmd) :=
+  match cmd with
+  | SeqC fst snd => SeqC (subst_cmd σ fst) (subst_cmd σ snd)
+  | IfC cond thn els => IfC cond (subst_cmd σ thn) (subst_cmd σ els)
+  | NewC lhs C σ0 args => NewC lhs C (subst_ty σ <$> σ0) args
+  | RuntimeCheckC v rc cmd => RuntimeCheckC v rc (subst_cmd σ cmd)
+  | _ => cmd
+  end.
+
+Lemma subst_cmd_nil cmd : subst_cmd [] cmd = cmd.
+Proof.
+  induction cmd as [ | fst hi0 snd hi1 | | ? thn hi0 els hi1 |
+    | lhs C σ0 args | | | v rc body hi] => //=.
+  - by rewrite hi0 hi1.
+  - by rewrite hi0 hi1.
+  - by rewrite map_subst_ty_nil.
+  - by rewrite hi.
+Qed.
+
+Inductive cmd_bounded (n: nat) : cmd → Prop :=
+  | SkipBounded : cmd_bounded n SkipC
+  | SeqBounded fstc sndc : cmd_bounded n fstc →
+      cmd_bounded n sndc → cmd_bounded n (SeqC fstc sndc)
+  | LetBounded lhs e : cmd_bounded n (LetC lhs e)
+  | IfBounded cond thn els : cmd_bounded n thn →
+      cmd_bounded n els → cmd_bounded n (IfC cond thn els)
+  | CallBounded lhs recv name args:
+      cmd_bounded n (CallC lhs recv name args)
+  | NewBounded lhs C σ args:
+      Forall (bounded n) σ →
+      cmd_bounded n (NewC lhs C σ args)
+  | GetBounded lhs recv name: cmd_bounded n (GetC lhs recv name)
+  | SetBounded recv fld rhs : cmd_bounded n (SetC recv fld rhs)
+  | RuntimeCheckBounded v rc body: cmd_bounded n body →
+      cmd_bounded n (RuntimeCheckC v rc body)
+.
+
+Lemma subst_cmd_cmd k l cmd :
+  cmd_bounded (length l) cmd →
+  subst_cmd k (subst_cmd l cmd) = subst_cmd (subst_ty k <$> l) cmd.
+Proof.
+  move => hb.
+  induction cmd as [ | fst hi0 snd hi1 | | ? thn hi0 els hi1 |
+    | lhs C σ0 args | | | v rc body hi] => //=.
+  - inv hb.
+    by rewrite hi0 // hi1.
+  - inv hb.
+    by rewrite hi0 // hi1.
+  - inv hb.
+    by rewrite map_subst_ty_subst.
+  - inv hb.
+    by rewrite hi.
+Qed.
+
+Lemma bounded_subst_cmd n cmd:
+  cmd_bounded n cmd →
+  ∀ m targs, length targs = n →
+  Forall (bounded m) targs →
+  cmd_bounded m (subst_cmd targs cmd).
+Proof.
+  induction cmd as [ | fst hi0 snd hi1 | | ? thn hi0 els hi1 |
+    | lhs C σ0 args | | | v rc body hi]
+    => //= h m σ hlen hF; try by constructor.
+   - inv h.
+     constructor; first by apply hi0.
+     by apply hi1.
+   - inv h.
+     constructor; first by apply hi0.
+     by apply hi1.
+   - inv h.
+     constructor.
+     rewrite Forall_forall => ? hi.
+     apply elem_of_list_lookup_1 in hi as [k hk].
+     apply list_lookup_fmap_inv in hk as [ty [-> hty]].
+     apply bounded_subst with (length σ) => //.
+     rewrite Forall_forall in H0.
+     apply elem_of_list_lookup_2 in hty.
+     by auto.
+   - inv h.
+     constructor; by apply hi.
+Qed.
 
 Record methodDef := {
   methodname: string;
@@ -286,34 +368,35 @@ Definition subst_mdef targs mdef : methodDef := {|
     methodname := mdef.(methodname);
     methodargs := subst_ty targs <$> mdef.(methodargs);
     methodrettype := subst_ty targs mdef.(methodrettype);
-    methodbody := mdef.(methodbody);
+    methodbody := subst_cmd targs mdef.(methodbody);
     methodret := mdef.(methodret);
   |}.
 
 Lemma subst_mdef_nil mdef : subst_mdef [] mdef = mdef.
 Proof.
-  rewrite /subst_mdef subst_ty_nil fmap_subst_ty_nil.
+  rewrite /subst_mdef subst_ty_nil fmap_subst_ty_nil subst_cmd_nil.
   by destruct mdef.
 Qed.
 
-Lemma subst_mdef_body mdef σ: methodbody (subst_mdef σ mdef) = methodbody mdef.
+Lemma subst_mdef_body mdef σ: methodbody (subst_mdef σ mdef) = subst_cmd σ mdef.(methodbody).
 Proof. by []. Qed.
 
 Lemma subst_mdef_ret mdef σ: methodret (subst_mdef σ mdef) = methodret mdef.
 Proof. by []. Qed.
 
 Definition mdef_bounded n mdef : Prop :=
-  map_Forall (λ _argname, bounded n) mdef.(methodargs) ∧ bounded n mdef.(methodrettype).
+  map_Forall (λ _argname, bounded n) mdef.(methodargs) ∧ bounded n mdef.(methodrettype) ∧
+  cmd_bounded n mdef.(methodbody).
 
 Lemma subst_mdef_mdef k l mdef :
   mdef_bounded (length l) mdef →
   subst_mdef k (subst_mdef l mdef) = subst_mdef (subst_ty k <$> l) mdef.
 Proof.
-  rewrite /mdef_bounded map_Forall_lookup.
-  case => hargs hret.
-  rewrite /subst_mdef; destruct mdef as [? args ret ? ?]; f_equiv => //=.
+  rewrite /mdef_bounded map_Forall_lookup => [[hargs [hret hbody]]].
+  rewrite /subst_mdef; destruct mdef as [? args ret body ?]; f_equiv => //=.
   - by rewrite fmap_subst_ty_subst.
   - by rewrite subst_ty_subst.
+  - by rewrite subst_cmd_cmd.
 Qed.
 
 Lemma bounded_subst_mdef n mdef:
@@ -322,12 +405,15 @@ Lemma bounded_subst_mdef n mdef:
   Forall (bounded m) targs →
   mdef_bounded m (subst_mdef targs mdef).
 Proof.
-  move => [/map_Forall_lookup hargs hret] m σ hl hf.
-  rewrite /mdef_bounded /subst_mdef /=; split; last by apply bounded_subst with n.
-  rewrite map_Forall_lookup => k ty hty.
-  apply lookup_fmap_Some in hty as [ty' [ <- hm]].
-  apply bounded_subst with n => //.
-  by eapply hargs.
+  move => [/map_Forall_lookup hargs [hret hbody]] m σ hl hf.
+  rewrite /mdef_bounded /subst_mdef /=; split.
+  { rewrite map_Forall_lookup => k ty hty.
+    apply lookup_fmap_Some in hty as [ty' [ <- hm]].
+    apply bounded_subst with n => //.
+    by eapply hargs.
+  }
+  split; first by apply bounded_subst with n.
+  by apply bounded_subst_cmd with n.
 Qed.
 
 Inductive variance : Set :=
@@ -481,19 +567,32 @@ Proof.
     by elim hk.
 Qed.
 
+Lemma subst_cmd_gen_targs n cmd :
+  cmd_bounded n cmd →
+  subst_cmd (gen_targs n) cmd = cmd.
+Proof.
+  induction cmd as [ | fst hi0 snd hi1 | | ? thn hi0 els hi1 |
+    | lhs C σ0 args | | | v rc body hi] => //= h.
+  - inv h.
+    by rewrite hi0 // hi1.
+  - inv h.
+    by rewrite hi0 // hi1.
+  - inv h.
+    by rewrite subst_tys_id.
+  - inv h.
+    by rewrite hi.
+Qed.
+
 Lemma subst_mdef_gen_targs n mdef :
   mdef_bounded n mdef →
   subst_mdef (gen_targs n) mdef = mdef.
 Proof.
-  rewrite /mdef_bounded /subst_mdef; move => [/map_Forall_lookup hargs hret].
-  rewrite subst_ty_id => //.
-  replace (subst_ty (gen_targs n) <$> methodargs mdef) with (methodargs mdef);
-    first by destruct mdef.
-  apply map_eq => k.
-  rewrite lookup_fmap.
-  destruct (methodargs mdef !! k) as [ty | ] eqn:hty => //=.
-  apply hargs in hty.
-  by rewrite subst_ty_id.
+  rewrite /mdef_bounded /subst_mdef.
+  move => [hargs [hret hbody]].
+  rewrite subst_ty_id //.
+  rewrite fmap_subst_tys_id //.
+  rewrite subst_cmd_gen_targs //.
+  by destruct mdef.
 Qed.
 
 Lemma bounded_gen_targs n: Forall (bounded n) (gen_targs n).
