@@ -282,6 +282,7 @@ Section proofs.
       | InterT A B => interp_inter (go Σi A) (go Σi B)
       | GenT n => interp_generic Σi n
       | ExT cname => interp_ex rec cname
+      | DynamicT => interp_nothing (* TODO Fix later *)
       end.
   End interp_type_pre_rec.
 
@@ -308,7 +309,8 @@ Section proofs.
   Local Instance go_ne (rec: ty_interpO) (ty: lang_ty) :
     NonExpansive (λ Σi, go rec Σi ty).
   Proof.
-    induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i | cname ] => //= n x y h.
+    induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i
+    | cname | ] => //= n x y h.
     - apply interp_tag_ne.
       rewrite Forall_forall in hi.
       apply list_dist_lookup => k.
@@ -388,7 +390,7 @@ Section proofs.
   Local Instance interp_type_pre_contractive : Contractive interp_type_pre.
   Proof.
     rewrite /interp_type_pre => n rec1 rec2 hdist ty Σi /=.
-    induction ty as [ | | | | C σ hi | | | A B hA hB | A B hA hB | i | C ] => /=.
+    induction ty as [ | | | | C σ hi | | | A B hA hB | A B hA hB | i | C|  ] => /=.
     - done.
     - done.
     - done.
@@ -433,6 +435,7 @@ Section proofs.
     - by solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - done.
     - by apply interp_ex_contractive.
+    - done.
   Qed.
 
   (* the interpretation of types can now be
@@ -715,7 +718,7 @@ Section proofs.
   Proof.
     move => hbounded.
     rewrite !interp_type_unfold; revert v.
-    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C ] => //= v.
+    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | ] => //= v.
     - rewrite !interp_tag_unseal /interp_tag_def /= /interp_variance.
       do 17 f_equiv.
       { f_equiv; by rewrite !fmap_length. }
@@ -753,7 +756,7 @@ Section proofs.
   Proof.
     move => hΣ ty v.
     rewrite !interp_type_unfold; revert v.
-    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C ] => //= v.
+    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | ] => //= v.
     - apply interp_tag_equivI.
       apply list_fmap_equiv_ext_elem_of => ty hin w.
       rewrite Forall_forall in hi.
@@ -880,7 +883,7 @@ Section proofs.
   Proof.
     move => ??.
     iIntros (Σ0 Σ1 hmono hwf) "#h".
-    iInduction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C ] 
+    iInduction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | ] 
         "IHty" forall (Σ0 Σ1 vs hmono) "h"; iIntros (v); rewrite !interp_type_unfold //=.
     - by iIntros.
     - rewrite !interp_tag_unseal /interp_tag_def /interp_fun !interp_car_simpl.
@@ -931,11 +934,11 @@ Section proofs.
       destruct v.
       + assert (hmono0: mono vs t1).
         { inv hmono; simplify_eq.
-          by apply H3 with k Invariant.
+          by apply H2 with k Invariant.
         }
         assert (hmono1: mono (neg_variance <$> vs) t1).
         { inv hmono; simplify_eq.
-          by apply H4 with k Invariant.
+          by apply H3 with k Invariant.
         }
         iAssert (□ ∀ w, interp_type t1 Σ0 w -∗ interp_type t1 Σ1 w)%I as "#hc0".
         { iDestruct (big_sepL_lookup with "IHty") as "#hk"; first by exact ht1.
@@ -959,7 +962,7 @@ Section proofs.
           by rewrite !interp_type_unfold.
       + assert (hmono0: mono vs t1).
         { inv hmono; simplify_eq.
-          by apply H3 with k Covariant.
+          by apply H2 with k Covariant.
         }
         iAssert (□ ∀ w, interp_type t1 Σ0 w -∗ interp_type t1 Σ1 w)%I as "#hc0".
         { iDestruct (big_sepL_lookup with "IHty") as "#hk"; first by exact ht1.
@@ -975,7 +978,7 @@ Section proofs.
         by iApply "hinst".
       + assert (hmono1: mono (neg_variance <$> vs) t1).
         { inv hmono; simplify_eq.
-          by apply H4 with k Contravariant.
+          by apply H3 with k Contravariant.
         }
         iAssert (□ ∀ w, interp_type t1 Σ1 w -∗ interp_type t1 Σ0 w)%I as "#hc1".
         { iDestruct (big_sepL_lookup with "IHty") as "#hk"; first by exact ht1.
@@ -1240,7 +1243,7 @@ Section proofs.
   Proof.
     iIntros (A v hwf) "#wfΣi h".
     rewrite !interp_type_unfold /=.
-    iInduction A as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C ] 
+    iInduction A as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | ] 
         "IHty" forall (v hwf) "h".
     - by repeat iLeft.
     - by iLeft; iRight; iLeft.
@@ -1274,6 +1277,7 @@ Section proofs.
     - rewrite /interp_ex.
       iLeft; iRight; iRight.
       by iExists _.
+    - done.
   Qed.
 
   (* Main meat for A <: B → [|A|] ⊆ [|B|] *)

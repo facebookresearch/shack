@@ -50,6 +50,7 @@ Section nested_ind.
     | InterT (s t: lang_ty)
     | GenT (n: nat)
     | ExT (cname: tag) (* Ext C == ∃Ti, ClassT C Ti *)
+    | DynamicT
   .
 
   Variable P : lang_ty -> Prop.
@@ -64,6 +65,7 @@ Section nested_ind.
   Hypothesis case_InterT :  ∀ s t, P s → P t → P (InterT s t).
   Hypothesis case_GenT: ∀ n, P (GenT n).
   Hypothesis case_ExT: ∀ cname, P (ExT cname).
+  Hypothesis case_DynamicT : P DynamicT.
 
   Fixpoint lang_ty_ind (t : lang_ty) :=
     match t with
@@ -84,6 +86,7 @@ Section nested_ind.
     | InterT s t => case_InterT s t (lang_ty_ind s) (lang_ty_ind t)
     | GenT n => case_GenT n
     | ExT cname => case_ExT cname
+    | DynamicT => case_DynamicT
     end.
 End nested_ind.
 
@@ -106,6 +109,7 @@ Inductive bounded (n: nat) : lang_ty → Prop :=
   | NullIsBounded : bounded n NullT
   | NonNullIsBounded : bounded n NonNullT
   | ExIsBounded cname : bounded n (ExT cname)
+  | DynamicIsBounded : bounded n DynamicT
 .
 
 Global Hint Constructors bounded : core.
@@ -117,13 +121,13 @@ Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
   | UnionT s t => UnionT (subst_ty targs s) (subst_ty targs t)
   | InterT s t => InterT (subst_ty targs s) (subst_ty targs t)
   | GenT n => default ty (targs !! n)
-  | ExT _ | IntT | BoolT | NothingT | MixedT | NullT | NonNullT => ty
+  | _ => ty
   end.
 
 Corollary subst_ty_nil ty : subst_ty [] ty = ty.
 Proof.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | n | cname ] => //=.
+      s t hs ht | n | cname | ] => //=.
   - f_equal.
     rewrite Forall_forall in hi.
     pattern targs at 2.
@@ -154,7 +158,7 @@ Lemma subst_ty_subst ty l k:
 Proof.
   move => hbounded.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | n | cname ] => //=.
+      s t hs ht | n | cname | ] => //=.
   - f_equal.
     rewrite -list_fmap_compose.
     rewrite Forall_forall in hi.
@@ -209,7 +213,7 @@ Lemma bounded_subst n ty:
   bounded m (subst_ty targs ty).
 Proof.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | k | cname ] => //= hb m σ hlen hσ.
+      s t hs ht | k | cname | ] => //= hb m σ hlen hσ.
   - constructor.
     rewrite Forall_forall => ty /elem_of_list_fmap hin.
     destruct hin as [ty' [-> hin]].
@@ -503,7 +507,7 @@ Lemma subst_ty_id n ty:
 Proof.
   move => h.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | k | cname ] => //=.
+      s t hs ht | k | cname | ] => //=.
   - f_equal.
     rewrite Forall_forall in hi.
     pattern targs at 2.

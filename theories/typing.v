@@ -37,6 +37,7 @@ Section Typing.
     | OkInter s t: ok_ty Γ s → ok_ty Γ t → ok_ty Γ (InterT s t)
     | OkGen n: ok_ty Γ (GenT n)
     | OkEx t: ok_ty Γ (ExT t)
+    | OkDynamic : ok_ty Γ DynamicT
   .
 
   Lemma ok_ty_constraint_elim_ G T:
@@ -46,7 +47,7 @@ Section Typing.
     ok_ty Γ T.
   Proof.
     induction 1 as [ | | | | t σ def hσ hi hdef hconstr
-    | | | s t hs hi ht hit | s t hs hi ht hit | n | t] => Γ Γ' heq hΓ; subst; try by constructor.
+    | | | s t hs hi ht hit | s t hs hi ht hit | n | t | ] => Γ Γ' heq hΓ; subst; try by constructor.
     - apply OkClass with def => //.
       + move => i ty h; by eapply hi.
       + move => i c h.
@@ -64,7 +65,7 @@ Section Typing.
   Lemma ok_ty_weaken Γ t: ok_ty Γ t → ∀ Γ', Γ ⊆ Γ' → ok_ty Γ' t.
   Proof.
     induction 1 as [ | | | | t σ def hσ hi hdef hconstr
-    | | | s t hs hi ht hit | s t hs hi ht hit | n | t] => Γ' hincl; try by constructor.
+    | | | s t hs hi ht hit | s t hs hi ht hit | n | t | ] => Γ' hincl; try by constructor.
     - apply OkClass with def => //.
       + move => i ty h; by apply hi with i.
       + move => i c h.
@@ -92,7 +93,7 @@ Section Typing.
   Proof.
     move => hwp hcb.
     induction 1 as [ | | | | t σt def hσt hi hdef hconstr
-    | | | s t hs his ht hit | s t hs his ht hit | n | t ]
+    | | | s t hs his ht hit | s t hs his ht hit | n | t | ]
     => hwf Γ' σ hwfσ hokσ /=; try (constructor; by eauto).
     - apply OkClass with def => //.
       + move => i ty h.
@@ -171,7 +172,7 @@ Section Typing.
     ok_ty Γ' ty.
   Proof.
     induction 1 as [ | | | | t σ def hσ hi hdef hconstr
-    | | | s t hs hi ht hit | s t hs hi ht hit | n | t] => Γ' hΓ; try by constructor.
+    | | | s t hs hi ht hit | s t hs hi ht hit | n | t | ] => Γ' hΓ; try by constructor.
     - econstructor => //.
       + move => k ty hk; by eauto.
       + move => k c' hc'.

@@ -215,20 +215,20 @@ Section Subtype.
   (* See Andrew Kennedy's paper:
      Variance and Generalized Constraints for C♯ Generics
   *)
-  Inductive mono : list variance → lang_ty → Prop :=
-    | MonoInt vs : mono vs IntT
-    | MonoBool vs : mono vs BoolT
-    | MonoNothing vs : mono vs NothingT
-    | MonoMixed vs : mono vs MixedT
-    | MonoNull vs : mono vs NullT
-    | MonoNonNull vs : mono vs NonNullT
-    | MonoUnion vs s t : mono vs s → mono vs t → mono vs (UnionT s t)
-    | MonoInter vs s t : mono vs s → mono vs t → mono vs (InterT s t)
-    | MonoVInvGen vs n: vs !! n = Some Invariant → mono vs (GenT n)
-    | MonoVCoGen vs n: vs !! n = Some Covariant → mono vs (GenT n)
-    | MonoGen vs n: vs !! n = None → mono vs (GenT n)
-    | MonoEx vs cname: mono vs (ExT cname)
-    | MonoClass vs cname cdef targs:
+  Inductive mono ( vs: list variance) : lang_ty → Prop :=
+    | MonoInt : mono vs IntT
+    | MonoBool : mono vs BoolT
+    | MonoNothing : mono vs NothingT
+    | MonoMixed : mono vs MixedT
+    | MonoNull : mono vs NullT
+    | MonoNonNull : mono vs NonNullT
+    | MonoUnion s t : mono vs s → mono vs t → mono vs (UnionT s t)
+    | MonoInter s t : mono vs s → mono vs t → mono vs (InterT s t)
+    | MonoVInvGen n: vs !! n = Some Invariant → mono vs (GenT n)
+    | MonoVCoGen n: vs !! n = Some Covariant → mono vs (GenT n)
+    | MonoGen n: vs !! n = None → mono vs (GenT n)
+    | MonoEx cname: mono vs (ExT cname)
+    | MonoClass cname cdef targs:
         Δ !! cname = Some cdef →
         (∀ i wi ti, cdef.(generics) !! i = Some wi →
                     targs !! i = Some ti →
@@ -239,6 +239,7 @@ Section Subtype.
                     not_cov wi →
                     mono (neg_variance <$> vs) ti) →
         mono vs (ClassT cname targs)
+    | MonoDynamic : mono vs DynamicT
   .
 
   Definition wf_cdef_mono cdef : Prop :=
@@ -281,9 +282,9 @@ Section Subtype.
       not_contra vi → mono ws ti) →
     mono ws (subst_ty σ ty).
   Proof.
-    induction 1 as [ vs | vs | vs | vs | vs | vs | vs s t hs his ht hit
+    induction 1 as [ | | | | | | vs s t hs his ht hit
       | vs s t hs his ht hit | vs n hinv | vs n hco | vs n hnone
-      | vs cname | vs cname cdef targs hΔ hcov hicov hcontra hicontra ]
+      | vs cname | vs cname cdef targs hΔ hcov hicov hcontra hicontra | ]
       => hb ws σ hlen h0 h1 //=; try by constructor.
     - inv hb.
       constructor.
@@ -430,12 +431,12 @@ Section Subtype.
             move => i vi ti hvi hti hc.
             apply list_lookup_fmap_inv in hvi.
             destruct hvi as [wi [-> hwi]].
-            eapply H7 => //.
+            eapply H6 => //.
             by destruct wi.
           * move => i vi ti hvi hti hc.
             apply list_lookup_fmap_inv in hvi.
             destruct hvi as [wi [-> hwi]].
-            eapply H8 => //.
+            eapply H7 => //.
             by destruct wi.
   Qed.
 
@@ -687,11 +688,9 @@ Section Subtype.
     Γ ⊢ σ0 <:vs:> σ1 →
     Γ ⊢ subst_ty σ0 ty <: subst_ty σ1 ty.
   Proof.
-    induction 1 as [ vs | vs | vs | vs | vs | vs
-      | vs s t hs his ht hit
-      | vs s t hs his ht hit
-      | vs n hinv | vs n hco | vs n hnone | vs cname
-      | vs cname cdef targs hΔ hcov hicov hcontra hicontra ] => σ0 σ1 hwf hwf0 hwf1 hsub //=.
+    induction 1 as [ | | | | | | vs s t hs his ht hit
+      | vs s t hs his ht hit | vs n hinv | vs n hco | vs n hnone | vs cname
+      | vs cname cdef targs hΔ hcov hicov hcontra hicontra | ] => σ0 σ1 hwf hwf0 hwf1 hsub //=.
     - inv hwf.
       constructor.
       + econstructor; first by eapply his.
