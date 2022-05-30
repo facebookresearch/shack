@@ -40,8 +40,8 @@ Section Helpers.
     | _, _, _ => False%I
     end.
 
-  Lemma iForall3_length {A B C : Type} (P: A → B → C → iProp Σ)
-     As Bs Cs: ⊢ iForall3 P As Bs Cs → ⌜length As = length Bs ∧ length Bs = length Cs⌝.
+  Lemma iForall3_length {A B C : Type} (P: A → B → C → iProp Σ) As Bs Cs:
+    ⊢ iForall3 P As Bs Cs → ⌜length As = length Bs ∧ length Bs = length Cs⌝.
   Proof.
     revert Bs Cs.
     induction As as [ | a As hi];
@@ -52,8 +52,8 @@ Section Helpers.
     by destruct h as [-> ->].
   Qed.
 
-  Lemma iForall3_forall_1 {A B C : Type} (P: A → B → C → iProp Σ)
-     As Bs Cs: ⊢ iForall3 P As Bs Cs →
+  Lemma iForall3_forall_1 {A B C : Type} (P: A → B → C → iProp Σ) As Bs Cs:
+    ⊢ iForall3 P As Bs Cs →
      ∀ k a b c, ⌜As !! k = Some a⌝ → ⌜Bs !! k = Some b⌝ → ⌜Cs !! k = Some c⌝ →
      P a b c.
   Proof.
@@ -181,6 +181,14 @@ Section proofs.
     | Contravariant => ∀ w, i1 w -∗ i0 w
     end.
 
+  Lemma interp_variance_reflexive v: ∀ i, ⊢ interp_variance v i i.
+  Proof.
+    rewrite /interp_variance; destruct v; iIntros (i) => /=.
+    - by iIntros (w); iSplit; iIntros.
+    - by iIntros (w); iIntros.
+    - by iIntros (w); iIntros.
+  Qed.
+
   (* See
    * https://gitlab.mpi-sws.org/iris/iris/-/blob/master/iris/base_logic/lib/invariants.v#L10
    * for example about `seal`.
@@ -191,16 +199,25 @@ Section proofs.
     (C: tag)
     : interp Σ :=
     Interp (
-      λ (w : value), (∃ ℓ t cdef σ (Σt: list (interp Σ))
+      λ (w : value), (∃ ℓ t cdef tdef σ (Σt: list (interp Σ))
        (fields: stringmap ((visibility * lang_ty) * tag))
        (ifields: gmapO string (laterO (sem_typeO Σ))),
       ⌜w = LocV ℓ ∧
        Δ !! C = Some cdef ∧
+       Δ !! t = Some tdef ∧
+       length Σi = length cdef.(generics) ∧
+       length Σt = length tdef.(generics) ∧
        inherits_using t C σ ∧
        has_fields t fields ∧
        dom fields = dom ifields⌝ ∗
 
-       □ ▷ (∀ k v i0 i1,
+      □ ▷ (∀ i (ϕi: interp Σ),  ⌜Σt !! i = Some ϕi⌝ →
+           ∀ v,  ϕi v -∗ rec MixedT Σi v) ∗ (* Σi or Σt ? *)
+
+      □ ▷ (∀ i c, ⌜tdef.(constraints) !! i = Some c⌝ →
+           ∀ v, rec c.1 Σt v -∗ rec c.2 Σt v) ∗
+
+      □ ▷ (∀ k v i0 i1,
          ⌜cdef.(generics) !! k = Some v⌝ →
          ((λ ty, rec ty Σt) <$> σ) !! k ≡ Some i0 →
          Σi !! k ≡ Some i1 →
@@ -226,9 +243,7 @@ Section proofs.
      (interp_tag_aux rec Σi C).(seal_eq).
 
   Definition interp_ex (rec: ty_interpO) C : interp Σ :=
-    Interp (λ (w: value),
-      (∃ Σi cdef, ⌜Δ !! C = Some cdef ∧ length Σi = length cdef.(generics)⌝ ∗
-      interp_tag rec Σi C w)%I).
+    Interp (λ (w: value), (∃ Σi, interp_tag rec Σi C w)%I).
 
   Definition interp_nonnull (rec : ty_interpO) : interp Σ :=
     Interp (
@@ -276,6 +291,17 @@ Section proofs.
     move => n x y h.
     rewrite !interp_tag_unseal /interp_tag_def => v.
     rewrite /interp_fun !interp_car_simpl /interp_variance.
+    do 17 f_equiv.
+    { f_equiv; split => hh.
+      + repeat destruct hh as (? & hh).
+        repeat split => //.
+        apply length_ne in h.
+        by rewrite -h.
+      + repeat destruct hh as (? & hh).
+        repeat split => //.
+        apply length_ne in h.
+        by rewrite h.
+    }
     by repeat f_equiv.
   Qed.
 
@@ -323,22 +349,31 @@ Section proofs.
     move => n x y h.
     rewrite !interp_tag_unseal /interp_tag_def => v.
     rewrite /interp_fun !interp_car_simpl /interp_variance.
-    do 16 f_equiv.
-    - f_equiv; f_contractive.
+    do 18 f_equiv.
+    { f_equiv; f_contractive.
+      by repeat f_equiv.
+    }
+    f_equiv.
+    { f_equiv; f_contractive.
+      by repeat f_equiv.
+    }
+    f_equiv.
+    { f_equiv; f_contractive.
       do 12 f_equiv.
       apply Forall2_fmap, Forall_Forall2_diag, Forall_forall => ? hin.
       f_equiv.
       by  f_equiv.
-    - do 12 f_equiv.
-      f_contractive.
-      by repeat f_equiv.
+    }
+    do 12 f_equiv.
+    f_contractive.
+    by repeat f_equiv.
   Qed.
 
   Global Instance interp_ex_contractive C: Contractive (λ rec, interp_ex rec C).
   Proof.
     rewrite /interp_ex => n i1 i2 hdist v.
     rewrite /interp_fun !interp_car_simpl.
-    do 5 f_equiv.
+    do 2 f_equiv.
     by apply interp_tag_contractive.
   Qed.
 
@@ -364,23 +399,34 @@ Section proofs.
     - rewrite !interp_tag_unseal /interp_tag_def => v.
       rewrite /interp_fun !interp_car_simpl /interp_variance.
       rewrite Forall_forall in hi.
-			do 16 f_equiv.
-      + f_equiv; f_contractive.
+			do 17 f_equiv.
+      { by rewrite !fmap_length. }
+      f_equiv.
+      { f_equiv; f_contractive.
+        do 10 f_equiv.
+        * by repeat f_equiv.
+        * apply Forall2_fmap, Forall_Forall2_diag, Forall_forall => ? hin.
+          apply dist_S.
+          by apply hi.
+      }
+      f_equiv.
+      { f_equiv; f_contractive.
+        by repeat f_equiv.
+      }
+      f_equiv.
+      { f_equiv; f_contractive.
         do 10 f_equiv.
         * do 2 f_equiv.
           apply Forall2_fmap, Forall_Forall2_diag, Forall_forall => ? hin.
-          f_equiv.
-          by  f_equiv.
-        * do 2 f_equiv.
-          rewrite !list_lookup_fmap.
-          destruct (σ !! a6) as [ ty | ] eqn:hty => //=.
-          f_equiv.
+          by apply hdist.
+        * do 3 f_equiv.
+          apply Forall2_fmap, Forall_Forall2_diag, Forall_forall => ? hin.
           apply dist_S.
-          apply hi.
-          by apply elem_of_list_lookup_2 in hty. 
-      + do 12 f_equiv.
-        f_contractive.
-        by apply hdist.
+          by apply hi.
+      }
+      do 12 f_equiv.
+      f_contractive.
+      by apply hdist.
     - done.
     - by apply interp_nonnull_contractive.
     - by solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
@@ -394,6 +440,16 @@ Section proofs.
      can be (mutually) recursive) *)
   Definition interp_type := fixpoint interp_type_pre.
 
+  Definition interp_env_as_mixed (Σi: list (interp Σ)) :=
+    (∀ i (ϕi: interp Σ),  ⌜Σi !! i = Some ϕi⌝ → ∀ v,  ϕi v -∗ interp_mixed interp_type v)%I.
+
+  Definition Σinterp (Σi: list (interp Σ)) (Σc : list constraint) :=
+    (∀ i c, ⌜Σc !! i = Some c⌝ →
+    ∀ v, interp_type c.1 Σi v -∗ interp_type c.2 Σi v)%I.
+
+  Definition interp_list (Σi: list (interp Σ)) (σ: list lang_ty) :=
+    (λ ty, interp_type ty Σi) <$> σ.
+
   Section Unfold.
     Variable Σi : list (interpO Σ).
 
@@ -403,6 +459,15 @@ Section proofs.
     Proof.
       rewrite {1}/interp_type.
       apply (fixpoint_unfold interp_type_pre ty Σi v).
+    Qed.
+
+    (* #hyp *)
+    Global Instance interp_type_persistent :
+    ∀ t v, Persistent (interp_type t Σi v).
+    Proof.
+      move => t v.
+      rewrite interp_type_unfold.
+      by apply _.
     Qed.
 
     Lemma interp_ex_unfold t v:
@@ -441,61 +506,207 @@ Section proofs.
     Qed.
   End Unfold.
 
-  Lemma interp_class_unfold Σi A σA v:
-    interp_type (ClassT A σA) Σi v ⊣⊢
-    interp_tag interp_type ((λ ty, interp_type ty Σi) <$> σA) A v.
+  Definition interp_tag_alt
+    (Σi : list (interp Σ))
+    (C: tag)
+    : interp Σ :=
+    Interp (
+      λ (w : value), (∃ ℓ t cdef tdef σ (Σt: list (interp Σ))
+       (fields: stringmap ((visibility * lang_ty) * tag))
+       (ifields: gmapO string (laterO (sem_typeO Σ))),
+      ⌜w = LocV ℓ ∧
+       Δ !! C = Some cdef ∧
+       Δ !! t = Some tdef ∧
+       length Σi = length cdef.(generics) ∧
+       length Σt = length tdef.(generics) ∧
+       inherits_using t C σ ∧
+       has_fields t fields ∧
+       dom fields = dom ifields⌝ ∗
+
+      □ ▷ interp_env_as_mixed Σt ∗
+
+      □ ▷ Σinterp Σt tdef.(constraints) ∗
+
+      □ ▷ iForall3 interp_variance cdef.(generics) (interp_list Σt σ) Σi ∗
+
+      (∀ f vis ty orig, ⌜has_field f t vis ty orig⌝ -∗
+        ifields !! f ≡ Some (Next (interp_car (interp_type ty Σt)))) ∗
+
+      (ℓ ↦ (t, ifields)))%I
+    ).
+
+  Lemma interp_tag_equiv A Σi v:
+    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    interp_tag interp_type Σi A v ⊣⊢
+    interp_tag_alt Σi A v.
   Proof.
-    rewrite interp_type_unfold /=.
+    move => hwfp.
     rewrite !interp_tag_unseal /interp_tag_def.
-    rewrite /interp_fun !interp_car_simpl.
-    do 31 f_equiv.
-    apply list_fmap_equiv_ext => ty w.
-    by rewrite interp_type_unfold.
-  Qed.
-
-  (* #hyp *)
-  Global Instance interp_type_persistent :
-    ∀ Σi t v, Persistent (interp_type t Σi v).
-  Proof.
-    move => Σi t v.
-    rewrite interp_type_unfold.
-    by apply _.
-  Qed.
-
-  Definition interp_list (Σi: list (interp Σ)) (σ: list lang_ty) :=
-    (λ ty, interp_type ty Σi) <$> σ.
-
-  Lemma interp_list_fold Σi σ: go interp_type Σi <$> σ ≡ interp_list Σi σ.
-  Proof.
-    rewrite /interp_list.
-    apply list_fmap_equiv_ext_elem_of => tc htc /= w.
-    by rewrite interp_type_unfold.
-  Qed.
-
-  Lemma interp_list_gen_targs Σi n:
-    length Σi = n →
-    interp_list Σi (gen_targs n) ≡ Σi.
-  Proof.
-    rewrite /interp_list => hlen.
-    apply list_equiv_lookup => k.
-    rewrite list_lookup_fmap.
-    destruct (decide (k < n)) as [hlt | hge].
-    - rewrite (lookup_gen_targs_lt n k) //=.
-      rewrite -hlen in hlt.
-      assert (h: is_Some (Σi !! k)) by by apply lookup_lt_is_Some_2.
-      destruct h as [σi hi].
-      rewrite hi.
-      constructor.
-      move => v.
-      by rewrite interp_type_unfold /= /interp_generic hi.
-    - assert (h: Σi !! k = None).
-      { apply lookup_ge_None_2.
-        by lia.
+    rewrite /interp_fun !interp_car_simpl /=.
+    rewrite /interp_env_as_mixed /Σinterp.
+    iStartProof; iSplit; iIntros "#h".
+    - iDestruct "h" as (l t adef tdef σ Σt fields ifields h) "[#hmixed [#hconstr [#hinst [#hdyn hloc]]]]".
+      destruct h as (-> & hadef & htdef & hlΣi & hlΣt &  hin & hfields & hidom); simplify_eq.
+      iExists l, t, adef, tdef, σ, Σt, fields, ifields.
+      iSplit => //.
+      iSplit.
+      { iModIntro; iNext; iIntros (i ii heq v) "hii".
+        iSpecialize ("hmixed" $! i ii heq v with "hii").
+        assert (h :
+          interp_type MixedT Σi v ⊣⊢
+          interp_type_pre interp_type MixedT Σi v) by by rewrite interp_type_unfold.
+        rewrite /interp_fun !interp_car_simpl /= in h.
+        by rewrite h /interp_mixed.
       }
-      rewrite h.
-      rewrite /gen_targs list_lookup_fmap lookup_seq_ge //.
-      by lia.
+      iSplit.
+      { iModIntro; iNext; iIntros (i c heq v) "hc".
+        by iSpecialize ("hconstr" $! i c heq v with "hc").
+      }
+      iSplit; last by iSplit.
+      iModIntro; iNext.
+      assert (hl1 : length Σi = length σ).
+      { apply inherits_using_wf in hin => //.
+        destruct hin as (?&?&?&h).
+        inv h; simplify_eq.
+        by rewrite hlΣi.
+      }
+      move: hlΣi hl1.
+      generalize (generics adef) => vs; clear => hl0 hl1.
+      iClear "hmixed hdyn hloc".
+      iInduction vs as [ | hd tl] "HI" forall (σ Σi hl0 hl1).
+      { by destruct σ; destruct Σi. }
+      destruct σ as [ | t0 σ] => /=.
+      { by rewrite hl1 in hl0. }
+      destruct Σi as [ | i Σi] => //=.
+      case: hl0 => hl0.
+      case: hl1 => hl1.
+      iSplitL.
+      + by iApply ("hinst" $! 0).
+      + iApply "HI" => //.
+        iModIntro; iIntros (k v j0 j1 hk) "#h0 #h1".
+        by iApply ("hinst" $! (S k)).
+    - iDestruct "h" as (l t adef tdef σ Σt fields ifields h) "[#hmixed [#hconstr [#hinst [#hdyn hloc]]]]".
+      destruct h as (-> & hadef & htdef & hlΣi & hlΣt & hin & hfields & hidom); simplify_eq.
+      iExists l, t, adef, tdef, σ, Σt, fields, ifields.
+      iSplit => //.
+      iSplit.
+      { iModIntro; iNext; iIntros (i ii heq v) "hii".
+        iSpecialize ("hmixed" $! i ii heq v with "hii").
+        assert (h :
+          interp_type MixedT Σi v ⊣⊢
+          interp_type_pre interp_type MixedT Σi v) by by rewrite interp_type_unfold.
+        rewrite /interp_fun !interp_car_simpl /= in h.
+        by rewrite h /interp_mixed.
+      }
+      iSplit.
+      { iModIntro; iNext; iIntros (i c heq v) "hc".
+        by iSpecialize ("hconstr" $! i c heq v with "hc").
+      }
+      iSplit; last by iSplit.
+      iModIntro; iNext.
+      assert (hl1 : length Σi = length σ).
+      { apply inherits_using_wf in hin => //.
+        destruct hin as (?&?&?&h).
+        inv h; simplify_eq.
+        by rewrite hlΣi.
+      }
+      iIntros (k v i0 i1 heq) "#h0 #h1".
+      move : heq hlΣi hl1.
+      generalize adef.(generics); clear => vs heq hl0 hl1.
+      iClear "hconstr hmixed hdyn hloc".
+      iInduction vs as [ | hd tl] "HI" forall (k σ Σi heq hl0 hl1) "hinst h0 h1".
+      { by destruct σ; destruct Σi. }
+      destruct σ as [ | t0 σ] => //.
+      destruct Σi as [ | i Σi] => //.
+      case: hl0 => hl0.
+      case: hl1 => hl1.
+      simpl iForall3.
+      iDestruct "hinst" as "[h hf]".
+      destruct k as [ | k].
+      + case : heq => ->.
+        rewrite /= !option_equivI.
+        iAssert (∀ w, interp_type t0 Σt w ≡ i0 w)%I as "hh0".
+        { by iIntros (w); iRewrite "h0". }
+        iAssert (∀ w, i w ≡ i1 w)%I as "hh1".
+        { by iIntros (w); iRewrite -"h1". }
+        destruct v; iIntros (w).
+        * iSpecialize ("hh0" $! w).
+          iRewrite -"hh0".
+          iSpecialize ("hh1" $! w).
+          iRewrite -"hh1".
+          simpl.
+          iDestruct ("h" $! w) as "[hl hr]".
+          iSplit; iIntros "hh".
+          { by iApply "hl". }
+          { by iApply "hr". }
+        * iSpecialize ("hh0" $! w).
+          iRewrite -"hh0".
+          iSpecialize ("hh1" $! w).
+          iRewrite -"hh1".
+          simpl.
+          iIntros "hh".
+          by iApply "h".
+        * iSpecialize ("hh0" $! w).
+          iRewrite -"hh0".
+          iSpecialize ("hh1" $! w).
+          iRewrite -"hh1".
+          simpl.
+          iIntros "hh".
+          by iApply "h".
+      + by iApply ("HI" $! k).
   Qed.
+
+  Lemma interp_tag_equivI (Σ0 Σ1: list (interp Σ)):
+    Σ0 ≡ Σ1 →
+    ∀ A v, interp_tag interp_type Σ0 A v ≡ interp_tag interp_type Σ1 A v.
+  Proof.
+    move => h A v.
+    rewrite !interp_tag_unseal /interp_tag_def /interp_variance /=.
+    do 17 f_equiv.
+    { f_equiv; split => hh.
+      + do 7 destruct hh as [? hh].
+        repeat split => //.
+        by rewrite -h.
+      + do 7 destruct hh as [? hh].
+        repeat split => //.
+        by rewrite h.
+    }
+    by repeat f_equiv.
+  Qed.
+
+  Lemma interp_tag_alt_equivI (Σ0 Σ1: list (interp Σ)):
+    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    Σ0 ≡ Σ1 →
+    ∀ A v,
+    interp_tag_alt Σ0 A v ≡ interp_tag_alt Σ1 A v.
+  Proof.
+    move => hp h A v.
+    rewrite -!(interp_tag_equiv A) //; last first.
+    by rewrite interp_tag_equivI.
+  Qed.
+
+  Lemma interp_class_unfold Σi A σA v:
+    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    wf_ty (ClassT A σA) →
+    interp_type (ClassT A σA) Σi v ⊣⊢
+    interp_tag_alt (interp_list Σi σA) A v.
+  Proof.
+    move => hwfp hwf.
+    inv hwf.
+    move : (interp_tag_equiv A (interp_list Σi σA) v hwfp) => heq.
+    rewrite -heq interp_type_unfold /=.
+    assert (h: go interp_type Σi <$> σA ≡ interp_list Σi σA).
+    { rewrite /interp_list.
+      apply list_fmap_equiv_ext => ty w.
+      by rewrite interp_type_unfold.
+    }
+    by apply interp_tag_equivI with (A := A) (v := v) in h.
+  Qed.
+
+  Lemma interp_generic_unfold Σi k v:
+    interp_type (GenT k) Σi v ⊣⊢
+    interp_generic Σi k v.
+  Proof.  by rewrite interp_type_unfold /=. Qed.
 
   Lemma interp_type_subst Σi ty σ v:
     bounded (length σ) ty →
@@ -506,7 +717,19 @@ Section proofs.
     rewrite !interp_type_unfold; revert v.
     induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C ] => //= v.
     - rewrite !interp_tag_unseal /interp_tag_def /= /interp_variance.
-      do 31 f_equiv.
+      do 17 f_equiv.
+      { f_equiv; by rewrite !fmap_length. }
+      f_equiv.
+      { do 12 f_equiv.
+        rewrite -list_fmap_compose.
+        apply list_fmap_equiv_ext_elem_of => ty hin w.
+        rewrite Forall_forall in hi.
+        apply hi with (v := w) in hin; first by rewrite hin.
+        inv hbounded.
+        rewrite Forall_forall in H0.
+        by apply H0.
+      }
+      do 17 f_equiv.
       rewrite -list_fmap_compose.
       apply list_fmap_equiv_ext_elem_of => ty hin w.
       rewrite Forall_forall in hi.
@@ -522,15 +745,6 @@ Section proofs.
       + inv hbounded. 
         apply lookup_ge_None_1 in hty.
         by lia.
-  Qed.
-
-  Lemma interp_tag_equivI (Σ0 Σ1: list (interp Σ)):
-    Σ0 ≡ Σ1 →
-    ∀ A v, interp_tag interp_type Σ0 A v ≡ interp_tag interp_type Σ1 A v.
-  Proof.
-    move => h A v.
-    rewrite !interp_tag_unseal /interp_tag_def /interp_variance /=.
-    by repeat f_equiv.
   Qed.
 
   Lemma interp_type_equivI (Σ0 Σ1: list (interp Σ)):
@@ -551,6 +765,92 @@ Section proofs.
       assert (hh: (∀ i0 : nat, Σ0 !! i0 ≡ Σ1 !! i0)).
       { move => j. by rewrite hΣ. }
       by rewrite (hh i).
+  Qed.
+
+  Lemma iForall3_interp_equivI (Σ0 Σ1 : list (interp Σ)):
+    Σ0 ≡ Σ1 →
+    ∀ vs Σi,
+    iForall3 interp_variance vs Σ0 Σi ≡ iForall3 interp_variance vs Σ1 Σi.
+  Proof.
+    move => heq vs.
+    assert (hl: length Σ0 = length Σ1) by by rewrite heq.
+    move : Σ0 Σ1 heq hl.
+    induction vs as [ | v vs hi] => Σ0 Σ1 heq hl Σi.
+    { by destruct Σ0; destruct Σ1; destruct Σi. }
+    destruct Σ0 as [ | i0 Σ0] => //=.
+    { symmetry in hl.
+      by apply nil_length_inv in hl; rewrite hl.
+    }
+    destruct Σ1 as [ | i1 Σ1] => //=.
+    destruct Σi as [ | i Σi] => //=.
+    case : hl => hl.
+    apply cons_equiv_eq in heq as (i1' & Σ1' & [= -> ->] & h0 & h1).
+    f_equiv.
+    - rewrite /interp_variance.
+      by repeat f_equiv.
+    - by rewrite (hi _ _ h1 hl Σi).
+  Qed.
+
+  Lemma iForall3_interp_reflexive vs :
+    ∀ Σi, length vs = length Σi → ⊢ iForall3 interp_variance vs Σi Σi.
+  Proof.
+    induction vs as [ | v vs hi]; intros [ | i Σi] hlen => //=.
+    case : hlen => hlen.
+    iSplitL.
+    - by iApply interp_variance_reflexive.
+    - by iApply hi.
+  Qed.
+
+  Lemma iForall3_interp_gen_targs vs n Σi:
+    length vs = n →
+    length Σi = n →
+    ⊢ iForall3 interp_variance vs (interp_list Σi (gen_targs n)) Σi.
+  Proof.
+    move => hl0 hl1.
+    assert (heq: interp_list Σi (gen_targs n) ≡ Σi).
+    { rewrite /interp_list.
+      apply list_equiv_lookup => k.
+      destruct (Σi !! k) as [i | ] eqn:hi.
+      - rewrite !list_lookup_fmap hi !lookup_seq_lt //=.
+        { f_equiv => w.
+          by rewrite !interp_generic_unfold /interp_generic /= hi.
+        }
+        apply lookup_lt_Some in hi.
+        by lia.
+      - rewrite hi.
+        apply lookup_ge_None_1 in hi.
+        rewrite /gen_targs !list_lookup_fmap /= lookup_seq_ge //.
+        by lia.
+    }
+    rewrite (iForall3_interp_equivI _ _ heq).
+    apply iForall3_interp_reflexive => //.
+    by rewrite hl0.
+  Qed.
+
+  Lemma iForall3_interp_trans vs:
+    ∀ Σ0 Σ1 Σ2,
+    iForall3 interp_variance vs Σ0 Σ1 -∗
+    iForall3 interp_variance vs Σ1 Σ2 -∗
+    iForall3 interp_variance vs Σ0 Σ2.
+  Proof.
+    induction vs as [ | v vs hi]; move => [ | i0 Σ0] [ | i1 Σ1] [ | i2 Σ2];
+        iIntros "h0 h1" => //=.
+    iDestruct "h0" as "[h00 h01]".
+    iDestruct "h1" as "[h10 h11]".
+    iSplitL "h00 h10".
+    - destruct v; iIntros (w).
+      + iSplit; iIntros "h".
+        * iApply "h10".
+          by iApply "h00".
+        * iApply "h00".
+          by iApply "h10".
+      + iIntros "h". 
+        iApply "h10".
+        by iApply "h00".
+      + iIntros "h". 
+        iApply "h00".
+        by iApply "h10".
+    - by iApply (hi with "h01 h11").
   Qed.
 
   Lemma neg_interp_variance vs Σ0 Σ1:
@@ -585,10 +885,27 @@ Section proofs.
     - by iIntros.
     - rewrite !interp_tag_unseal /interp_tag_def /interp_fun !interp_car_simpl.
       iIntros "htag".
-      iDestruct "htag" as (l t cdef σ Σt fields ifields h) "[#hinst [hdyn hloc]]".
-      destruct h as (-> & hcdef & hinherits & hfields & hdom).
-      iExists l, t, cdef, σ, Σt, fields, ifields.
-      iSplitR; first by iPureIntro.
+      iDestruct "htag" as (l t cdef tdef σ Σt fields ifields h) "[#hmixed [#hconstr [#hinst [hdyn hloc]]]]".
+      destruct h as (-> & hcdef & htdef & hlΣc & hlΣt & hinherits & hfields & hdom).
+      iExists l, t, cdef, tdef, σ, Σt, fields, ifields.
+      iSplitR.
+      { iPureIntro; repeat split=> //.
+        rewrite fmap_length.
+        by rewrite fmap_length in hlΣc.
+      }
+      iSplitR.
+      { iModIntro; iNext; iIntros (i ii heq v) "hii".
+        iSpecialize ("hmixed" $! i ii heq v with "hii").
+        iClear "IHty h hinst".
+        iDestruct (interp_mixed_unfold (go interp_type Σ0 <$> σC) v) as "[hm0 hm1]".
+        iDestruct (interp_mixed_unfold (go interp_type Σ1 <$> σC) v) as "[hm2 hm3]".
+        iDestruct ("hm0" with "hmixed") as "hm".
+        by iApply "hm3".
+      }
+      iSplitR.
+      { iModIntro; iNext; iIntros (i c heq v) "hc".
+        by iSpecialize ("hconstr" $! i c heq v with "hc").
+      }
       iSplitR; last by iSplit.
       iModIntro; iNext.
       iDestruct (iForall3_length with "h") as "%hlen".
@@ -600,8 +917,7 @@ Section proofs.
       destruct (σC !! k) as [t1 | ] eqn:ht1; last first.
       { by rewrite !option_equivI. }
       rewrite /= !option_equivI.
-      iAssert (iForall3 interp_variance (neg_variance <$> vs) Σ1 Σ0) as "hneg".
-      { by iApply neg_interp_variance. }
+      iDestruct (neg_interp_variance with "h") as "hneg".
       rewrite /interp_variance.
       assert (hwf1: wf_ty t1).
       { inv hwf; simplify_eq.
@@ -730,107 +1046,107 @@ Section proofs.
         by iDestruct "hf" as "[? ?]".
       * by iSpecialize ("hf" $! v).
     - iIntros "hh".
-      iDestruct "hh" as (Σt cdef h) "hh".
-      destruct h as [hcdef hlen].
-      iExists Σt, cdef; by iSplit.
+      iDestruct "hh" as (Σt) "hh".
+      by iExists Σt.
   Qed.
 
+  Lemma interp_env_with_mono :
+    map_Forall (λ _ : string, wf_cdef_mono) Δ →
+    map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
+    ∀ σ vs Σ0 Σ1 ws,
+    Forall wf_ty σ →
+    length σ = length ws →
+    (∀ i wi ti, ws !! i = Some wi →
+                σ !! i = Some ti →
+                not_contra wi →
+                mono vs ti) →
+    (∀ i wi ti, ws !! i = Some wi →
+                σ !! i = Some ti →
+                not_cov wi →
+                mono (neg_variance <$> vs) ti) →
+    □ iForall3 interp_variance vs Σ0 Σ1 -∗
+    iForall3 interp_variance ws (interp_list Σ0 σ) (interp_list Σ1 σ).
+  Proof.
+    move => hmono hp.
+    induction σ as [ | ty σ hi] => //= vs Σ0 Σ1 ws hwf hlen hcov hcontra.
+    { rewrite (nil_length_inv ws) //.
+      by iIntros.
+    }
+    destruct ws as [ | w ws]; first by discriminate hlen.
+    case: hlen => hlen /=.
+    apply Forall_cons_1 in hwf as [hty hwf].
+    iIntros "#hvs".
+    iDestruct (neg_interp_variance with "hvs") as "hvs2".
+    iSplitR.
+    { destruct w => /=; iIntros (w).
+      - iSplit.
+        + iApply (interp_with_mono with "hvs") => //.
+          by apply (hcov 0 Invariant).
+        + iApply (interp_with_mono with "hvs2") => //.
+          by apply (hcontra 0 Invariant).
+      - iApply (interp_with_mono with "hvs") => //.
+        by apply (hcov 0 Covariant).
+      - iApply (interp_with_mono with "hvs2") => //.
+        by apply (hcontra 0 Contravariant).
+    }
+    iApply (hi vs) => //.
+    - move => i wi ti hwi hti hc.
+      by apply (hcov (S i) wi ti).
+    - move => i wi ti hwi hti hc.
+      by apply (hcontra (S i) wi ti).
+  Qed.
+    
   Lemma tag_extends_using_is_inclusion:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     map_Forall (λ _ : string, wf_cdef_mono) Δ →
     ∀ A B σB, extends_using A B σB →
-    ∀ Σi v adef,
-    Δ !! A = Some adef →
-    length Σi = length adef.(generics) →
-    interp_tag interp_type Σi A v -∗
-    interp_tag interp_type (interp_list Σi σB) B v.
+    ∀ Σi v,
+    interp_tag_alt Σi A v -∗
+    interp_tag_alt (interp_list Σi σB) B v.
   Proof.
-    move => hwp hmono A B σB hext Σi v adef hadef hlen.
-    rewrite !interp_tag_unseal /interp_tag_def /interp_fun !interp_car_simpl.
+    move => hwp hmono A B σB hext Σi v.
+    assert (hb: ∃ bdef, Δ !! B = Some bdef ∧ length bdef.(generics) = length (interp_list Σi σB)).
+    { apply extends_using_wf in hext => //.
+      destruct hext as (? & ? & ? & h).
+      inv h; simplify_eq.
+      exists def; repeat split => //.
+      by rewrite /interp_list fmap_length.
+    }
+    destruct hb as (bdef & hbdef & hlen2).
     iIntros "h".
-    iDestruct "h" as (ℓ t adef' σ Σt fields ifields) "[%h [#hinst [hdyn hl]]]".
-    destruct h as (-> & hadef' & hin & hfields & hdom); simplify_eq.
+    iDestruct "h" as (ℓ t adef tdef σ Σt fields ifields) "[%h [#hmixed [#hconstr [#hinst [hdyn hl]]]]]".
+    destruct h as (-> & hadef & htdef & hlΣi & hlΣt & hin & hfields & hdom); simplify_eq.
     destruct (extends_using_wf _ _ _ hwp hext) as (adef' & hadef' & hF & hwfB).
-    destruct (inherits_using_wf _ _ _ hwp hin) as (tdef & htdef & htF & hwfA).
+    destruct (inherits_using_wf _ _ _ hwp hin) as (tdef' & htdef' & htF & hwfA).
     simplify_eq.
-    assert (hb: is_Some (Δ !! B)) by by inv hwfB.
-    destruct hb as [bdef hbdef].
-    iExists ℓ, t, bdef, (subst_ty σ <$> σB), Σt, fields, ifields.
+    iExists ℓ, t, bdef, tdef, (subst_ty σ <$> σB), Σt, fields, ifields.
     iSplit.
     { iPureIntro; repeat split => //.
       by eapply inherits_using_trans; last by econstructor.
     }
+    iSplitR => //.
+    iSplitR => //.
     iSplitR; last by iSplit.
     iModIntro; iNext.
-    iIntros (k v i0 i1 hv) "h0 h1".
-    destruct (σB !! k) as [tb | ] eqn:htb; last first.
-    { by rewrite !list_lookup_fmap htb /= !option_equivI. }
-    assert (h := hadef).
-    apply hmono in h.
-    rewrite /wf_cdef_mono in h.
-    destruct hext as [A B adef' σB hadef' hsuper]; simplify_eq.
-    rewrite hsuper in h.
-    inv h; simplify_eq.
-    specialize (H4 k v tb hv htb).
-    specialize (H3 k v tb hv htb).
-    rewrite !list_lookup_fmap htb /= !option_equivI.
-    assert (hσ : length σ = length adef'.(generics)).
-    { inv hwfA; by simplify_eq. }
-    assert (wftb: wf_ty tb).
-    { inv hwfB; simplify_eq.
-      by eauto.
-    }
-    assert (hboundedtb:  bounded (length σ) tb).
-    { rewrite Forall_forall in hF.
-      rewrite hσ.
-      apply hF.
-      by apply elem_of_list_lookup_2 in htb.
-    }
-    iAssert (□ iForall3 interp_variance adef'.(generics) (interp_list Σt σ) Σi)%I as "hf0".
-    { iModIntro.
-      move: hlen hσ.
-      generalize (generics adef') => l.
-      clear.
-      move => hlen hσ.
-      iInduction l as [ | hd tl] "HI" forall (σ Σi hlen hσ).
-      { by destruct σ; destruct Σi. }
-      destruct σ as [ | ty σ] => //=.
-      destruct Σi as [ | ii Σi] => //=.
-      case: hlen => hlen.
-      case: hσ => hσ.
-      iSplitL; first by iApply ("hinst" $! 0).
-      iApply "HI" => //.
-      iModIntro; iIntros (k v i0 i1 hk) "#h0 #h1".
-      by iApply ("hinst" $! (S k)).
-    }
-    iAssert (□ iForall3 interp_variance (neg_variance <$> adef'.(generics)) Σi (interp_list Σt σ))%I as "hf1".
-    { by iModIntro; iApply neg_interp_variance. }
-    iClear "hinst".
-    destruct v.
-    - assert (hmono0 : mono (generics adef') tb) by by apply H3.
-      assert (hmono1 : mono (neg_variance <$> generics adef') tb) by by apply H4.
-      rewrite /interp_variance /=; iIntros (w).
-      iRewrite -"h0".
-      iRewrite -"h1".
-      iSplit; iIntros "#?".
-      + iApply (interp_with_mono with "hf0") => //.
-        by rewrite interp_type_subst.
-      + rewrite interp_type_subst //.
-        by iApply (interp_with_mono with "hf1").
-    - assert (hmono0 : mono (generics adef') tb) by by apply H3.
-      rewrite /interp_variance /=; iIntros (w).
-      iRewrite -"h0".
-      iRewrite -"h1".
-      iIntros "#?".
-      iApply (interp_with_mono with "hf0") => //.
-      by rewrite interp_type_subst.
-    - assert (hmono1 : mono (neg_variance <$> generics adef') tb) by by apply H4.
-      rewrite /interp_variance /=; iIntros (w).
-      iRewrite -"h0".
-      iRewrite -"h1".
-      iIntros "#?".
+    assert (heq: interp_list Σt (subst_ty σ <$> σB) ≡ interp_list (interp_list Σt σ) σB).
+    { rewrite /interp_list -!list_fmap_compose.
+      apply list_fmap_equiv_ext_elem_of => ty0 hin0 /= w.
       rewrite interp_type_subst //.
-      by iApply (interp_with_mono with "hf1").
+      rewrite Forall_forall in hF.
+      inv hwfA; simplify_eq.
+      rewrite H2.
+      by apply hF.
+    }
+    rewrite (iForall3_interp_equivI _ _ heq bdef.(generics) (interp_list Σi σB)).
+    iApply (interp_env_with_mono with "hinst") => //.
+    + by apply wf_ty_class_inv in hwfB.
+    + inv hwfB; by simplify_eq.
+    + move => i wi ti hwi hti hc.
+      apply extends_using_mono with (def := adef) in hext => //.
+      inv hext; simplify_eq; by eauto.
+    + move => i wi ti hwi hti hc.
+      apply extends_using_mono with (def := adef) in hext => //.
+      inv hext; simplify_eq; by eauto.
   Qed.
 
   (* if class A<..> extends B<σB>, then for any valid substitution σA,
@@ -844,32 +1160,32 @@ Section proofs.
     interp_type (ClassT A σA) Σi v -∗
     interp_type (ClassT B (subst_ty σA <$> σB)) Σi v.
   Proof.
-    move => ?? Σi A B σA σB v hext hwfA.
-    rewrite !interp_class_unfold.
+    move => hp ? Σi A B σA σB v hext hwfA.
     iIntros "h".
-    assert (hΣ : interp_list Σi (subst_ty σA <$> σB) ≡
-                 interp_list (interp_list Σi σA) σB).
-    { rewrite /interp_list -list_fmap_compose.
-      apply list_fmap_equiv_ext_elem_of => ty0 hin0 /= w.
-      rewrite -interp_type_subst //.
-      apply extends_using_wf in hext => //.
-      destruct hext as (adef & ? & hF & _).
-      rewrite Forall_forall in hF.
-      inv hwfA; simplify_eq.
-      rewrite H3; by apply hF.
+    assert (hb: wf_ty (ClassT B σB)).
+    { apply extends_using_wf in hext => //.
+      by destruct hext as (?&?&?&?).
     }
-    rewrite (interp_tag_equivI _ _ hΣ).
-    inv hwfA.
-    iApply tag_extends_using_is_inclusion => //.
-    by rewrite /interp_list fmap_length.
+    assert (hb0 := hb).
+    inv hb0.
+    rewrite !interp_class_unfold //.
+    - iDestruct (tag_extends_using_is_inclusion with "h") as "hh" => //.
+      assert (hΣ : interp_list Σi (subst_ty σA <$> σB) ≡
+                   interp_list (interp_list Σi σA) σB).
+      { rewrite /interp_list -list_fmap_compose.
+        apply list_fmap_equiv_ext_elem_of => ty0 hin0 /= w.
+        rewrite -interp_type_subst //.
+        apply extends_using_wf in hext => //.
+        destruct hext as (adef & ? & hF & _); simplify_eq.
+        rewrite Forall_forall in hF.
+        inv hwfA; simplify_eq.
+        rewrite H6; by apply hF.
+      }
+      by rewrite (interp_tag_alt_equivI _ _ hp hΣ).
+    - change (wf_ty (ClassT B (subst_ty σA <$> σB))) with (wf_ty (subst_ty σA (ClassT B σB))).
+      apply wf_ty_subst => //.
+      by apply wf_ty_class_inv in hwfA.
   Qed.
-
-  Definition interp_env_as_mixed (Σi: list (interp Σ)) :=
-    ∀ i (ϕi: interp Σ),  Σi !! i = Some ϕi → ∀ v,  ϕi v -∗ interp_mixed interp_type v.
-
-  Definition Σinterp (Σi: list (interp Σ)) (Σc : list constraint) :=
-    ∀ i c, Σc !! i = Some c →
-    ∀ v, interp_type_pre interp_type c.1 Σi v -∗ interp_type_pre interp_type c.2 Σi v.
 
   Section Inclusion.
     Hypothesis Σc: list constraint.
@@ -879,8 +1195,6 @@ Section proofs.
 
   (* Extracting subproofs for clarity *)
   Lemma subvariance_is_inclusion_aux Σi:
-    interp_env_as_mixed Σi →
-    Σinterp Σi Σc →
     ∀ A adef σ0 σ1 v,
     Δ !! A = Some adef →
     wf_ty (ClassT A σ0) →
@@ -889,232 +1203,175 @@ Section proofs.
     interp_type (ClassT A σ0) Σi v -∗
     interp_type (ClassT A σ1) Σi v.
   Proof.
-    move => ?? A adef σ0 σ1 v hadef hwfA hwfσ1.
+    move => A adef σ0 σ1 v hadef hwfA hwfσ1.
     iIntros "#hσ #h".
-    rewrite !interp_class_unfold !interp_tag_unseal /interp_tag_def /interp_fun !interp_car_simpl.
-    iDestruct "h" as (l t adef' σtA Σt fields ifields h) "[#hinst [hdyn hl]]".
-    destruct h as (-> & hadef' & hinherits & hfields & hdom); simplify_eq.
-    iExists l, t, adef, σtA, Σt, fields, ifields.
-    iSplit; first by iPureIntro.
-    iSplit; last by iSplit.
-    iClear "hdyn hl".
-    iModIntro; iNext.
-    iIntros (k v i0 i1 hv) "h0 h1".
-    rewrite !list_lookup_fmap.
-    destruct (σtA !! k) as [ta | ] eqn:hta; last first.
-    { by rewrite !option_equivI /=. }
-    destruct (σ0 !! k) as [t0 | ] eqn:ht0; last first.
-    { apply inherits_using_wf in hinherits => //.
-      destruct hinherits as (? & ? & ? & hwfA2).
-      inv hwfA; inv hwfA2; simplify_eq.
-      apply lookup_ge_None_1 in ht0.
-      apply lookup_lt_Some in hv.
-      by lia.
+    iAssert (⌜length σ0 = length σ1⌝)%I as "%hl0".
+    { iDestruct (iForall3_length with "hσ") as "%hh".
+      iPureIntro.
+      rewrite /interp_list !fmap_length in hh.
+      by destruct hh.
     }
-    destruct (σ1 !! k) as [t1 | ] eqn:ht1; last first.
-    { by rewrite !option_equivI /=. }
-    iAssert (□ iForall3 interp_variance (neg_variance <$> adef.(generics)) (interp_list Σi σ1) (interp_list Σi σ0))%I as "#hσ2".
-    { iModIntro. by iApply neg_interp_variance. }
-    iSpecialize ("hinst" $! k v (interp_type ta Σt) (interp_type t0 Σi) hv).
-    iDestruct (iForall3_forall_1 with "hσ") as "hvar".
-    iDestruct (iForall3_forall_1 with "hσ2") as "hvar2".
-    iClear "hσ hσ2".
-    iSpecialize ("hvar" $! k v (interp_type t0 Σi) (interp_type t1 Σi) hv).
-    iSpecialize ("hvar2" $! k (neg_variance v) (interp_type t1 Σi) (interp_type t0 Σi)).
-    rewrite !list_lookup_fmap hta ht0 ht1 /= !option_equivI.
-    rewrite /interp_variance; destruct v => /=.
-    - iIntros (w).
-      iRewrite -"h0".
-      iRewrite -"h1".
-      iSplit; iIntros "#?".
-      + iApply "hvar" => //.
-        by iApply "hinst".
-      + iApply "hinst" => //.
-        by iApply "hvar".
-    - iIntros (w).
-      iRewrite -"h0".
-      iRewrite -"h1".
-      iIntros "#?".
-      iApply "hvar" => //.
-      by iApply "hinst".
-    - iIntros (w).
-      iRewrite -"h0".
-      iRewrite -"h1".
-      iIntros "#?".
-      iApply "hinst" => //.
-      by iApply "hvar".
+    rewrite !interp_class_unfold //; last first.
+    { apply wf_ty_class with adef => //.
+      inv hwfA; simplify_eq.
+      by rewrite -hl0.
+    }
+    iDestruct "h" as (l t adef' tdef σtA Σt fields ifields h) "[#hmixed [#hconstr [#hinst [hdyn hl]]]]".
+    destruct h as (-> & hadef' & htdef & hlΣ0 & hlΣt & hinherits & hfields & hdom); simplify_eq.
+    iExists l, t, adef, tdef, σtA, Σt, fields, ifields.
+    iSplit.
+    { iPureIntro; repeat split => //.
+      rewrite /interp_list fmap_length in hlΣ0.
+      by rewrite /interp_list fmap_length -hl0.
+    }
+    iSplit => //.
+    iSplit => //.
+    iSplit; last by iSplit.
+    iModIntro; iNext.
+    iClear "hdyn hl hmixed".
+    by iApply (iForall3_interp_trans with "hinst hσ").
   Qed.
 
   Lemma submixed_is_inclusion_aux Σi:
-    interp_env_as_mixed Σi →
-    Σinterp Σi Σc →
     ∀ A v, wf_ty A →
+    □ interp_env_as_mixed Σi -∗
     interp_type A Σi v -∗
     interp_type MixedT Σi v.
   Proof.
-    move => wfΣi ? A v.
+    iIntros (A v hwf) "#wfΣi h".
     rewrite !interp_type_unfold /=.
-    elim: A v.
-    - move => v _; iIntros "h"; by repeat iLeft.
-    - move => v _; iIntros "h"; by iLeft; iRight; iLeft.
-    - move => v _; by rewrite /interp_nothing; iIntros "h".
+    iInduction A as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C ] 
+        "IHty" forall (v hwf) "h".
+    - by repeat iLeft.
+    - by iLeft; iRight; iLeft.
+    - by rewrite /interp_nothing.
     - done.
-    - move => cname targs ? v hwf.
-      iIntros "h".
-      iLeft; iRight; iRight.
-      iExists cname.
-      iExists (interp_list Σi targs).
-      rewrite /= !interp_tag_unseal /interp_tag_def.
-      rewrite /interp_fun !interp_car_simpl.
-      iDestruct "h" as (l t cdef σ Σt fields ifields h) "[#hinst [hdyn hloc]]".
-      destruct h as (-> & hcdef & ? & ? & ?).
-      iExists cdef; iSplitR.
-      { iPureIntro; split => //.
-        rewrite fmap_length.
-        inv hwf; by simplify_eq.
+    - iLeft; iRight; iRight => /=.
+      iExists C.
+      iExists (interp_list Σi σC).
+      assert (heq: (go interp_type Σi <$> σC) ≡ interp_list Σi σC).
+      { rewrite /interp_list.
+        apply list_fmap_equiv_ext => ty w.
+        by rewrite interp_type_unfold.
       }
-      iExists l, t, cdef, σ, Σt, fields, ifields.
-      iSplitR; first done.
-      iSplit; last by iSplit.
-      iClear "hdyn hloc".
-      iModIntro; iNext.
-      iIntros (k v i0 i1 hv) "#h0 #h1".
-      iApply "hinst" => //.
-      destruct (targs !! k) as [ty | ] eqn:hty; last first.
-      { by rewrite !list_lookup_fmap hty !option_equivI /=. }
-      rewrite /interp_list !list_lookup_fmap hty !option_equivI /=.
-      iRewrite -"h1".
-      iPureIntro.
-      move => x.
-      by rewrite interp_type_unfold.
-    - move => v _; iIntros "h"; by iRight.
-    - move => v _; by iIntros "h"; iLeft.
-    - move => s t hs ht v hwf.
-      inv hwf.
+      by rewrite (interp_tag_equivI _ _ heq C v).
+    - by iRight.
+    - by iLeft.
+    - inv hwf.
       rewrite /interp_union.
-      iIntros "h".
-      iDestruct "h" as "[ h | h ]"; first by iApply hs.
-      by iApply ht.
-    - move => s t hs ht v hwf.
-      inv hwf.
+      iDestruct "h" as "[ h | h ]"; first by iApply "IHty".
+      by iApply "IHty1".
+    - inv hwf.
       rewrite /interp_inter.
-      iIntros "h".
-      iDestruct "h" as "[? _]"; by iApply hs.
-    - move => n v _.
-      rewrite /interp_generic.
-      iIntros "hv".
-      destruct (decide (n < length Σi)) as [hlt | hge].
+      iDestruct "h" as "[? _]"; by iApply "IHty".
+    - rewrite /= /interp_generic.
+      destruct (decide (i < length Σi)) as [hlt | hge].
       + apply lookup_lt_is_Some_2 in hlt as [ϕ hϕ].
-        iApply wfΣi; last done.
+        iApply "wfΣi"; last done.
         by rewrite /= /interp_generic hϕ /=.
       + rewrite /= /interp_generic lookup_ge_None_2 /=; last by apply not_lt.
         done.
-    - move => cname v _;
-      rewrite /interp_ex.
-      iIntros "hv".
-      iDestruct "hv" as (targs) "hv".
+    - rewrite /interp_ex.
       iLeft; iRight; iRight.
-      by iExists _, _.
+      by iExists _.
   Qed.
 
   (* Main meat for A <: B → [|A|] ⊆ [|B|] *)
   Theorem subtype_is_inclusion_aux Σi A B:
-    interp_env_as_mixed Σi →
-    Σinterp Σi Σc →
     Σc ⊢ A <: B →
     ∀ v,
     wf_ty A →
+    □ interp_env_as_mixed Σi -∗
+    □ Σinterp Σi Σc -∗
     interp_type_pre interp_type A Σi v -∗
     interp_type_pre interp_type B Σi v
     with subtype_targs_is_inclusion_aux Σi Vs As Bs:
-    interp_env_as_mixed Σi →
-    Σinterp Σi Σc →
     Forall wf_ty As →
     Forall wf_ty Bs →
     Σc ⊢ As <:Vs:> Bs →
-    ⊢ □ iForall3 interp_variance Vs (interp_list Σi As) (interp_list Σi Bs).
+    □ interp_env_as_mixed Σi -∗
+    □ Σinterp Σi Σc -∗
+    □ iForall3 interp_variance Vs (interp_list Σi As) (interp_list Σi Bs).
   Proof.
-    { move => wfΣi Σcoherency.
-      destruct 1 as [A | A h | A σA B σB adef hΔ hlen hext
+    { destruct 1 as [A | A h | A σA B σB adef hΔ hlen hext
       | A adef hadef hL | A def σ0 σ1 hΔ hwfσ hσ | | | | A | A B h
       | A B h | A B C h0 h1 | A B | A B | A B C h0 h1
-      | A | A B C h0 h1 | A B hin] => v hwfA.
+      | A | A B C h0 h1 | A B hin]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold.
-        by eapply submixed_is_inclusion_aux.
+        by iApply submixed_is_inclusion_aux.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
-        rewrite /=.
-        by iIntros "H".
+        done.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold; by iApply extends_using_is_inclusion.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         simpl.
-        iIntros "h".
-        iDestruct "h" as (Σt cdef h) "h".
-        destruct h as (hadef' & hLt); simplify_eq.
-        replace Σt with (@nil (interp Σ)) => //.
-        rewrite hL in hLt.
-        apply nil_length_inv in hLt.
-        by rewrite hLt.
+        iDestruct "h" as (Σt) "h".
+        iAssert (⌜Σt = []⌝)%I as "%hnil".
+        { rewrite interp_tag_equiv => //.
+          iDestruct "h" as (???????? h) "h".
+          destruct h as (?&?&?&hl&h).
+          simplify_eq.
+          rewrite hL in hl.
+          by apply nil_length_inv in hl.
+        }
+        by rewrite hnil.
       - apply subtype_targs_is_inclusion_aux with (Σi := Σi) in hσ => //; last first.
         { by apply wf_ty_class_inv in hwfA. }
         clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold.
-        by iApply subvariance_is_inclusion_aux.
+        iApply subvariance_is_inclusion_aux => //.
+        by iApply hσ.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         by rewrite /= /interp_mixed.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
-        iIntros "h"; by iLeft.
+        by iLeft.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
-        iIntros "h"; by iRight; iLeft.
+        by iRight; iLeft.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
-        iIntros "H".
         iRight; iRight.
-        iExists A, (interp_list Σi targs).
-        inv hwfA.
-        iExists def; iSplitR.
-        + by rewrite fmap_length.
-        + by rewrite -interp_type_unfold -interp_class_unfold.
+        iExists A, (go interp_type Σi <$> targs).
+        by rewrite -interp_type_unfold interp_class_unfold.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
-        by iIntros "h"; iLeft.
+        by iLeft.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
-        by iIntros "h"; iRight.
+        by iRight.
       - clear subtype_targs_is_inclusion_aux.
-        rewrite /= /interp_union. iIntros "[h | h]".
-        + iApply subtype_is_inclusion_aux; [done | done | exact h0 | | ].
+        rewrite /= /interp_union.
+        iDestruct "h" as "[h | h]".
+        + iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h0 | | ].
           * inv hwfA; by assumption.
           * by iAssumption.
-        + iApply subtype_is_inclusion_aux; [done | done | exact h1 | | ].
+        + iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h1 | | ].
           * inv hwfA; by assumption.
           * by iAssumption.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
-        iIntros "[h _]".
+        iDestruct "h" as "[h _]".
         by iAssumption.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
-        iIntros "[_ ?]".
+        iDestruct "h" as "[_ h]".
         by iAssumption.
       - clear subtype_targs_is_inclusion_aux.
         rewrite /= /interp_inter.
-        iIntros "h".
         iSplit.
-        + iApply subtype_is_inclusion_aux; [done | done | exact h0 | done | ].
+        + iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h0 | done | ].
           by iAssumption.
-        + iApply subtype_is_inclusion_aux; [done | done | exact h1 | done | ].
+        + iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h1 | done | ].
           by iAssumption.
       - done.
-      - iIntros "h".
-        iApply subtype_is_inclusion_aux; [done | done | exact h1 | | ].
+      - iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h1 | | ].
         + apply subtype_wf in h0; [ | done | done | done ].
           by assumption.
-        + iApply subtype_is_inclusion_aux; [done | done | exact h0 | done | ].
+        + iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h0 | done | ].
           by iAssumption.
       - apply elem_of_list_lookup_1 in hin as [i hin].
-        by apply Σcoherency in hin.
+        rewrite -!interp_type_unfold /=.
+        by iApply ("Σcoherency" $! i (A, B) hin).
     }
-    move => wfΣi ? hwfA hwfB.
-    destruct 1 as [ | ????? h0 h1 h | ????? h0 h | ????? h0 h].
+    move => hwfA hwfB.
+    destruct 1 as [ | ????? h0 h1 h | ????? h0 h | ????? h0 h]; iIntros "#wfΣi #Σcoherency".
     - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
-      by iStartProof.
+      done.
     - simpl.
       apply Forall_cons_1 in hwfA as [hA hwfA].
       apply Forall_cons_1 in hwfB as [hB hwfB].
@@ -1145,30 +1402,38 @@ Section proofs.
 
   (* A <: B → [|A|] ⊆ [|B|] *)
   Theorem subtype_is_inclusion Σi:
-    interp_env_as_mixed Σi →
-    Σinterp Σi Σc →
     ∀ A B, Σc ⊢ A <: B →
     ∀ v,
     wf_ty A →
+    □ interp_env_as_mixed Σi -∗
+    □ Σinterp Σi Σc -∗
     interp_type A Σi v -∗ interp_type B Σi v.
   Proof.
-    move => ?? A B hAB v ?.
+    iIntros (A B hAB v ?) "#wfΣi #Σcoherency".
     rewrite !interp_type_unfold.
-    by iApply subtype_is_inclusion_aux.
+    by iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency").
   Qed.
 
-  Definition interp_this
+  Definition interp_this_def
     (C: tag)
     (Σi : list (interp Σ))
     : interp Σ :=
     Interp (
-      λ (w : value), (∃ ℓ t σ (Σt: list (interp Σ))
+      λ (w : value), (∃ ℓ t cdef tdef σ (Σt: list (interp Σ))
        (fields: stringmap ((visibility * lang_ty) * tag))
        (ifields: gmapO string (laterO (sem_typeO Σ))),
       ⌜w = LocV ℓ ∧
+       Δ !! C = Some cdef ∧
+       Δ !! t = Some tdef ∧
+       length Σi = length cdef.(generics) ∧
+       length Σt = length tdef.(generics) ∧
        inherits_using t C σ ∧
        has_fields t fields ∧
        dom fields = dom ifields⌝ ∗
+
+      □ ▷ interp_env_as_mixed Σt ∗
+
+      □ ▷ Σinterp Σt tdef.(constraints) ∗
 
       ((λ ty, interp_type ty Σt) <$> σ) ≡ Σi ∗
 
@@ -1177,6 +1442,19 @@ Section proofs.
 
       (ℓ ↦ (t, ifields)))%I
     ).
+
+   Local Definition interp_this_aux
+     (C: tag)
+     (Σi : list (interp Σ))
+     : seal (@interp_this_def C Σi).
+   Proof. by eexists. Qed.
+
+   Definition interp_this C (Σi: list (interp Σ)) :=
+     (interp_this_aux C Σi).(unseal).
+
+   Definition interp_this_unseal C (Σi : list (interp Σ))
+     : interp_this C Σi = interp_this_def C Σi :=
+     (interp_this_aux C Σi).(seal_eq).
 
   Definition interp_this_type C (σC: list lang_ty) Σi : interp Σ :=
     interp_this C (interp_list Σi σC).
@@ -1188,15 +1466,15 @@ Section proofs.
     ∃ val, ⌜le.(lenv) !! v = Some val⌝ ∗ interp_type ty Σi val)%I.
 
   Lemma interp_local_tys_is_inclusion Σi lty rty le:
-    interp_env_as_mixed Σi →
-    Σinterp Σi Σc →
     wf_lty lty →
     Forall (λ (i: interp Σ), ∀ v, Persistent (i v)) Σi →
     Σc ⊢ lty <:< rty →
+    □ interp_env_as_mixed Σi -∗
+    □ Σinterp Σi Σc -∗
     interp_local_tys Σi lty le -∗
     interp_local_tys Σi rty le.
   Proof.
-    move => ?? hlty hpers hsub; iIntros "[#Hthis Hle]".
+    move => hlty hpers hsub; iIntros "#wfΣi #? [#Hthis Hle]".
     destruct hsub as [hthis hsub].
     assert (hthis2: type_of_this lty = type_of_this rty).
     { rewrite /this_type in hthis.
@@ -1225,20 +1503,18 @@ Section proofs.
     rewrite interp_ex_unfold.
     iIntros "H".
     iApply hi; clear hyz hi.
-    iDestruct "H" as (Σx xdef h) "H".
-    destruct h as [hxdef hlen].
+    iDestruct "H" as (Σx) "H".
     destruct hxy as [x y xdef' σy hxdef' hsuper]; simplify_eq.
     assert (hext: extends_using x y σy) by (econstructor; by eauto).
+    rewrite (interp_tag_equiv x) //.
     iDestruct ((tag_extends_using_is_inclusion wf_parent wf_mono x y σy) with "H") as "H" => //.
     rewrite interp_ex_unfold /interp_ex /=.
     apply wf_parent in hxdef'.
     rewrite /wf_cdef_parent hsuper in hxdef'.
     destruct hxdef' as [hwf _].
     inv hwf.
-    iExists _, def; iSplitR; last done.
-    iPureIntro.
-    split => //.
-    by rewrite fmap_length.
+    iExists (interp_list Σx σy).
+    by rewrite (interp_tag_equiv y).
   Qed.
   End Inclusion.
 End proofs.

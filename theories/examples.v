@@ -1230,11 +1230,17 @@ Proof.
   apply (@step_updN_soundness sem_heapΣ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
   iModIntro.
-  assert (Σcoherency : Σinterp [] []) by done.
+  iAssert ( Σinterp [] []) as "Σcoherency".
+  { iIntros (? ? h).
+    by rewrite lookup_nil in h.
+  }
   assert (wfΣc : Forall wf_constraint []).
   { rewrite Forall_forall => ?. by set_solver. }
-  assert (wfΣi : interp_env_as_mixed [] []) by done.
-  iDestruct ((cmd_adequacy [] [] _ _ _ wf wfinit wfΣc wfΣi Σcoherency ht _ _ _ he) with "Hmain") as "H" => /=.
+  iAssert (interp_env_as_mixed []) as "wfΣi".
+  { iIntros (? ? h).
+    by rewrite lookup_nil in h.
+  }
+  iDestruct ((cmd_adequacy [] [] _ _ _ wf wfinit wfΣc ht _ _ _ he) with "wfΣi Σcoherency Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [Hthis Hl]]".
@@ -1264,19 +1270,26 @@ Proof.
   apply (@step_updN_soundness sem_heapΣ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
   iModIntro.
-  assert (Σcoherency : Σinterp [] []) by done.
+  iAssert ( Σinterp [] []) as "Σcoherency".
+  { iIntros (? ? h).
+    by rewrite lookup_nil in h.
+  }
   assert (wfΣc : Forall wf_constraint []).
   { rewrite Forall_forall => ?. by set_solver. }
-  assert (wfΣi : interp_env_as_mixed [] []) by done.
-  iDestruct ((cmd_adequacy [] [] _ _ _ wf wfinit wfΣc wfΣi Σcoherency ht _ _ _ he) with "Hmain") as "H" => /=.
+  iAssert (interp_env_as_mixed []) as "wfΣi".
+  { iIntros (? ? h).
+    by rewrite lookup_nil in h.
+  }
+  iDestruct ((cmd_adequacy [] [] _ _ _ wf wfinit wfΣc ht _ _ _ he) with "wfΣi Σcoherency Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [_ Hl]]".
   iSpecialize ("Hl" $! v (ClassT T σ) hin).
   iDestruct "Hl" as (w hw) "Hw".
   rewrite interp_type_unfold /=.
-  iDestruct "Hw" as (l t cdef σ0 σt fields ifields) "[%hpure [#Hfields #Hl]]".
-  destruct hpure as (-> & htT & hwf & hdef & htargs & hfields).
+  rewrite interp_tag_equiv; last by apply wf_parent.
+  iDestruct "Hw" as (l t cdef tdef σ0 Σt fields ifields) "[%hpure [#hmixed [#hΣt [#hinst [#hdyn #Hl]]]]]".
+  destruct hpure as (-> & hcdef & htdef & hl0 & hl1 & hinherits & hfields & hidom).
   destruct st as [le h]; simpl in *.
   iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
   iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
@@ -1295,7 +1308,7 @@ Proof.
   fold_leibniz; subst.
   iPureIntro.
   exists l, t, vs; repeat split => //.
-  by apply inherits_using_erase in htT.
+  by apply inherits_using_erase in hinherits.
 Qed.
 
 Print Assumptions int_adequacy.
