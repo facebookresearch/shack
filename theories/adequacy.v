@@ -1174,90 +1174,36 @@ Section proofs.
       clear H6 h.
       simpl in H5.
       iDestruct "H" as "[H #Hle]".
-      iDestruct "Hle" as "[Hthis Hle]".
-      iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
-      rewrite Hlev in H5; simplify_eq.
-      destruct val as [z | b |  | l]; [ | | by elim H5 | ].
-      + iFrame.
-        iSplit => /=; first done.
-        iIntros (w tw).
-        rewrite lookup_insert_Some.
-        iIntros "%Hw".
-        destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
-        iExists (IntV z); rewrite Hlev; iSplitR; first done.
-        rewrite interp_inter_unfold /=; iSplit; first done.
-        rewrite !interp_type_unfold.
-        iLeft.
-        by iExists _.
-      + iFrame.
-        iSplit => /=; first done.
-        iIntros (w tw).
-        rewrite lookup_insert_Some.
-        iIntros "%Hw".
-        destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
-        iExists (BoolV b); rewrite Hlev; iSplitR; first done.
-        rewrite interp_inter_unfold /=; iSplit; first done.
-        rewrite !interp_type_unfold.
-        iRight; iLeft.
-        by iExists _.
-      + iAssert (interp_type MixedT Σi (LocV l)) as "Hmixed".
-        { destruct wfΔ.
-          assert (hsub : Σc ⊢ tv <: MixedT) by apply SubMixed.
-          iApply subtype_is_inclusion => //.
-          by apply wflty in hv.
-        }
-        (* TODO: try to factor this out (see runtime Tag case) *)
-        destruct H5 as (t' & fields & hlt).
-        rewrite interp_mixed_unfold /=.
-        iDestruct "Hmixed" as "[Hnonnull | Hnull]"; last first.
-        { iDestruct "Hnull" as "%Hnull"; discriminate. }
-        iDestruct "Hnonnull" as "[Hint | Hl]".
-        { iDestruct "Hint" as "%Hint"; by destruct Hint. }
-        iDestruct "Hl" as "[Hbool | Hl]".
-        { iDestruct "Hbool" as "%Hbool"; by destruct Hbool. }
-        iDestruct "Hl" as (exTag exΣ) "Hl".
-        rewrite interp_tag_equiv; last by apply wfΔ.
-        iDestruct "Hl" as (k rt def rtdef σ Σt exfields ifields) "[%H [#hmixed [#hΣt [#hinst [#hdyn #Hl]]]]]".
-        destruct H as ([= <-] & hdef & hrtdef & hlexΣ & hlΣt & hinherits' & hfields' & hidom'); simplify_eq.
-        iAssert (⌜t' = rt⌝ ∗ heap_models st.2 ∗ interp_type (ExT rt) Σi (LocV l))%I with "[H]" as "[%heq [Hh #Hv2]]".
-        { iDestruct "H" as (sh) "(H● & %hdom & #Hh)".
-          iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
-          iDestruct ("Hh" with "[//]") as (iFs) "[H H▷]".
-          iRewrite "H" in "HΦ".
-          rewrite option_equivI prod_equivI /=.
-          iDestruct "HΦ" as "[%Ht HΦ]".
-          fold_leibniz; subst.
-          iSplitR; first by iPureIntro.
-          iSplitL. { iExists _. iFrame. by iSplit. }
-          rewrite interp_ex_unfold /=.
-          iExists Σt.
-          rewrite interp_tag_equiv //; last by apply wfΔ.
-          iExists l, rt, rtdef, rtdef, (gen_targs (length rtdef.(generics))), Σt, exfields, ifields.
-          iSplit.
-          { iPureIntro; repeat split => //.
-            by constructor.
-          }
-          iSplit => //.
-          iSplit => //.
-          iSplit.
-          { iModIntro; iNext.
-            by iApply iForall3_interp_gen_targs.
-          }
-          by iSplit.
-        }
-        subst.
-        iFrame.
-        iSplit => /=; first done.
-        iIntros (w tw).
-        rewrite lookup_insert_Some.
-        iIntros "%Hw".
-        destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
-        iExists (LocV l); rewrite Hlev; iSplitR; first done.
-        rewrite interp_inter_unfold /=; iSplit; first done.
-        destruct wfΔ.
-        rewrite !interp_type_unfold.
-        iRight; iRight.
-        by iExists rt.
+      iFrame.
+      iAssert (interp_local_tys Σi lty st.1) as "#Hle_"; first done.
+      iDestruct "Hle_" as "[Hthis Hle_]".
+      iDestruct ("Hle_" $! v with "[//]") as (?) "[%Hlev Hv]".
+      iAssert (interp_type MixedT Σi val) as "Hmixed".
+      { destruct wfΔ.
+        assert (hsub : Σc ⊢ tv <: MixedT) by apply SubMixed.
+        iApply subtype_is_inclusion => //.
+        by apply wflty in hv.
+      }
+      replace (interp_local_tys Σi (<[v:=InterT tv NonNullT]> lty) st.1) with
+              (interp_local_tys Σi (<[v:=InterT tv NonNullT]> lty) (<[v := val]>st.1)); last first.
+      { f_equal.
+        destruct st as [[? ll] ?]; simpl in *.
+        move : Hlev.
+        rewrite /insert /local_env_insert /=; clear => h.
+        f_equal.
+        induction ll as [| s w ws Hs IH] using map_ind => //=.
+        rewrite lookup_insert_Some in h.
+        destruct h as [[-> ->] | [hneq hv]].
+        * by rewrite insert_insert.
+        * by rewrite insert_commute // IH.
+      }
+      iApply interp_local_tys_update => //.
+      rewrite interp_mixed_unfold interp_inter_unfold.
+      iSplit; first done.
+      iDestruct "Hmixed" as "[? | %hnull]".
+      { by rewrite interp_nonnull_unfold. }
+      rewrite hnull in Hlev.
+      by rewrite Hlev in H5.
   Qed.
 
   Lemma cmd_adequacy Σc Σi lty cmd lty' :
