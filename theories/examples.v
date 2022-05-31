@@ -27,6 +27,7 @@ Definition Get := {|
   methodrettype := GenT 0;
   methodbody := GetC "$ret" ThisE "$data";
   methodret := VarE "$ret";
+  method_support_dynamic := false;
 |}.
 
 Definition ROBox := {|
@@ -36,6 +37,7 @@ Definition ROBox := {|
   constraints := [(GenT 0, arraykey)];
   classfields := {["$data" := (Private, GenT 0)]};
   classmethods := {["get" := Get]};
+  support_dynamic := false;
 |}.
 
 (* Definition of class Box<T>:
@@ -51,6 +53,7 @@ Definition BoxSet := {|
   methodrettype := NullT;
   methodbody := SetC ThisE "$data" (VarE "$data");
   methodret := NullE;
+  method_support_dynamic := false;
 |}.
 
 Definition Box := {|
@@ -60,6 +63,7 @@ Definition Box := {|
   constraints := [];
   classfields := {["$data" := (Public, GenT 0)]};
   classmethods := {["set" := BoxSet; "get" := Get]};
+  support_dynamic := false;
 |}.
 
 (* Definition of class IntBoxS:
@@ -75,6 +79,7 @@ Definition IntBoxSSet := {|
   methodrettype := NullT;
   methodbody := SetC ThisE "$data" (BinOpE PlusO (VarE "$data") (IntE 1%Z));
   methodret := NullE;
+  method_support_dynamic := false;
 |}.
 
 Definition IntBoxS := {|
@@ -84,6 +89,7 @@ Definition IntBoxS := {|
   constraints := [];
   classfields := ∅;
   classmethods := {["set" := IntBoxSSet]};
+  support_dynamic := false;
 |}.
 
 (* Main program:
@@ -115,6 +121,7 @@ Definition EntryPoint := {|
   methodrettype := BoolT;
   methodbody := ProgramBody;
   methodret := BinOpE EqO (VarE "$tmp") (IntE 43);
+  method_support_dynamic := false;
 |}.
 
 Definition Main := {|
@@ -124,6 +131,7 @@ Definition Main := {|
   constraints := [];
   classfields := ∅;
   classmethods := {["entry_point" := EntryPoint]};
+  support_dynamic := false;
  |}.
 
 Local Instance PDC : ProgDefContext := { Δ := {[ "ROBox" := ROBox; "Box" := Box; "IntBoxS" := IntBoxS; "Main" := Main ]} }.

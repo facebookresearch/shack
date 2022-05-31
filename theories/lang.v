@@ -518,6 +518,7 @@ Record methodDef := {
   methodrettype: lang_ty;
   methodbody: cmd;
   methodret: expr;
+  method_support_dynamic: bool;
 }.
 
 Definition subst_mdef targs mdef : methodDef := {|
@@ -526,6 +527,7 @@ Definition subst_mdef targs mdef : methodDef := {|
     methodrettype := subst_ty targs mdef.(methodrettype);
     methodbody := subst_cmd targs mdef.(methodbody);
     methodret := subst_expr targs mdef.(methodret);
+    method_support_dynamic := mdef.(method_support_dynamic);
   |}.
 
 Lemma subst_mdef_nil mdef : subst_mdef [] mdef = mdef.
@@ -624,6 +626,7 @@ Record classDef := {
   superclass: option (tag * list lang_ty);
   classfields : stringmap (visibility * lang_ty);
   classmethods : stringmap methodDef;
+  support_dynamic : bool;
 }.
 
 (* "Identity" substitution for n generics *)

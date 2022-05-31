@@ -1247,6 +1247,7 @@ Definition main_cdef tag methods := {|
   superclass := None;
   classfields := ∅;
   classmethods := methods;
+  support_dynamic := false;
 |}.
 
 Definition main_heap tag : heap := {[1%positive := (tag, ∅)]}.

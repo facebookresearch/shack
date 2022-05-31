@@ -212,7 +212,7 @@ Section proofs.
        dom fields = dom ifields⌝ ∗
 
       □ ▷ (∀ i (ϕi: interp Σ),  ⌜Σt !! i = Some ϕi⌝ →
-           ∀ v,  ϕi v -∗ rec MixedT Σi v) ∗ (* Σi or Σt ? *)
+           ∀ v,  ϕi v -∗ rec MixedT Σi v) ∗
 
       □ ▷ (∀ i c, ⌜tdef.(constraints) !! i = Some c⌝ →
            ∀ v, rec c.1 Σt v -∗ rec c.2 Σt v) ∗
@@ -259,6 +259,14 @@ Section proofs.
   Definition interp_generic (Σi : list (interp Σ)) (tv: nat) : interp Σ :=
     default interp_nothing (Σi !! tv).
 
+  Definition interp_dynamic (rec: ty_interpO) : interp Σ :=
+    Interp (λ (v: value),
+      interp_int v ∨
+      interp_bool v ∨
+      interp_null v ∨
+      (∃ t def, ⌜Δ !! t = Some def ∧ def.(support_dynamic) = true⌝ ∗
+        interp_ex rec t v))%I.
+
   (* we use a blend of Coq/Iris recursion, the
      Coq recursion lets us handle simple structural
      cases, and we use Iris' recursion to deal with
@@ -282,7 +290,7 @@ Section proofs.
       | InterT A B => interp_inter (go Σi A) (go Σi B)
       | GenT n => interp_generic Σi n
       | ExT cname => interp_ex rec cname
-      | DynamicT => interp_nothing (* TODO Fix later *)
+      | DynamicT => interp_dynamic rec
       end.
   End interp_type_pre_rec.
 
@@ -435,7 +443,9 @@ Section proofs.
     - by solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - done.
     - by apply interp_ex_contractive.
-    - done.
+    - rewrite /interp_dynamic => v /=.
+      do 8 f_equiv.
+      by apply interp_ex_contractive.
   Qed.
 
   (* the interpretation of types can now be
@@ -507,6 +517,11 @@ Section proofs.
     - rewrite !interp_type_unfold; by iSplit.
     - rewrite !interp_type_unfold; by iSplit.
     Qed.
+
+    Lemma interp_dynamic_unfold v:
+      interp_type DynamicT Σi v ⊣⊢
+      interp_dynamic interp_type v.
+    Proof.  by rewrite interp_type_unfold. Qed.
   End Unfold.
 
   Definition interp_tag_alt
@@ -1051,6 +1066,7 @@ Section proofs.
     - iIntros "hh".
       iDestruct "hh" as (Σt) "hh".
       by iExists Σt.
+    - by iIntros "hh".
   Qed.
 
   Lemma interp_env_with_mono :
@@ -1244,10 +1260,10 @@ Section proofs.
     iIntros (A v hwf) "#wfΣi h".
     rewrite !interp_type_unfold /=.
     iInduction A as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | ] 
-        "IHty" forall (v hwf) "h".
+        "IHty" forall (v hwf).
     - by repeat iLeft.
     - by iLeft; iRight; iLeft.
-    - by rewrite /interp_nothing.
+    - done.
     - done.
     - iLeft; iRight; iRight => /=.
       iExists C.
@@ -1261,11 +1277,9 @@ Section proofs.
     - by iRight.
     - by iLeft.
     - inv hwf.
-      rewrite /interp_union.
       iDestruct "h" as "[ h | h ]"; first by iApply "IHty".
       by iApply "IHty1".
     - inv hwf.
-      rewrite /interp_inter.
       iDestruct "h" as "[? _]"; by iApply "IHty".
     - rewrite /= /interp_generic.
       destruct (decide (i < length Σi)) as [hlt | hge].
@@ -1274,10 +1288,18 @@ Section proofs.
         by rewrite /= /interp_generic hϕ /=.
       + rewrite /= /interp_generic lookup_ge_None_2 /=; last by apply not_lt.
         done.
-    - rewrite /interp_ex.
-      iLeft; iRight; iRight.
+    - iLeft; iRight; iRight.
       by iExists _.
-    - done.
+    - rewrite /= /interp_dynamic.
+      iDestruct "h" as "[? | h]".
+      { by iLeft; iLeft. }
+      iDestruct "h" as "[? | h]".
+      { by iLeft; iRight; iLeft. }
+      iDestruct "h" as "[? | h]".
+      { by iRight. }
+      iLeft; iRight; iRight.
+      iDestruct "h" as (t def h Σt) "hh".
+      by iExists _, _.
   Qed.
 
   (* Main meat for A <: B → [|A|] ⊆ [|B|] *)
@@ -1300,7 +1322,7 @@ Section proofs.
     { destruct 1 as [A | A h | A σA B σB adef hΔ hlen hext
       | A adef hadef hL | A def σ0 σ1 hΔ hwfσ hσ | | | | A | A B h
       | A B h | A B C h0 h1 | A B | A B | A B C h0 h1
-      | A | A B C h0 h1 | A B hin]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
+      | A | A B C h0 h1 | A B hin | A adef σA hΔ hsupdyn hσA | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold.
         by iApply submixed_is_inclusion_aux.
@@ -1371,6 +1393,14 @@ Section proofs.
       - apply elem_of_list_lookup_1 in hin as [i hin].
         rewrite -!interp_type_unfold /=.
         by iApply ("Σcoherency" $! i (A, B) hin).
+      - iRight; iRight; iRight.
+        iExists A, adef; iSplit; first done.
+        rewrite -interp_type_unfold interp_class_unfold //.
+        iExists (interp_list Σi σA).
+        by rewrite interp_tag_equiv.
+      - by iLeft.
+      - by iRight; iLeft.
+      - by iRight; iRight; iLeft.
     }
     move => hwfA hwfB.
     destruct 1 as [ | ????? h0 h1 h | ????? h0 h | ????? h0 h]; iIntros "#wfΣi #Σcoherency".

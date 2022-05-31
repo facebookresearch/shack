@@ -46,6 +46,15 @@ Section Subtype.
     | SubRefl: ∀ s, subtype Γ s s
     | SubTrans: ∀ s t u, subtype Γ s t → subtype Γ t u → subtype Γ s u
     | SubConstraint: ∀ s t, (s, t) ∈ Γ → subtype Γ s t
+    | SubClassDyn: ∀ A adef σA,
+        Δ !! A = Some adef →
+        adef.(support_dynamic) = true →
+        (* Forall (λ ty, subtype Γ ty DynamicT) σA → *)
+        (∀ k ty, σA !! k = Some ty → subtype Γ ty DynamicT) →
+        subtype Γ (ClassT A σA) DynamicT
+    | SubIntDyn : subtype Γ IntT DynamicT
+    | SubBoolDyn : subtype Γ BoolT DynamicT
+    | SubNullDyn : subtype Γ NullT DynamicT
   with subtype_targs (Γ: list constraint) : list variance → list lang_ty → list lang_ty → Prop :=
     | subtype_targs_nil: subtype_targs Γ [] [] []
     | subtype_targs_invariant: ∀ ty0 ty1 vs ty0s ty1s,
@@ -105,7 +114,7 @@ Section Subtype.
     - destruct 1 as [ ty | ty hwf | A σA B σB adef hadef hL hext
       | A adef hadef hL | A adef σ0 σ1 hadef hwf hσ | | | | A targs | s t ht
       | s t hs | s t u hs ht | s t | s t | s t u hs ht | s | s t u hs ht
-      | s t hin] => Γ' hΓ; try by econstructor.
+      | s t hin | A adef σA hΔ hsupdyn hσA | | |] => Γ' hΓ; try by econstructor.
       + econstructor; [ done | done | ].
         by eapply subtype_targs_weaken.
       + econstructor; by eapply subtype_weaken.
@@ -113,6 +122,9 @@ Section Subtype.
       + econstructor; by eapply subtype_weaken.
       + apply SubConstraint.
         by set_solver.
+      + eapply SubClassDyn => // k ty hin.
+        apply hσA in hin.
+        by eapply subtype_weaken.
     - destruct 1 as [ | ??????? h | ?????? h | ?????? h ] => Γ' hΓ.
       + by constructor.
       + econstructor; [ by eapply subtype_weaken | by eapply subtype_weaken | ].
@@ -137,7 +149,8 @@ Section Subtype.
     - destruct 1 as [ ty | ty hwf | A σA B σB adef hadef hL hext
       | A adef hadef hL | A adef σ0 σ1 hadef hwf hσ | | | | A targs
       | s t ht | s t hs | s t u hs ht | s t | s t | s t u hs ht | s
-      | s t u hs ht | s t hin] => Γ Γ' heq hΓ; subst; try by econstructor.
+      | s t u hs ht | s t hin | A adef σA hΔ hsupdyn hσA | | | ]
+      => Γ Γ' heq hΓ; subst; try by econstructor.
       + econstructor; [done | done | ].
         by eapply subtype_targs_constraint_elim_.
       + econstructor; by eapply subtype_constraint_elim_.
@@ -149,6 +162,9 @@ Section Subtype.
         }
         apply elem_of_list_lookup_1 in hin as [i hin].
         by apply hΓ in hin.
+      + eapply SubClassDyn => // k ty hin.
+        apply hσA in hin.
+        by eapply subtype_constraint_elim_.
     - destruct 1 as [ | ??????? h | ?????? h | ?????? h ] => Γ Γ' heq hΓ; subst.
       + by constructor.
       + econstructor; [ by eapply subtype_constraint_elim_ | by eapply subtype_constraint_elim_ | ].
@@ -183,7 +199,7 @@ Section Subtype.
     - destruct 1 as [ ty | ty hwf | A σA B σB adef hadef hL hext
       | A adef hadef hL | A adef σ0 σ1 hadef hwf hσ | | | | A targs | s t ht
       | s t hs | s t u hs ht | s t | s t | s t u hs ht | s | s t u hs ht
-      | s t hin] => Γ' hΓ; try by econstructor.
+      | s t hin | A adef σA hΔ hsupdyn hσA | | | ] => Γ' hΓ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
         eapply subtype_targs_constraint_trans.
         * by apply hσ.
@@ -193,6 +209,9 @@ Section Subtype.
       + apply SubTrans with t; by eapply subtype_constraint_trans.
       + apply elem_of_list_lookup in hin as [i hin].
         by apply hΓ in hin.
+      + eapply SubClassDyn => // k ty hin.
+        apply hσA in hin.
+        by eapply subtype_constraint_trans.
     - destruct 1 as [ | ??????? h | ?????? h | ?????? h ] => Γ' hΓ.
       + by constructor.
       + econstructor; [ by eapply subtype_constraint_trans | by eapply subtype_constraint_trans | ].
@@ -575,7 +594,8 @@ Section Subtype.
     induction 1 as [ ty | ty h | A σA B σB adef hΔ hA hext
       | A adef hadef hL | A adef σ0 σ1 hΔ hwfσ hσ | | | | A args | s t h
       | s t h | s t u hs his ht hit | s t | s t | s t u hs his ht hit | s
-      | s t u hst hist htu hitu | s t hin ] => //=; try (by constructor).
+      | s t u hst hist htu hitu | s t hin | A adef σA hΔ hsupdyn hσA | | | ]
+      => //=; try (by constructor).
     - inv hext; simplify_eq.
       rewrite /map_Forall_lookup in hp.
       apply hp in hΔ.
@@ -626,7 +646,8 @@ Section Subtype.
       destruct 1 as [ ty | ty h | A σA B σB adef hΔ hA hext
       | A adef hadef hL | A adef σ0 σ1 hΔ hwfσ hσ01 | | | | A args
       | s t h | s t h | s t u hs ht | s t | s t | s t u hs ht | s
-      | s t u hst htu | s t hin] => σ hσ => /=; try (by constructor).
+      | s t u hst htu | s t hin | A adef σA hΔ hsupdyn hσA | | | ]
+      => σ hσ => /=; try (by constructor).
       + constructor.
         by apply wf_ty_subst.
       + rewrite map_subst_ty_subst.
@@ -654,6 +675,11 @@ Section Subtype.
         apply elem_of_list_lookup_1 in hin as [i hin].
         apply elem_of_list_lookup; exists i.
         by rewrite /subst_constraints list_lookup_fmap hin.
+      + eapply SubClassDyn => //k ? hin.
+        apply list_lookup_fmap_inv in hin as [ty [-> hin]].
+        apply hσA in hin.
+        change DynamicT with (subst_ty σ DynamicT).
+        by eapply subtype_subst.
     - move => hp.
       destruct 1 as [ | ????? h0 h1 h | ????? h0 h | ????? h0 h] => σ hσ /=.
       + by constructor.
