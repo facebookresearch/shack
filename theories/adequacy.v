@@ -339,6 +339,82 @@ Section proofs.
     by iApply "hstatic".
   Qed.
 
+  (* virtual calls using Dynamic all verify cdef_wf_mdef_dyn_ty *)
+  Lemma wf_mdef_dyn_ty_wf Σi Σc st st' lty lhs recv name args l n:
+    wf_cdefs Δ →
+    wf_lty lty →
+    Forall wf_constraint Σc →
+    expr_has_ty Σc lty recv DynamicT →
+    expr_eval st.1 recv = Some (LocV l) →
+    cmd_eval st (CallC lhs recv name args) st' n →
+    □ interp_env_as_mixed Σi -∗
+    □ Σinterp Σi Σc -∗
+    heap_models st.2 ∗ interp_local_tys Σi lty st.1 -∗
+    ⌜∃ t vs orig σ def mdef,
+    st.2 !! l = Some (t, vs) ∧
+    inherits_using t orig σ ∧
+    Δ !! orig = Some def ∧
+    def.(classmethods) !! name = Some mdef ∧
+    wf_mdef_dyn_ty def.(constraints) orig (gen_targs (length def.(generics))) mdef⌝%I.
+  Proof.
+    move => wfΔ ?? hrty heval hceval.
+    iIntros "#hΣi #hΣiΣc [Hh #Hle]".
+    inv hceval; simpl in *.
+    rewrite heval in H3; simplify_eq.
+    iDestruct (expr_adequacy with "hΣi hΣiΣc Hle") as "#He" => //; try (by apply wfΔ).
+    rewrite interp_dynamic_unfold.
+    iDestruct "He" as "[H | He]".
+    { iDestruct "H" as (z) "%H".
+      discriminate H.
+    }
+    iDestruct "He" as "[H | He]".
+    { iDestruct "H" as (b) "%H".
+      discriminate H.
+    }
+    iDestruct "He" as "[H | He]".
+    { iDestruct "H" as "%H".
+      discriminate H.
+    }
+    iDestruct "He" as (dyntag dyndef hpure Σdyn) "He".
+    destruct hpure as [hdyndef hsupdyn].
+    rewrite interp_tag_equiv; last by apply wfΔ.
+    iDestruct "He" as (?? def def0 ????) "[%H [#hmixed [#hconstr [#hf0 [#hdyn H◯]]]]]".
+    destruct H as ([= <-] & hdef & hdef0 & hlen & ? & hinherits & hfields & hidom).
+    simplify_eq.
+    iAssert (⌜t0 = t⌝)%I as "%Ht".
+    { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
+      iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
+      iDestruct ("Hh" with "[//]") as (iFs) "[H H▷]".
+      iRewrite "H" in "HΦ".
+      rewrite option_equivI prod_equivI /=.
+      iDestruct "HΦ" as "[%Ht HΦ]".
+      by fold_leibniz; subst.
+    }
+    subst.
+    iPureIntro.
+    assert (h0 := H7).
+    apply has_method_from_def in h0 => //; try by apply wfΔ.
+    destruct h0 as (odef & omdef & hodef & homdef & _ & [σ0 [hin0 ->]]).
+    exists t, vs, orig, σ0, odef, omdef.
+    split; first done.
+    split; first done.
+    split; first done.
+    split; first done.
+    destruct wfΔ.
+    assert (hsupdyn0: def0.(support_dynamic) = true).
+    { apply inherits_using_dyn_parent in hinherits => //.
+      destruct hinherits as (tdef & ddef & ? & ? & hh); simplify_eq.
+      by apply hh.
+    }
+    apply wf_methods_dyn in hdef0.
+    rewrite /wf_cdef_methods_dyn_wf hsupdyn0 in hdef0.
+    apply hdef0 in H7.
+    rewrite /subst_mdef /= in H7.
+    apply wf_mdefs_dyn in hodef.
+    apply hodef in homdef.
+    by rewrite /cdef_wf_mdef_dyn_ty H7 in homdef.
+  Qed.
+    
   Lemma cmd_adequacy_ Σc lty cmd lty' :
     wf_cdefs Δ →
     wf_lty lty →

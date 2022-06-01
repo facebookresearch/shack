@@ -1018,9 +1018,19 @@ Section Typing.
     expr_has_ty Γ rty mdef.(methodret) (to_dyn mdef.(methodrettype))
   .
 
-  Definition wf_cdef_mdef_dyn_ty cname cdef :=
+  Definition wf_cdef_methods_dyn_wf cname cdef :=
+    if cdef.(support_dynamic) then
+    ∀ mname orig mdef,
+    has_method mname cname orig mdef → mdef.(method_support_dynamic) = true
+    else True
+  .
+
+  Definition cdef_wf_mdef_dyn_ty cname cdef :=
     let σ := gen_targs (length cdef.(generics)) in
-    map_Forall (λ _mname mdef, wf_mdef_dyn_ty cdef.(constraints) cname σ mdef) cdef.(classmethods)
+    map_Forall (λ _ mdef,
+      if mdef.(method_support_dynamic) then
+        wf_mdef_dyn_ty cdef.(constraints) cname σ mdef
+      else True) cdef.(classmethods)
   .
 
   Definition wf_field_dyn_wf Σc (vfty: ((visibility * lang_ty) * tag)) :=
@@ -1114,6 +1124,8 @@ Section Typing.
     (* Dynamic related invariant *)
     wf_fields_dyn : map_Forall wf_cdef_fields_dyn_wf prog;
     wf_dyn_parent: map_Forall (λ _cname, wf_cdef_dyn_parent) prog;
+    wf_methods_dyn : map_Forall wf_cdef_methods_dyn_wf prog;
+    wf_mdefs_dyn : map_Forall cdef_wf_mdef_dyn_ty prog;
   }
   .
 End Typing.
