@@ -545,6 +545,21 @@ Section Typing.
         Γ ⊢ lty <:< rty →
         cmd_has_ty Γ (<[v:=InterT tv NonNullT]> lty) cmd rty →
         cmd_has_ty Γ lty (RuntimeCheckC v RCNonNull cmd) rty
+    (* Dynamic related typing rules *)
+    | DynIfTy: ∀ lty1 lty2 cond thn els,
+        expr_has_ty Γ lty1 cond DynamicT →
+        cmd_has_ty Γ lty1 thn lty2 →
+        cmd_has_ty Γ lty1 els lty2 →
+        cmd_has_ty Γ lty1 (IfC cond thn els) lty2
+    | DynGetTy : ∀ lty lhs recv name,
+        expr_has_ty Γ lty recv DynamicT →
+        (match recv with
+         | ThisE => False
+         | _ => True
+         end
+        ) →
+        cmd_has_ty Γ lty (GetC lhs recv name) (<[lhs := DynamicT]>lty)
+    (* To be completed *)
   .
 
   Lemma cmd_has_ty_constraint_elim_ G lty cmd rty:
@@ -558,7 +573,8 @@ Section Typing.
       ?????? he hf hr | ???????? he hf hr | ?????? ht hok hf hdom hargs |
       ????????? he hm hdom hargs |
       ???? hsub h hi | ?????? hin hr h hi | ????? hin hr h hi |
-      ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi
+      ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi |
+      ????? hcond hthn hi1 hels hi2 | ???? he hnotthis
       ] => Γ Γ' heq hΓ; subst.
     - by econstructor.
     - econstructor; by eauto.
@@ -602,6 +618,12 @@ Section Typing.
     - eapply NonNullCheckTy => //.
       + by eapply lty_sub_constraint_elim.
       + by eauto.
+    - eapply DynIfTy.
+      + by eapply expr_has_ty_constraint_elim.
+      + by eapply hi1.
+      + by eapply hi2.
+    - eapply DynGetTy => //.
+      by eapply expr_has_ty_constraint_elim.
   Qed.
 
   Lemma cmd_has_ty_constraint_elim Γ Γ' lty cmd rty:
@@ -625,28 +647,24 @@ Section Typing.
       ?????? he hf hr | ???????? he hf hr | ?????? ht hok hf hdom hargs |
       ????????? he hm hdom hargs |
       ???? hsub h hi | ?????? hin hr h hi | ????? hin hr h hi |
-      ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi
+      ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi |
+      ????? hcond hthn hi1 hels hi2 | ???? he hnotthis
       ] => //=; try (by eauto).
     - apply hi2.
       + by apply hi1.
       + by apply hi1.
-    - split; first by apply hthis.
-      apply map_Forall_insert_2 => //.
+    - apply insert_wf_lty => //.
       by apply expr_has_ty_wf in he.
-    - destruct lty as [[? ?] lty].
+    - apply insert_wf_lty => //.
+      apply wf_ty_subst; last by apply has_field_wf in hf.
+      destruct lty as [[? ?] lty].
       rewrite /this_type /= in hthis, he.
       simplify_eq.
-      simpl in *.
-      split; first by apply hthis.
-      apply map_Forall_insert_2 => //.
-      apply wf_ty_subst; first by apply wf_ty_class_inv in hthis.
-      by apply has_field_wf in hf.
-    - split; first by apply hthis.
-      apply map_Forall_insert_2 => //.
-      apply wf_ty_subst.
-      + apply expr_has_ty_wf in he => //.
-        by apply wf_ty_class_inv in he.
-      + by apply has_field_wf in hf.
+      by apply wf_ty_class_inv in hthis.
+    - apply insert_wf_lty => //.
+      apply wf_ty_subst; last by apply has_field_wf in hf.
+      apply expr_has_ty_wf in he => //.
+      by apply wf_ty_class_inv in he.
     - split; first by apply hthis.
       by apply map_Forall_insert_2.
     - split; first by apply hthis.
@@ -714,6 +732,7 @@ Section Typing.
           by apply hwf in hin.
         }
         by apply hwf in hk.
+    - by apply insert_wf_lty.
   Qed.
 
   Lemma cmd_has_ty_subst Γ' Γ σ lty cmd lty':
@@ -736,7 +755,8 @@ Section Typing.
       ?????? he hf hr | ???????? he hf hr | ?????? hwf hok hf hdom hargs |
       ????????? he hm hdom hargs |
       ???? hsub h hi | ?????? hin hr h hi | ????? hin hr h hi |
-      ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi 
+      ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi |
+      ????? hcond hthn hi1 hels hi2 | ???? he hnotthis
       ] => //=.
     - by constructor.
     - econstructor.
@@ -930,6 +950,24 @@ Section Typing.
         * apply map_Forall_insert_2 => //; last by apply hwf0.
           constructor; last by constructor.
           by apply hwf0 in hin.
+    - eapply DynIfTy.
+      + change DynamicT with (subst_ty σ DynamicT).
+        by eapply expr_has_ty_subst.
+      + by apply hi1.
+      + apply hi2.
+        by apply cmd_has_ty_wf in hthn.
+    - replace (subst_lty σ (<[lhs:=DynamicT]> lty)) with
+             (<[lhs := DynamicT]>(subst_lty σ lty)); last first.
+      { rewrite /subst_lty /= /insert /local_tys_insert /=.
+        f_equal.
+        by rewrite fmap_insert.
+      }
+      eapply DynGetTy; last first.
+      { move: hnotthis; clear.
+        by elim: recv.
+      }
+      change DynamicT with (subst_ty σ DynamicT).
+      by eapply expr_has_ty_subst.
   Qed.
 
   (* Consider a class C<T0, ..., Tn>,
@@ -949,6 +987,86 @@ Section Typing.
     let σ := gen_targs (length cdef.(generics)) in
     map_Forall (λ _mname mdef, wf_mdef_ty cdef.(constraints) cname σ mdef) cdef.(classmethods)
   .
+
+  (* Checks related to support dynamic *)
+  Definition to_dyn (ty: lang_ty) : lang_ty := DynamicT.
+
+  Definition wf_mdef_dyn_ty Γ tag σ mdef :=
+    ∃ rty,
+    wf_lty rty ∧
+    cmd_has_ty Γ
+      {| type_of_this := (tag, σ); ctxt := to_dyn <$> mdef.(methodargs) |}
+      mdef.(methodbody) rty ∧
+    expr_has_ty Γ rty mdef.(methodret) (to_dyn mdef.(methodrettype))
+  .
+
+  Definition wf_cdef_mdef_dyn_ty cname cdef :=
+    let σ := gen_targs (length cdef.(generics)) in
+    map_Forall (λ _mname mdef, wf_mdef_dyn_ty cdef.(constraints) cname σ mdef) cdef.(classmethods)
+  .
+
+  Definition wf_field_dyn_wf Σc (vfty: ((visibility * lang_ty) * tag)) :=
+    match vfty.1 with
+    | (Private, _) => True
+    | (Public, fty) =>
+        Σc ⊢ fty <: DynamicT ∧ Σc ⊢ DynamicT <: fty
+    end.
+
+  Definition wf_cdef_fields_dyn_wf cname cdef :=
+    if cdef.(support_dynamic) then
+    ∀ fields, has_fields cname fields →
+    map_Forall (λ _fname vfty, wf_field_dyn_wf cdef.(constraints) vfty) fields
+    else True.
+
+  Definition wf_cdef_dyn_parent cdef :=
+    match cdef.(superclass) with
+    | Some (parent, _) => 
+        ∀ def, Δ !! parent = Some def →
+        def.(support_dynamic) = true →
+        cdef.(support_dynamic) = true 
+    | None => True
+    end.
+
+  Lemma extends_using_dyn_parent A B σ:
+    map_Forall (λ _, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _, wf_cdef_dyn_parent) Δ →
+    extends_using A B σ →
+    ∃ adef bdef,
+      Δ !! A = Some adef ∧
+      Δ !! B = Some bdef ∧
+      (bdef.(support_dynamic) = true → adef.(support_dynamic) = true).
+  Proof.
+    move => hp hwf hext.
+    assert (h0 := hext).
+    apply extends_using_wf in h0 => //.
+    destruct h0 as (adef & hadef & _ & h).
+    inv h.
+    destruct hext as [A B adef' σ hadef' hsuper]; simplify_eq.
+    exists adef', def; repeat split => //.
+    apply hwf in hadef'.
+    rewrite /wf_cdef_dyn_parent hsuper in hadef'.
+    by apply hadef'.
+  Qed.
+
+  Lemma inherits_using_dyn_parent A B σ:
+    map_Forall (λ _, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _, wf_cdef_dyn_parent) Δ →
+    inherits_using A B σ →
+    ∃ adef bdef,
+      Δ !! A = Some adef ∧
+      Δ !! B = Some bdef ∧
+      (bdef.(support_dynamic) = true → adef.(support_dynamic) = true).
+  Proof.
+    move => hp hwf.
+    induction 1 as [ A adef hΔ | A B σ hext | A B σ C σC hext h hi ].
+    - exists adef, adef.
+      by repeat split => //.
+    - by apply extends_using_dyn_parent in hext.
+    - apply extends_using_dyn_parent in hext as (adef & bdef & ? & ? & h0) => //.
+      destruct hi as (bdef' & cdef & ? & ? & h1); simplify_eq.
+      exists adef, cdef; repeat split => //.
+      move => ?; by eauto.
+  Qed.
 
   (* Collection of all program invariant (at the source level):
    * - no cycle (we have a forest)
@@ -975,6 +1093,9 @@ Section Typing.
     wf_methods_ok : map_Forall (λ _cname, cdef_methods_ok) prog;
     wf_mdefs : map_Forall cdef_wf_mdef_ty prog;
     wf_mono : map_Forall (λ _cname, wf_cdef_mono) prog;
+    (* Dynamic related invariant *)
+    wf_fields_dyn : map_Forall wf_cdef_fields_dyn_wf prog;
+    wf_dyn_parent: map_Forall (λ _cname, wf_cdef_dyn_parent) prog;
   }
   .
 End Typing.

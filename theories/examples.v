@@ -241,6 +241,8 @@ Proof.
       + by constructor.
       + by rewrite lookup_insert.
       + by rewrite lookup_insert.
+      + by econstructor.
+      + done.
     - by rewrite /Get /= lookup_insert.
   }
   eapply SeqEv.
@@ -263,6 +265,9 @@ Proof.
       + by constructor.
       + by rewrite lookup_insert.
       + by rewrite lookup_insert.
+      + eapply InheritsField => //.
+        by econstructor.
+      + done.
     - by rewrite /Get /= lookup_insert.
   }
   eapply SeqEv.
@@ -317,6 +322,9 @@ Proof.
     by rewrite lookup_insert.
   - by rewrite lookup_insert.
   - by rewrite lookup_insert.
+  - eapply InheritsField => //.
+    by econstructor.
+  - done.
 Qed.
 
 Definition final_lty lty : local_tys :=
@@ -1229,6 +1237,40 @@ Proof.
   by apply map_Forall_empty.
 Qed.
 
+Lemma wf_fields_dyn : map_Forall wf_cdef_fields_dyn_wf Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]] //.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]] //.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]] //.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]]; last by rewrite lookup_empty.
+  done.
+Qed.
+
+Lemma wf_dyn_parent: map_Forall (λ _cname, wf_cdef_dyn_parent) Δ.
+Proof.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]] //.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]] //.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]] //.
+  { rewrite /wf_cdef_dyn_parent /IntBoxS /= => def.
+    rewrite lookup_insert_ne // lookup_insert.
+    case => <-.
+    by rewrite /Box.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]]; last by rewrite lookup_empty.
+  done.
+Qed.
+
 Lemma wf: wf_cdefs Δ.
 Proof.
   split.
@@ -1249,6 +1291,8 @@ Proof.
   by apply wf_methods_ok.
   by apply wf_mdefs.
   by apply wf_mono.
+  by apply wf_fields_dyn.
+  by apply wf_dyn_parent.
 Qed.
 
 (* Director level theorem: every execution that should produce an int
