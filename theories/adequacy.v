@@ -369,7 +369,8 @@ Section proofs.
         lty rty v tv cmd hv hr h hi |
         lty rty v tv cmd hv hr h hi |
         lty1 lty2 cond thn els hcond htn hi1 hels hi2 |
-        lty lhs recv name he
+        lty lhs recv name he hnotthis |
+        lty recv fld rhs hrecv hrhs hnotthis
       ] "IHty" forall (st st' n hc).
     - (* SkipC *) inv hc.
       rewrite updN_zero.
@@ -523,7 +524,7 @@ Section proofs.
       destruct le as [vthis le].
       injection hrecv; intros; subst; clear hrecv.
       assert (ht: wf_ty (ClassT t σ)) by apply wflty.
-      iApply heap_models_update => //=.
+      iApply (heap_models_update _ _ _ _ _ _ t σ) => //=.
       + iDestruct "Hle" as "[Hthis Hle]".
         rewrite /= /interp_this_type interp_this_unseal /interp_this_def /=.
         iDestruct "Hthis" as (l' t1 def def1 σ0 σt fields ifields) "[%H [#hmixed [#? [#hinst [#hdyn #Hl]]]]]".
@@ -539,7 +540,7 @@ Section proofs.
       iIntros "[Hh #Hle]" => /=.
       iSplitL; last done.
       assert (ht: wf_ty (ClassT t σ)) by (by apply expr_has_ty_wf in hrecv).
-      iApply heap_models_update => //.
+      iApply (heap_models_update _ _ _ _ _ _ t σ) => //=.
       + iApply expr_adequacy => //; by apply wfΔ.
       + iApply expr_adequacy => //; by apply wfΔ.
     - (* NewC *) inv hc.
@@ -1221,22 +1222,22 @@ Section proofs.
       iDestruct (expr_adequacy with "hΣi hΣiΣc Hle") as "#He" => //; try (by apply wfΔ).
       rewrite interp_dynamic_unfold.
       iDestruct "He" as "[H | He]".
-      { iDestruct "H" as (z) "%Hz".
-        discriminate Hz.
+      { iDestruct "H" as (z) "%H".
+        discriminate H.
       }
       iDestruct "He" as "[H | He]".
-      { iDestruct "H" as (b) "%Hb".
-        discriminate Hb.
+      { iDestruct "H" as (b) "%H".
+        discriminate H.
       }
       iDestruct "He" as "[H | He]".
-      { iDestruct "H" as "%Hn".
-        discriminate Hn.
+      { iDestruct "H" as "%H".
+        discriminate H.
       }
       iDestruct "He" as (dyntag dyndef hpure Σdyn) "He".
       destruct hpure as [hdyndef hsupdyn].
       rewrite interp_tag_equiv; last by apply wfΔ.
-      iDestruct "He" as (?? def def0 ????) "[%He [#hmixed [#hconstr [#hf0 [#hdyn H◯]]]]]".
-      destruct He as ([= <-] & hdef & hdef0 & hlen & ? & hinherits & hfields & hidom).
+      iDestruct "He" as (?? def def0 ????) "[%H [#hmixed [#hconstr [#hf0 [#hdyn H◯]]]]]".
+      destruct H as ([= <-] & hdef & hdef0 & hlen & ? & hinherits & hfields & hidom).
       simplify_eq.
       assert (hl0: length (generics dyndef) = length σ).
       { apply inherits_using_wf in hinherits; try (by apply wfΔ).
@@ -1265,13 +1266,13 @@ Section proofs.
           rewrite /wf_cdef_fields_dyn_wf hsupdyn in hdef0.
           assert (h1 := hfields).
           apply hdef0 in h1.
-          apply hfields in H9.
-          apply h1 in H9.
-          by apply H9.
+          apply hfields in H8.
+          apply h1 in H8.
+          by apply H8.
         }
         destruct wfΔ.
         assert (hwfc: Forall wf_constraint def0.(constraints)) by by apply wf_constraints_wf in hdef0.
-        iSpecialize ("hdyn" $! name Public fty orig H9).
+        iSpecialize ("hdyn" $! name Public fty orig H8).
         iDestruct "H▷" as "[%hdf h]".
         iRewrite -"HΦ" in "hdyn".
         iSpecialize ("h" $! name _ with "[hdyn]"); first done.
@@ -1279,13 +1280,113 @@ Section proofs.
         simplify_eq.
         iNext.
         iDestruct (subtype_is_inclusion _ hwfc wf_parent wf_mono Σt _ _ hsub v) as "hsub".
-        { by apply has_field_wf in H9. }
+        { by apply has_field_wf in H8. }
         by iApply "hsub".
       }
       subst.
       iNext.
       iFrame.
       iApply interp_local_tys_update => //.
+      by rewrite !interp_dynamic_unfold.
+    - (* Dynamic Set *) inv hc.
+      assert (wfΔ' := wfΔ).
+      destruct wfΔ'.
+      iClear "IH".
+      iIntros "[Hh #Hle]" => /=.
+      iSplitL; last done.
+      iAssert (interp_type DynamicT Σi (LocV l)) as "#Hl".
+      { by iApply expr_adequacy. }
+      rewrite interp_dynamic_unfold.
+      iDestruct "Hl" as "[H | Hl]".
+      { iDestruct "H" as (z) "%H".
+        discriminate H.
+      }
+      iDestruct "Hl" as "[H | Hl]".
+      { iDestruct "H" as (b) "%H".
+        discriminate H.
+      }
+      iDestruct "Hl" as "[H | Hl]".
+      { iDestruct "H" as "%H".
+        discriminate H.
+      }
+      iDestruct "Hl" as (dyntag dyndef hpure Σdyn) "Hl".
+      destruct hpure as [hdyndef hsupdyn].
+      rewrite interp_tag_equiv //.
+      iDestruct "Hl" as (?? def def0 ????) "[%H [#hmixed [#hconstr [#hf0 [#hdyn H◯]]]]]".
+      destruct H as ([= <-] & hdef & hdef0 & hlen & ? & hinherits & hfields & hidom).
+      simplify_eq.
+      assert (hwf : wf_ty (ClassT dyntag σ)).
+      { apply inherits_using_wf in hinherits => //.
+        by destruct hinherits as (?&?&?&?).
+      }
+      (* This is based on heap_models_update, but specialized for Dynamic *)
+      destruct vis; last by destruct recv.
+      iDestruct "Hh" as (sh) "[hown [%hdom #h]]".
+      iExists sh.
+      iDestruct (sem_heap_own_valid_2 with "hown H◯") as "#Hv".
+      iSplitL "hown"; first by iFrame.
+      iSplitR.
+      { iPureIntro.
+        by rewrite hdom dom_insert_lookup_L.
+      }
+      iModIntro.
+      iIntros (l'' t'' vs'') "%Heq".
+      rewrite lookup_insert_Some in Heq.
+      destruct Heq as [[<- [= <- <-]] | [hne hl]]; last first.
+      { iApply "h".
+        by iPureIntro.
+      }
+      iSpecialize ("h" $! l t vs with "[//]").
+      iDestruct "h" as (iFs) "[#hsh hmodels]".
+      iExists iFs; iSplit; first done.
+      iRewrite "Hv" in "hsh".
+      rewrite !option_equivI prod_equivI /=.
+      iDestruct "hsh" as "[%ht #hifs]".
+      fold_leibniz; subst.
+      iSpecialize ("hdyn" $! fld Public fty orig H9).
+      iAssert (⌜is_Some (iFs !! fld)⌝)%I as "%hiFs".
+      { iRewrite -"hifs".
+        by iRewrite "hdyn".
+      }
+      rewrite /heap_models_fields.
+      iDestruct "hmodels" as "[%hdomv #hmodfs]".
+      iSplit.
+      { iPureIntro.
+        by rewrite -hdomv dom_insert_lookup // -elem_of_dom hdomv elem_of_dom.
+      }
+      iIntros (f' iF') "#hf'".
+      destruct (decide (fld = f')) as [-> | hne]; last first.
+      { rewrite lookup_insert_ne //.
+        by iApply "hmodfs".
+      }
+      rewrite lookup_insert.
+      iExists v; iSplitR; first done.
+      iRewrite -"hifs" in "hf'".
+      iRewrite "hdyn" in "hf'".
+      rewrite !option_equivI later_equivI discrete_fun_equivI.
+      iNext.
+      iSpecialize ("hf'" $! v).
+      iRewrite -"hf'".
+      iAssert (interp_type DynamicT Σi v) as "#Hve".
+      { by iApply expr_adequacy. }
+      assert (hsub: def0.(constraints) ⊢ DynamicT <: fty).
+      { destruct wfΔ.
+        assert (h0 := hinherits).
+        apply inherits_using_dyn_parent in h0 => //.
+        destruct h0 as (def0' & dyndef' & hdef0' & hdyndef' & hsd); simplify_eq.
+        apply hsd in hsupdyn.
+        apply wf_fields_dyn in hdef0.
+        rewrite /wf_cdef_fields_dyn_wf hsupdyn in hdef0.
+        assert (h1 := hfields).
+        apply hdef0 in h1.
+        apply hfields in H9.
+        apply h1 in H9.
+        by apply H9.
+      }
+      assert (hwfc: Forall wf_constraint def0.(constraints)) by by apply wf_constraints_wf in hdef0.
+      iDestruct (subtype_is_inclusion _ hwfc wf_parent wf_mono Σt _ _ hsub v) as "hsub".
+      { by apply has_field_wf in H9. }
+      iApply "hsub" => //.
       by rewrite !interp_dynamic_unfold.
   Qed.
 

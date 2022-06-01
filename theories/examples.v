@@ -291,6 +291,9 @@ Proof.
       + by constructor.
       + by rewrite lookup_insert.
       + done.
+      + eapply InheritsField => //.
+        by econstructor.
+      + done.
     - by rewrite /IntBoxSSet /=.
   }
   rewrite lookup_insert.

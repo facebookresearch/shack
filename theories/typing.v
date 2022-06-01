@@ -559,6 +559,14 @@ Section Typing.
          end
         ) →
         cmd_has_ty Γ lty (GetC lhs recv name) (<[lhs := DynamicT]>lty)
+    | DynSetTy : ∀ lty recv fld rhs,
+        expr_has_ty Γ lty recv DynamicT →
+        expr_has_ty Γ lty rhs DynamicT →
+        (match recv with
+         | ThisE => False
+         | _ => True
+         end) →
+        cmd_has_ty Γ lty (SetC recv fld rhs) lty
     (* To be completed *)
   .
 
@@ -574,7 +582,8 @@ Section Typing.
       ????????? he hm hdom hargs |
       ???? hsub h hi | ?????? hin hr h hi | ????? hin hr h hi |
       ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi |
-      ????? hcond hthn hi1 hels hi2 | ???? he hnotthis
+      ????? hcond hthn hi1 hels hi2 | ???? he hnotthis |
+      ???? hrecv hrhs hnotthis    
       ] => Γ Γ' heq hΓ; subst.
     - by econstructor.
     - econstructor; by eauto.
@@ -624,6 +633,9 @@ Section Typing.
       + by eapply hi2.
     - eapply DynGetTy => //.
       by eapply expr_has_ty_constraint_elim.
+    - eapply DynSetTy => //.
+      + by eapply expr_has_ty_constraint_elim.
+      + by eapply expr_has_ty_constraint_elim.
   Qed.
 
   Lemma cmd_has_ty_constraint_elim Γ Γ' lty cmd rty:
@@ -648,7 +660,8 @@ Section Typing.
       ????????? he hm hdom hargs |
       ???? hsub h hi | ?????? hin hr h hi | ????? hin hr h hi |
       ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi |
-      ????? hcond hthn hi1 hels hi2 | ???? he hnotthis
+      ????? hcond hthn hi1 hels hi2 | ???? he hnotthis |
+      ???? hrecv hrhs hnotthis
       ] => //=; try (by eauto).
     - apply hi2.
       + by apply hi1.
@@ -756,7 +769,8 @@ Section Typing.
       ????????? he hm hdom hargs |
       ???? hsub h hi | ?????? hin hr h hi | ????? hin hr h hi |
       ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi |
-      ????? hcond hthn hi1 hels hi2 | ???? he hnotthis
+      ????? hcond hthn hi1 hels hi2 | ???? he hnotthis |
+      ???? hrecv hrhs hnotthis
       ] => //=.
     - by constructor.
     - econstructor.
@@ -962,12 +976,16 @@ Section Typing.
         f_equal.
         by rewrite fmap_insert.
       }
-      eapply DynGetTy; last first.
-      { move: hnotthis; clear.
-        by elim: recv.
-      }
-      change DynamicT with (subst_ty σ DynamicT).
-      by eapply expr_has_ty_subst.
+      eapply DynGetTy.
+      + change DynamicT with (subst_ty σ DynamicT).
+        by eapply expr_has_ty_subst.
+      + by destruct recv.
+    - eapply DynSetTy.
+      + change DynamicT with (subst_ty σ DynamicT).
+        by eapply expr_has_ty_subst.
+      + change DynamicT with (subst_ty σ DynamicT).
+        by eapply expr_has_ty_subst.
+      + by destruct recv.
   Qed.
 
   (* Consider a class C<T0, ..., Tn>,

@@ -175,11 +175,17 @@ Section Evaluation.
          | (Private, _) => False
          end) →
         cmd_eval (le, h) (GetC lhs recv name) (<[lhs := v]>le, h) 1
-    | SetEv: ∀ le h recv fld rhs l v t vs vs',
+    | SetEv: ∀ le h recv fld rhs l v t vs vs' fty vis orig,
         expr_eval le recv = Some (LocV l) →
         expr_eval le rhs = Some v →
         h !! l = Some (t, vs) →
         vs' = <[ fld := v ]>vs →
+        has_field fld t vis fty orig →
+        (match (vis, recv) with
+         | (Public, _) => True
+         | (Private, ThisE) => t = orig
+         | (Private, _) => False
+         end) →
         cmd_eval (le, h) (SetC recv fld rhs) (le, <[l := (t, vs')]> h) 0
     | SeqEv: ∀ st1 st2 st3 fstc sndc n1 n2,
         cmd_eval st1 fstc st2 n1 →
