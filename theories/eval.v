@@ -164,10 +164,16 @@ Section Evaluation.
         h !! new = None →
         map_args (expr_eval le) args = Some vargs →
         cmd_eval (le, h) (NewC lhs t targs args) (<[lhs := LocV new]>le, <[new := (t, vargs)]>h) 1
-    | GetEv: ∀ le h lhs recv name l t vs v,
+    | GetEv: ∀ le h lhs recv name l t vs v fty vis orig,
         expr_eval le recv = Some (LocV l) →
         h !! l = Some (t, vs) →
         vs !! name = Some v →
+        has_field name t vis fty orig →
+        (match (vis, recv) with
+         | (Public, _) => True
+         | (Private, ThisE) => t = orig
+         | (Private, _) => False
+         end) →
         cmd_eval (le, h) (GetC lhs recv name) (<[lhs := v]>le, h) 1
     | SetEv: ∀ le h recv fld rhs l v t vs vs',
         expr_eval le recv = Some (LocV l) →
