@@ -136,8 +136,8 @@ Section proofs.
   Notation γ := sem_heap_name.
 
   (* Helping the inference with this notation that hides Δ *)
-  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ s t) (at level 70, s at next level, no associativity).
-  Local Notation "Γ ⊢ lts <: vs :> rts" := (@subtype_targs _ Γ vs lts rts) (at level 70, lts, vs at next level).
+  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ Plain s t) (at level 70, s at next level, no associativity).
+  Local Notation "Γ ⊢ lts <: vs :> rts" := (@subtype_targs _ Γ Plain vs lts rts) (at level 70, lts, vs at next level).
   Local Notation "Γ ⊢ lty <:< rty" := (@lty_sub _ Γ lty rty) (lty at next level, at level 70, no associativity).
 
   (* now, let's interpret some types ! *)
@@ -1320,26 +1320,26 @@ Section proofs.
   Qed.
 
   (* Main meat for A <: B → [|A|] ⊆ [|B|] *)
-  Theorem subtype_is_inclusion_aux Σi A B:
-    Σc ⊢ A <: B →
+  Theorem subtype_is_inclusion_aux kd Σi A B:
+    subtype Σc kd A B →
     ∀ v,
     wf_ty A →
     □ interp_env_as_mixed Σi -∗
     □ Σinterp Σi Σc -∗
     interp_type_pre interp_type A Σi v -∗
     interp_type_pre interp_type B Σi v
-    with subtype_targs_is_inclusion_aux Σi Vs As Bs:
+    with subtype_targs_is_inclusion_aux kd Σi Vs As Bs:
     Forall wf_ty As →
     Forall wf_ty Bs →
-    Σc ⊢ As <:Vs:> Bs →
+    subtype_targs Σc kd Vs As Bs →
     □ interp_env_as_mixed Σi -∗
     □ Σinterp Σi Σc -∗
     □ iForall3 interp_variance Vs (interp_list Σi As) (interp_list Σi Bs).
   Proof.
-    { destruct 1 as [A | A h | A σA B σB adef hΔ hlen hext
-      | A adef hadef hL | A def σ0 σ1 hΔ hwfσ hσ | | | | A | A B h
-      | A B h | A B C h0 h1 | A B | A B | A B C h0 h1
-      | A | A B C h0 h1 | A B hin | A adef σA hΔ hsupdyn hσA | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
+    { destruct 1 as [ kd A | kd A h | kd A σA B σB adef hΔ hlen hext
+      | kd A adef hadef hL | kd A def σ0 σ1 hΔ hwfσ hσ | | | | | kd A B h
+      | kd A B h | kd A B C h0 h1 | kd A B | kd A B | kd A B C h0 h1
+      | | kd A B C h0 h1 | kd A B hin | kd A adef σA hΔ hsupdyn hσA | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold.
         by iApply submixed_is_inclusion_aux.
@@ -1420,7 +1420,7 @@ Section proofs.
       - by iRight; iRight; iLeft.
     }
     move => hwfA hwfB.
-    destruct 1 as [ | ????? h0 h1 h | ????? h0 h | ????? h0 h]; iIntros "#wfΣi #Σcoherency".
+    destruct 1 as [ | ?????? h0 h1 h | ?????? h0 h | ?????? h0 h]; iIntros "#wfΣi #Σcoherency".
     - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
       done.
     - simpl.

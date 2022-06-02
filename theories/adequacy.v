@@ -21,8 +21,8 @@ Section proofs.
   Notation γ := sem_heap_name.
 
   (* Helping the inference with this notation that hides Δ *)
-  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ s t) (at level 70, s at next level, no associativity).
-  Local Notation "Γ ⊢ lts <: vs :> rts" := (@subtype_targs _ Γ vs lts rts) (at level 70, lts, vs at next level).
+  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ Plain s t) (at level 70, s at next level, no associativity).
+  Local Notation "Γ ⊢ lts <: vs :> rts" := (@subtype_targs _ Γ Plain vs lts rts) (at level 70, lts, vs at next level).
 
   (* heap models relation; the semantic heap does
      not appear because it is hidden in iProp  *)

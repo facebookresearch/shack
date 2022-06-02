@@ -13,91 +13,92 @@ Section Subtype.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
 
+  Inductive subtype_kind := Aware | Plain.
+
   (* Type well-formdness is mostly introduced to be able to define
    * subtyping rule correctly, like unions.
    *)
-  Inductive subtype (Γ : list constraint) : lang_ty → lang_ty → Prop :=
-    | SubMixed: ∀ ty, subtype Γ ty MixedT
-    | SubNothing: ∀ ty, wf_ty ty → subtype Γ NothingT ty
-    | SubClass: ∀ A σA B σB adef,
+  Inductive subtype (Γ : list constraint) : subtype_kind → lang_ty → lang_ty → Prop :=
+    | SubMixed: ∀ kd ty, subtype Γ kd ty MixedT
+    | SubNothing: ∀ kd ty, wf_ty ty → subtype Γ kd NothingT ty
+    | SubClass: ∀ kd A σA B σB adef,
         Δ !! A = Some adef →
         length σA = length adef.(generics) →
         extends_using A B σB →
-        subtype Γ (ClassT A σA) (ClassT B (subst_ty σA <$> σB))
-    | SubEx0: ∀ A adef,
+        subtype Γ kd (ClassT A σA) (ClassT B (subst_ty σA <$> σB))
+    | SubEx0: ∀ kd A adef,
         Δ !! A = Some adef →
         length adef.(generics) = 0 →
-        subtype Γ (ExT A) (ClassT A [])
-    | SubVariance: ∀ A adef σ0 σ1,
+        subtype Γ kd (ExT A) (ClassT A [])
+    | SubVariance: ∀ kd A adef σ0 σ1,
         Δ !! A = Some adef →
         Forall wf_ty σ1 →
-        subtype_targs Γ adef.(generics) σ0 σ1 →
-        subtype Γ (ClassT A σ0) (ClassT A σ1)
-    | SubMixed2: subtype Γ MixedT (UnionT NonNullT NullT)
-    | SubIntNonNull: subtype Γ IntT NonNullT
-    | SubBoolNonNull: subtype Γ BoolT NonNullT
-    | SubClassNonNull: ∀ A targs, subtype Γ (ClassT A targs) NonNullT
-    | SubUnionUpper1: ∀ s t, wf_ty t → subtype Γ s (UnionT s t)
-    | SubUnionUpper2: ∀ s t, wf_ty s → subtype Γ t (UnionT s t)
-    | SubUnionLower : ∀ s t u, subtype Γ s u → subtype Γ t u → subtype Γ (UnionT s t) u
-    | SubInterLower1: ∀ s t, subtype Γ (InterT s t) s
-    | SubInterLower2: ∀ s t, subtype Γ (InterT s t) t
-    | SubInterUpper: ∀ s t u, subtype Γ u s → subtype Γ u t → subtype Γ u (InterT s t)
-    | SubRefl: ∀ s, subtype Γ s s
-    | SubTrans: ∀ s t u, subtype Γ s t → subtype Γ t u → subtype Γ s u
-    | SubConstraint: ∀ s t, (s, t) ∈ Γ → subtype Γ s t
-    | SubClassDyn: ∀ A adef σA,
+        subtype_targs Γ kd adef.(generics) σ0 σ1 →
+        subtype Γ kd (ClassT A σ0) (ClassT A σ1)
+    | SubMixed2 kd: subtype Γ kd MixedT (UnionT NonNullT NullT)
+    | SubIntNonNull kd: subtype Γ kd IntT NonNullT
+    | SubBoolNonNull kd: subtype Γ kd BoolT NonNullT
+    | SubClassNonNull: ∀ kd A targs, subtype Γ kd (ClassT A targs) NonNullT
+    | SubUnionUpper1: ∀ kd s t, wf_ty t → subtype Γ kd s (UnionT s t)
+    | SubUnionUpper2: ∀ kd s t, wf_ty s → subtype Γ kd t (UnionT s t)
+    | SubUnionLower : ∀ kd s t u, subtype Γ kd s u → subtype Γ kd t u → subtype Γ kd (UnionT s t) u
+    | SubInterLower1: ∀ kd s t, subtype Γ kd (InterT s t) s
+    | SubInterLower2: ∀ kd s t, subtype Γ kd (InterT s t) t
+    | SubInterUpper: ∀ kd s t u, subtype Γ kd u s → subtype Γ kd u t → subtype Γ kd u (InterT s t)
+    | SubRefl: ∀ kd s, subtype Γ kd s s
+    | SubTrans: ∀ kd s t u, subtype Γ kd s t → subtype Γ kd t u → subtype Γ kd s u
+    | SubConstraint: ∀ kd s t, (s, t) ∈ Γ → subtype Γ kd s t
+    | SubClassDyn: ∀ kd A adef σA,
         Δ !! A = Some adef →
         adef.(support_dynamic) = true →
-        (* Forall (λ ty, subtype Γ ty DynamicT) σA → *)
-        (∀ k ty, σA !! k = Some ty → subtype Γ ty DynamicT) →
-        subtype Γ (ClassT A σA) DynamicT
-    | SubIntDyn : subtype Γ IntT DynamicT
-    | SubBoolDyn : subtype Γ BoolT DynamicT
-    | SubNullDyn : subtype Γ NullT DynamicT
-  with subtype_targs (Γ: list constraint) : list variance → list lang_ty → list lang_ty → Prop :=
-    | subtype_targs_nil: subtype_targs Γ [] [] []
-    | subtype_targs_invariant: ∀ ty0 ty1 vs ty0s ty1s,
-        subtype Γ ty0 ty1 →
-        subtype Γ ty1 ty0 →
-        subtype_targs Γ vs ty0s ty1s →
-        subtype_targs Γ (Invariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
-    | subtype_targs_covariant: ∀ ty0 ty1 vs ty0s ty1s,
-        subtype Γ ty0 ty1 →
-        subtype_targs Γ vs ty0s ty1s →
-        subtype_targs Γ (Covariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
-    | subtype_targs_contravariant: ∀ ty0 ty1 vs ty0s ty1s,
-        subtype Γ ty1 ty0 →
-        subtype_targs Γ vs ty0s ty1s →
-        subtype_targs Γ (Contravariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
+        (∀ k ty, σA !! k = Some ty → subtype Γ kd ty DynamicT) →
+        subtype Γ kd (ClassT A σA) DynamicT
+    | SubIntDyn kd: subtype Γ kd IntT DynamicT
+    | SubBoolDyn kd: subtype Γ kd BoolT DynamicT
+    | SubNullDyn kd: subtype Γ kd NullT DynamicT
+  with subtype_targs (Γ: list constraint) : subtype_kind → list variance → list lang_ty → list lang_ty → Prop :=
+    | subtype_targs_nil kd: subtype_targs Γ kd [] [] []
+    | subtype_targs_invariant: ∀ kd ty0 ty1 vs ty0s ty1s,
+        subtype Γ kd ty0 ty1 →
+        subtype Γ kd ty1 ty0 →
+        subtype_targs Γ kd vs ty0s ty1s →
+        subtype_targs Γ kd (Invariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
+    | subtype_targs_covariant: ∀ kd ty0 ty1 vs ty0s ty1s,
+        subtype Γ kd ty0 ty1 →
+        subtype_targs Γ kd vs ty0s ty1s →
+        subtype_targs Γ kd (Covariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
+    | subtype_targs_contravariant: ∀ kd ty0 ty1 vs ty0s ty1s,
+        subtype Γ kd ty1 ty0 →
+        subtype_targs Γ kd vs ty0s ty1s →
+        subtype_targs Γ kd (Contravariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
   .
 
-  Corollary length_subtype_targs_v0 Γ: ∀ vs ty0s ty1s,
-    subtype_targs Γ vs ty0s ty1s → length vs = length ty0s.
+  Corollary length_subtype_targs_v0 Γ kd: ∀ vs ty0s ty1s,
+    subtype_targs Γ kd vs ty0s ty1s → length vs = length ty0s.
   Proof.
-    induction 1 as [ | ??????? h hi | ?????? h hi | ?????? h hi] => //=; by rewrite hi.
+    induction 1 as [ | ???????? h hi | ??????? h hi | ??????? h hi] => //=; by rewrite hi.
   Qed.
 
-  Corollary length_subtype_targs_v1 Γ: ∀ vs ty0s ty1s,
-    subtype_targs Γ vs ty0s ty1s → length vs = length ty1s.
+  Corollary length_subtype_targs_v1 Γ kd: ∀ vs ty0s ty1s,
+    subtype_targs Γ kd vs ty0s ty1s → length vs = length ty1s.
   Proof.
-    induction 1 as [ | ??????? h hi | ?????? h hi | ?????? h hi] => //=; by rewrite hi.
+    induction 1 as [ | ???????? h hi | ??????? h hi | ??????? h hi] => //=; by rewrite hi.
   Qed.
 
-  Corollary length_subtype_targs_01 Γ: ∀ vs ty0s ty1s,
-    subtype_targs Γ vs ty0s ty1s → length ty0s = length ty1s.
+  Corollary length_subtype_targs_01 Γ kd: ∀ vs ty0s ty1s,
+    subtype_targs Γ kd vs ty0s ty1s → length ty0s = length ty1s.
   Proof.
-    induction 1 as [ | ??????? h hi | ?????? h hi | ?????? h hi] => //=; by rewrite hi.
+    induction 1 as [ | ???????? h hi | ??????? h hi | ??????? h hi] => //=; by rewrite hi.
   Qed.
 
   Hint Constructors subtype : core.
   Hint Constructors subtype_targs : core.
 
-  Notation "Γ ⊢ s <: t" := (subtype Γ s t) (at level 70, s at next level, no associativity).
-  Notation "Γ ⊢ lts <: vs :> rts" := (subtype_targs Γ vs lts rts) (at level 70, lts, vs at next level).
+  Notation "Γ ⊢ s <: t" := (subtype Γ Plain s t) (at level 70, s at next level, no associativity).
+  Notation "Γ ⊢ lts <: vs :> rts" := (subtype_targs Γ Aware vs lts rts) (at level 70, lts, vs at next level).
 
-  Lemma subtype_targs_refl Γ vs: ∀ σ,
-    length vs = length σ → Γ ⊢ σ <:vs:> σ.
+  Lemma subtype_targs_refl Γ kd vs: ∀ σ,
+    length vs = length σ → subtype_targs Γ kd vs σ σ.
   Proof.
     induction vs as [ | v vs hi] => σ hLen.
     - by rewrite (nil_length_inv σ).
@@ -107,14 +108,14 @@ Section Subtype.
       destruct v; by constructor.
   Qed.
 
-  Lemma subtype_weaken Γ s t: Γ ⊢ s <: t → ∀ Γ', Γ ⊆ Γ' → Γ' ⊢ s <: t
-   with subtype_targs_weaken Γ lhs vs rhs:
-     Γ ⊢ lhs <: vs :> rhs → ∀ Γ', Γ ⊆ Γ' → Γ' ⊢ lhs <: vs :> rhs.
+  Lemma subtype_weaken Γ kd s t: subtype Γ kd s t → ∀ Γ', Γ ⊆ Γ' → subtype Γ' kd s t
+   with subtype_targs_weaken Γ kd lhs vs rhs:
+     subtype_targs Γ kd vs lhs rhs → ∀ Γ', Γ ⊆ Γ' → subtype_targs Γ' kd vs lhs rhs.
   Proof.
-    - destruct 1 as [ ty | ty hwf | A σA B σB adef hadef hL hext
-      | A adef hadef hL | A adef σ0 σ1 hadef hwf hσ | | | | A targs | s t ht
-      | s t hs | s t u hs ht | s t | s t | s t u hs ht | s | s t u hs ht
-      | s t hin | A adef σA hΔ hsupdyn hσA | | |] => Γ' hΓ; try by econstructor.
+    - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
+      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | | | | kd A targs
+      | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
+      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hΔ hsupdyn hσA | | |] => Γ' hΓ; try by econstructor.
       + econstructor; [ done | done | ].
         by eapply subtype_targs_weaken.
       + econstructor; by eapply subtype_weaken.
@@ -125,7 +126,7 @@ Section Subtype.
       + eapply SubClassDyn => // k ty hin.
         apply hσA in hin.
         by eapply subtype_weaken.
-    - destruct 1 as [ | ??????? h | ?????? h | ?????? h ] => Γ' hΓ.
+    - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Γ' hΓ.
       + by constructor.
       + econstructor; [ by eapply subtype_weaken | by eapply subtype_weaken | ].
         by eapply subtype_targs_weaken.
@@ -135,21 +136,21 @@ Section Subtype.
         by eapply subtype_targs_weaken.
   Qed.
 
-  Lemma subtype_constraint_elim_ G S T:
-    G ⊢ S <: T →
+  Lemma subtype_constraint_elim_ G kd S T:
+    subtype G kd S T →
     ∀ Γ Γ', G = Γ ++ Γ' →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2) →
-    Γ ⊢ S <: T
-  with subtype_targs_constraint_elim_ G lhs vs rhs:
-    G ⊢ lhs <: vs :> rhs →
+    (∀ i c, Γ' !! i = Some c → subtype Γ kd c.1 c.2) →
+    subtype Γ kd S T
+  with subtype_targs_constraint_elim_ G kd lhs vs rhs:
+    subtype_targs G kd vs lhs rhs →
     ∀ Γ Γ', G = Γ ++ Γ' →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2) →
-    Γ ⊢ lhs <: vs :> rhs.
+    (∀ i c, Γ' !! i = Some c → subtype Γ kd c.1 c.2) →
+    subtype_targs Γ kd vs lhs rhs.
   Proof.
-    - destruct 1 as [ ty | ty hwf | A σA B σB adef hadef hL hext
-      | A adef hadef hL | A adef σ0 σ1 hadef hwf hσ | | | | A targs
-      | s t ht | s t hs | s t u hs ht | s t | s t | s t u hs ht | s
-      | s t u hs ht | s t hin | A adef σA hΔ hsupdyn hσA | | | ]
+    - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
+      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd A targs
+      | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
+      | kd s t u hs ht | kd s t hin | kd A adef σA hΔ hsupdyn hσA | | | ]
       => Γ Γ' heq hΓ; subst; try by econstructor.
       + econstructor; [done | done | ].
         by eapply subtype_targs_constraint_elim_.
@@ -165,7 +166,7 @@ Section Subtype.
       + eapply SubClassDyn => // k ty hin.
         apply hσA in hin.
         by eapply subtype_constraint_elim_.
-    - destruct 1 as [ | ??????? h | ?????? h | ?????? h ] => Γ Γ' heq hΓ; subst.
+    - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Γ Γ' heq hΓ; subst.
       + by constructor.
       + econstructor; [ by eapply subtype_constraint_elim_ | by eapply subtype_constraint_elim_ | ].
         by eapply subtype_targs_constraint_elim_.
@@ -175,31 +176,31 @@ Section Subtype.
         by eapply subtype_targs_constraint_elim_.
   Qed.
 
-  Lemma subtype_constraint_elim Γ Γ' S T:
-    Γ ++ Γ' ⊢ S <: T →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2) →
-    Γ ⊢ S <: T.
+  Lemma subtype_constraint_elim kd Γ Γ' S T:
+    subtype (Γ ++ Γ') kd  S T →
+    (∀ i c, Γ' !! i = Some c → subtype Γ kd c.1 c.2) →
+    subtype Γ kd S T.
   Proof. intros; by eapply subtype_constraint_elim_. Qed.
 
-  Lemma subtype_targs_constraint_elim Γ Γ' lhs vs rhs:
-    Γ ++ Γ' ⊢ lhs <: vs :> rhs →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <: c.2) →
-    Γ ⊢ lhs <: vs :> rhs.
+  Lemma subtype_targs_constraint_elim kd Γ Γ' lhs vs rhs:
+    subtype_targs (Γ ++ Γ') kd vs lhs rhs →
+    (∀ i c, Γ' !! i = Some c → subtype Γ kd c.1 c.2) →
+    subtype_targs Γ kd vs lhs rhs.
   Proof. intros; by eapply subtype_targs_constraint_elim_. Qed.
 
-  Lemma subtype_constraint_trans Γ s t:
-    Γ ⊢ s <: t →
-    ∀ Γ', (∀ i c, Γ !! i = Some c → Γ' ⊢ c.1 <: c.2) →
-    Γ' ⊢ s <: t
-  with subtype_targs_constraint_trans Γ lhs vs rhs:
-    Γ ⊢ lhs <: vs :> rhs →
-    ∀ Γ', (∀ i c, Γ !! i = Some c → Γ' ⊢ c.1 <: c.2) →
-    Γ' ⊢ lhs <: vs :> rhs.
+  Lemma subtype_constraint_trans Γ kd s t:
+    subtype Γ kd s t →
+    ∀ Γ', (∀ i c, Γ !! i = Some c → subtype Γ' kd c.1 c.2) →
+    subtype Γ' kd s t
+  with subtype_targs_constraint_trans Γ kd lhs vs rhs:
+    subtype_targs Γ kd vs lhs rhs →
+    ∀ Γ', (∀ i c, Γ !! i = Some c → subtype Γ' kd c.1 c.2) →
+    subtype_targs Γ' kd vs lhs rhs.
   Proof.
-    - destruct 1 as [ ty | ty hwf | A σA B σB adef hadef hL hext
-      | A adef hadef hL | A adef σ0 σ1 hadef hwf hσ | | | | A targs | s t ht
-      | s t hs | s t u hs ht | s t | s t | s t u hs ht | s | s t u hs ht
-      | s t hin | A adef σA hΔ hsupdyn hσA | | | ] => Γ' hΓ; try by econstructor.
+    - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
+      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | | | | kd A targs
+      | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
+      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hΔ hsupdyn hσA | | | ] => Γ' hΓ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
         eapply subtype_targs_constraint_trans.
         * by apply hσ.
@@ -212,7 +213,7 @@ Section Subtype.
       + eapply SubClassDyn => // k ty hin.
         apply hσA in hin.
         by eapply subtype_constraint_trans.
-    - destruct 1 as [ | ??????? h | ?????? h | ?????? h ] => Γ' hΓ.
+    - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Γ' hΓ.
       + by constructor.
       + econstructor; [ by eapply subtype_constraint_trans | by eapply subtype_constraint_trans | ].
         by eapply subtype_targs_constraint_trans.
@@ -222,10 +223,10 @@ Section Subtype.
         by eapply subtype_targs_constraint_trans.
   Qed.
 
-  Lemma neg_subtype_targs Γ vs σ0 σ1 :
-    Γ ⊢ σ0 <:vs:> σ1 → Γ ⊢ σ1 <:(neg_variance <$> vs):> σ0.
+  Lemma neg_subtype_targs Γ kd vs σ0 σ1 :
+    subtype_targs Γ kd vs σ0 σ1 → subtype_targs Γ kd (neg_variance <$> vs) σ1 σ0.
   Proof.
-    induction 1 as [ | ??????? h hi | ?????? h hi | ?????? h hi] => //=.
+    induction 1 as [ | ???????? h hi | ??????? h hi | ??????? h hi] => //=.
     - by constructor.
     - by constructor.
     - by constructor.
@@ -460,142 +461,16 @@ Section Subtype.
             by destruct wi.
   Qed.
 
-  Definition check_variance Γ v ty0 ty1 :=
-    match v with
-    | Invariant => (Γ ⊢ ty0 <: ty1) ∧ (Γ ⊢ ty1 <: ty0)
-    | Covariant => Γ ⊢ ty0 <: ty1
-    | Contravariant => Γ ⊢ ty1 <: ty0
-    end.
-
-  Lemma subtype_targs_lookup_0 Γ vs σ0 σ1:
-    Γ ⊢ σ0 <:vs:> σ1 →
-    ∀ k ty0, σ0 !! k = Some ty0 →
-    ∃ v ty1, vs !! k = Some v ∧ σ1 !! k = Some ty1 ∧
-    check_variance Γ v ty0 ty1.
-  Proof.
-    induction 1 as [ | ????? h0 h1 h hi | ????? h0 h hi | ????? h0 h hi] => k tk.
-    - by rewrite lookup_nil.
-    - destruct k as [ | k] => //=.
-      + case => <-; clear tk.
-        exists Invariant, ty1; by repeat split.
-      + move => hk.
-        apply hi in hk as (v & t2 & -> & -> & hv).
-        exists v, t2; by repeat split.
-    - destruct k as [ | k] => //=.
-      + case => <-; clear tk.
-        exists Covariant, ty1; by repeat split.
-      + move => hk.
-        apply hi in hk as (v & t2 & -> & -> & hv).
-        exists v, t2; by repeat split.
-    - destruct k as [ | k] => //=.
-      + case => <-; clear tk.
-        exists Contravariant, ty1; by repeat split.
-      + move => hk.
-        apply hi in hk as (v & t2 & -> & -> & hv).
-        exists v, t2; by repeat split.
-  Qed.
-
-  Lemma subtype_targs_lookup_1 Γ vs σ0 σ1:
-    Γ ⊢ σ0 <:vs:> σ1 →
-    ∀ k ty1, σ1 !! k = Some ty1 →
-    ∃ v ty0, vs !! k = Some v ∧ σ0 !! k = Some ty0 ∧
-    check_variance Γ v ty0 ty1.
-  Proof.
-    move => hsub k ty1 h1.
-    destruct (σ0 !! k) as [ty0 | ] eqn:h0; last first.
-    { apply length_subtype_targs_01 in hsub.
-      apply mk_is_Some in h1.
-      apply lookup_lt_is_Some_1 in h1.
-      rewrite -hsub in h1.
-      apply lookup_lt_is_Some_2 in h1.
-      rewrite h0 in h1.
-      by elim h1.
-    }
-    apply subtype_targs_lookup_0 with (k := k) (ty0 := ty0) in hsub => //.
-    destruct hsub as (v & ty1' & hv & ? & h); simplify_eq.
-    exists v, ty0.
-    by repeat split.
-  Qed.
-
-  Lemma subtype_targs_lookup_v Γ vs σ0 σ1:
-    Γ ⊢ σ0 <:vs:> σ1 →
-    ∀ k v, vs !! k = Some v →
-    ∃ ty0 ty1, σ0 !! k = Some ty0 ∧ σ1 !! k = Some ty1 ∧
-    check_variance Γ v ty0 ty1.
-  Proof.
-    move => hsub k v hv.
-    destruct (σ0 !! k) as [ty0 | ] eqn:h0; last first.
-    { apply length_subtype_targs_v0 in hsub.
-      apply mk_is_Some in hv.
-      apply lookup_lt_is_Some_1 in hv.
-      rewrite hsub in hv.
-      apply lookup_lt_is_Some_2 in hv.
-      rewrite h0 in hv.
-      by elim hv.
-    }
-    apply subtype_targs_lookup_0 with (k := k) (ty0 := ty0) in hsub => //.
-    destruct hsub as (v' & ty1 & ? & ? & h); simplify_eq.
-    exists ty0, ty1.
-    by repeat split.
-  Qed.
-
-  Lemma subtype_targs_forall Γ vs σ0 σ1:
-    length σ0 = length vs →
-    length σ1 = length vs →
-    (∀ k v ty0 ty1,
-         vs !! k = Some v → σ0 !! k = Some ty0 → σ1 !! k = Some ty1 →
-         check_variance Γ v ty0 ty1) →
-    Γ ⊢ σ0 <:vs:> σ1.
-  Proof.
-    move : σ0 σ1.
-    induction vs as [ | v vs hi] => σ0 σ1 h0 h1 h.
-    - apply nil_length_inv in h0.
-      apply nil_length_inv in h1.
-      by rewrite h0 h1.
-    - destruct σ0 as [ | ty0 σ0]; first by discriminate h0.
-      destruct σ1 as [ | ty1 σ1]; first by discriminate h1.
-      case : h0 => h0.
-      case : h1 => h1.
-      destruct v.
-      + constructor.
-        * by apply (h 0 Invariant ty0 ty1).
-        * by apply (h 0 Invariant ty0 ty1).
-        * apply hi => //.
-          move => k v ty2 ty3 hv h2 h3.
-          by apply (h (S k) v ty2 ty3).
-      + constructor.
-        * by apply (h 0 Covariant ty0 ty1).
-        * apply hi => //.
-          move => k v ty2 ty3 hv h2 h3.
-          by apply (h (S k) v ty2 ty3).
-      + constructor.
-        * by apply (h 0 Contravariant ty0 ty1).
-        * apply hi => //.
-          move => k v ty2 ty3 hv h2 h3.
-          by apply (h (S k) v ty2 ty3).
-  Qed.
-
-  Lemma subtype_targs_cons Γ v t0 t1 vs σ0 σ1:
-    check_variance Γ v t0 t1 →
-    Γ ⊢ σ0 <:vs:> σ1 →
-    Γ ⊢ (t0::σ0) <:(v::vs):> (t1::σ1).
-  Proof.
-    rewrite /check_variance => hc hs.
-    destruct v; constructor => //.
-    - by destruct hc.
-    - by destruct hc.
-  Qed.
-
-  Lemma subtype_wf Γ A B:
+  Lemma subtype_wf Γ kd A B:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
     Forall wf_constraint Γ →
-    wf_ty A → Γ ⊢ A <: B → wf_ty B.
+    wf_ty A → subtype Γ kd A B → wf_ty B.
   Proof.
     move => hp hΓ hwf.
-    induction 1 as [ ty | ty h | A σA B σB adef hΔ hA hext
-      | A adef hadef hL | A adef σ0 σ1 hΔ hwfσ hσ | | | | A args | s t h
-      | s t h | s t u hs his ht hit | s t | s t | s t u hs his ht hit | s
-      | s t u hst hist htu hitu | s t hin | A adef σA hΔ hsupdyn hσA | | | ]
+    induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hΔ hA hext
+      | kd A adef hadef hL | kd A adef σ0 σ1 hΔ hwfσ hσ | | | | kd A args | kd s t h
+      | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
+      | kd s t u hst hist htu hitu | kd s t hin | kd A adef σA hΔ hsupdyn hσA | | | ]
       => //=; try (by constructor).
     - inv hext; simplify_eq.
       rewrite /map_Forall_lookup in hp.
@@ -632,22 +507,22 @@ Section Subtype.
   Definition subst_constraints σ (cs: list constraint) :=
     subst_constraint σ <$> cs.
 
-  Lemma subtype_subst Γ A B:
+  Lemma subtype_subst Γ kd A B:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    Γ ⊢ A <: B → ∀ σ,
+    subtype Γ kd A B → ∀ σ,
     Forall wf_ty σ →
-    (subst_constraints σ Γ) ⊢ (subst_ty σ A) <: (subst_ty σ B)
-  with subtype_targs_subst Γ vs As Bs:
+    subtype (subst_constraints σ Γ) kd (subst_ty σ A) (subst_ty σ B)
+  with subtype_targs_subst Γ kd vs As Bs:
     map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    Γ ⊢ As <:vs:> Bs → ∀ σ,
+    subtype_targs Γ kd vs As Bs → ∀ σ,
     Forall wf_ty σ →
-    (subst_constraints σ Γ) ⊢ (subst_ty σ <$> As) <:vs:> (subst_ty σ <$> Bs).
+    subtype_targs (subst_constraints σ Γ) kd vs (subst_ty σ <$> As) (subst_ty σ <$> Bs).
   Proof.
     - move => hp.
-      destruct 1 as [ ty | ty h | A σA B σB adef hΔ hA hext
-      | A adef hadef hL | A adef σ0 σ1 hΔ hwfσ hσ01 | | | | A args
-      | s t h | s t h | s t u hs ht | s t | s t | s t u hs ht | s
-      | s t u hst htu | s t hin | A adef σA hΔ hsupdyn hσA | | | ]
+      destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hΔ hA hext
+      | kd A adef hadef hL | kd A adef σ0 σ1 hΔ hwfσ hσ01 | | | | kd A args
+      | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
+      | kd s t u hst htu | kd s t hin | kd A adef σA hΔ hsupdyn hσA | | | ]
       => σ hσ => /=; try (by constructor).
       + constructor.
         by apply wf_ty_subst.
@@ -682,7 +557,7 @@ Section Subtype.
         change DynamicT with (subst_ty σ DynamicT).
         by eapply subtype_subst.
     - move => hp.
-      destruct 1 as [ | ????? h0 h1 h | ????? h0 h | ????? h0 h] => σ hσ /=.
+      destruct 1 as [ | ?????? h0 h1 h | ?????? h0 h | ?????? h0 h] => σ hσ /=.
       + by constructor.
       + constructor.
         * by apply subtype_subst.
@@ -694,191 +569,6 @@ Section Subtype.
       + constructor.
         * by apply subtype_subst.
         * by apply subtype_targs_subst.
-  Qed.
-
-  Lemma subtype_subst_class Γ A B σA σB:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    Γ ⊢ ClassT A σA <: ClassT B σB → ∀ σ,
-    Forall wf_ty σ →
-    subst_constraints σ Γ ⊢ ClassT A (subst_ty σ <$> σA) <: ClassT B (subst_ty σ <$> σB).
-  Proof.
-    move => ? hsub σ h.
-    by apply subtype_subst with (σ := σ) in hsub.
-  Qed.
-
-  Lemma subtype_lift Γ vs ty :
-    mono vs ty →
-    ∀ σ0 σ1,
-    wf_ty ty →
-    Forall wf_ty σ0 →
-    Forall wf_ty σ1 →
-    Γ ⊢ σ0 <:vs:> σ1 →
-    Γ ⊢ subst_ty σ0 ty <: subst_ty σ1 ty.
-  Proof.
-    induction 1 as [ | | | | | | vs s t hs his ht hit
-      | vs s t hs his ht hit | vs n hinv | vs n hco | vs n hnone | vs cname
-      | vs cname cdef targs hΔ hcov hicov hcontra hicontra | | ] => σ0 σ1 hwf hwf0 hwf1 hsub //=.
-    - inv hwf.
-      constructor.
-      + econstructor; first by eapply his.
-        econstructor.
-        by apply wf_ty_subst.
-      + econstructor; first by eapply hit.
-        econstructor.
-        by apply wf_ty_subst.
-    - inv hwf.
-      constructor.
-      + eapply SubTrans with (subst_ty σ0 s); last by eapply his.
-        by constructor.
-      + eapply SubTrans with (subst_ty σ0 t); last by eapply hit.
-        by constructor.
-    - apply subtype_targs_lookup_v with (k := n) (v := Invariant) in hsub => //.
-      by destruct hsub as (ty0 & ty1 & -> & -> & h0 & h1).
-    - apply subtype_targs_lookup_v with (k := n) (v := Covariant) in hsub => //.
-      by destruct hsub as (ty0 & ty1 & -> & -> & h).
-    - destruct (σ0 !! n) as [? | ] eqn:h0.
-      { apply length_subtype_targs_v0 in hsub.
-        apply mk_is_Some in h0.
-        apply lookup_lt_is_Some_1 in h0.
-        rewrite -hsub in h0.
-        apply lookup_lt_is_Some_2 in h0.
-        rewrite hnone in h0.
-        by elim h0.
-      }
-      destruct (σ1 !! n) as [? | ] eqn:h1.
-      { apply length_subtype_targs_v1 in hsub.
-        apply mk_is_Some in h1.
-        apply lookup_lt_is_Some_1 in h1.
-        rewrite -hsub in h1.
-        apply lookup_lt_is_Some_2 in h1.
-        rewrite hnone in h1.
-        by elim h1.
-      }
-      done.
-    - assert (hwftargs : Forall wf_ty targs) by (by apply wf_ty_class_inv in hwf).
-      apply SubVariance with cdef => //; first by apply wf_ty_subst_map.
-      apply subtype_targs_forall.
-      + rewrite map_length.
-        inv hwf; by simplify_eq.
-      + rewrite map_length.
-        inv hwf; by simplify_eq.
-      + move => k v ty0 ty1 hk h0 h1.
-        apply list_lookup_fmap_inv in h0.
-        destruct h0 as [t0' [-> h0]].
-        apply list_lookup_fmap_inv in h1.
-        destruct h1 as [t1' [-> h1]].
-        simplify_eq.
-        destruct v; first split.
-        * eapply hicov => //.
-          rewrite Forall_forall in hwftargs.
-          apply hwftargs.
-          by apply elem_of_list_lookup_2 in h0.
-        * eapply hicontra => //.
-          rewrite Forall_forall in hwftargs.
-          apply hwftargs.
-          by apply elem_of_list_lookup_2 in h0.
-          by apply neg_subtype_targs.
-        * eapply hicov => //.
-          rewrite Forall_forall in hwftargs.
-          apply hwftargs.
-          by apply elem_of_list_lookup_2 in h0.
-        * eapply hicontra => //.
-          rewrite Forall_forall in hwftargs.
-          apply hwftargs.
-          by apply elem_of_list_lookup_2 in h0.
-          by apply neg_subtype_targs.
-  Qed.
-
-  Lemma subtype_targs_lift Γ σ:
-    ∀ vs σ0 σ1 ws,
-    Forall wf_ty σ →
-    Forall wf_ty σ0 →
-    Forall wf_ty σ1 →
-    Γ ⊢ σ0 <:vs:> σ1 →
-    length σ = length ws →
-    (∀ i wi ti, ws !! i = Some wi →
-                σ !! i = Some ti →
-                not_contra wi →
-                mono vs ti) →
-    (∀ i wi ti, ws !! i = Some wi →
-                σ !! i = Some ti →
-                not_cov wi →
-                mono (neg_variance <$> vs) ti) →
-    Γ ⊢ (subst_ty σ0 <$> σ) <:ws:> (subst_ty σ1 <$> σ)
-    .
-  Proof.
-    induction σ as [ | ty σ hi] => vs σ0 σ1 ws hwf hwf0 hwf1 h hlen hcov hcontra;
-      first by rewrite (nil_length_inv ws).
-    destruct ws as [ | w ws]; first by discriminate hlen.
-    case: hlen => hlen /=.
-    apply Forall_cons_1 in hwf as [hty hwf].
-    apply subtype_targs_cons.
-    { destruct w => /=.
-      - split.
-        + apply subtype_lift with vs => //.
-          by apply (hcov 0 Invariant).
-        + apply subtype_lift with (neg_variance <$> vs) => //; last by apply neg_subtype_targs.
-          by apply (hcontra 0 Invariant).
-      - apply subtype_lift with vs => //.
-        by apply (hcov 0 Covariant).
-      - apply subtype_lift with (neg_variance <$> vs) => //; last by apply neg_subtype_targs.
-        by apply (hcontra 0 Contravariant).
-    }
-    apply hi with vs => //.
-    - move => i wi ti hwi hti hc.
-      by apply (hcov (S i) wi ti).
-    - move => i wi ti hwi hti hc.
-      by apply (hcontra (S i) wi ti).
-  Qed.
-
-  Lemma subtype_targs_inv_0 Γ vs σ ty0 σ0:
-    Γ ⊢ (ty0 :: σ0) <:vs:> σ →
-    ∃ w ws ty1 σ1,
-    vs = w :: ws ∧
-    σ = ty1 :: σ1 ∧
-    check_variance Γ w ty0 ty1 ∧
-    Γ ⊢ σ0 <:ws:> σ1.
-  Proof.
-    move => h; inv h.
-    - by exists Invariant, vs0, ty2, ty1s.
-    - by exists Covariant, vs0, ty2, ty1s.
-    - by exists Contravariant, vs0, ty2, ty1s.
-  Qed.
-
-  Lemma subtype_targs_inv_1 Γ vs σ ty1 σ1:
-    Γ ⊢ σ <:vs:> (ty1 :: σ1) →
-    ∃ w ws ty0 σ0,
-    vs = w :: ws ∧
-    σ = ty0 :: σ0 ∧
-    check_variance Γ w ty0 ty1 ∧
-    Γ ⊢ σ0 <:ws:> σ1.
-  Proof.
-    move => h; inv h.
-    - by exists Invariant, vs0, ty0, ty0s.
-    - by exists Covariant, vs0, ty0, ty0s.
-    - by exists Contravariant, vs0, ty0, ty0s.
-  Qed.
-
-  Lemma subtype_targs_trans Γ σ:
-    ∀ vs σ0 σ1,
-    Γ ⊢ σ0 <:vs:> σ1 →
-    Γ ⊢ σ <:vs:> σ0 →
-    Γ ⊢ σ <:vs:> σ1.
-  Proof.
-    induction σ as [ | ty σ hi] => vs σ0 σ1 h01 h0.
-    - inv h0.
-      by inv h01.
-    - apply subtype_targs_inv_0 in h0.
-      destruct h0 as (w & ws & ty0 & ty0s & -> & -> & hc & hsub).
-      apply subtype_targs_inv_0 in h01.
-      destruct h01 as (? & ? & ty1 & ty1s & heq & -> & hc' & hsub').
-      case : heq.
-      intros <- <-.
-      apply subtype_targs_cons; last by eapply hi.
-      move : hc hc'; destruct w => /=.
-      + move => [??] [??]; split; by eauto.
-      + move => ? ?; by eauto.
-      + move => ? ?; by eauto.
   Qed.
 
   (* Sanity checks: Some derived rules *)
@@ -909,31 +599,6 @@ Section Subtype.
     wf_ty A → wf_ty B → wf_ty C →
     Γ ⊢ (InterT (InterT A B) C) <: (InterT A (InterT B C)).
   Proof. by eauto. Qed.
-
-  (* Generalized version of SubClass to any inheritance sequence *)
-  Lemma subtype_inherits_using Γ A B σ σA adef:
-    map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
-    Δ !! A = Some adef →
-    length σA = length (adef.(generics)) →
-    inherits_using A B σ →
-    Γ ⊢ ClassT A σA <: ClassT B (subst_ty σA <$> σ).
-  Proof.
-    move => hp hA hl h.
-    move : h σA adef hA hl.
-    induction 1 as [ A ? h | A B σ0 hext | A B σ0 C σC hext h hi ] => σA ? hA hl.
-    - simplify_eq.
-      by rewrite subst_ty_gen_targs.
-    - by econstructor.
-    - eapply SubTrans; first by eapply SubClass.
-      apply extends_using_wf in hext => //.
-      destruct hext as (? & hadef' & hF0 & hwfB).
-      apply inherits_using_wf in h => //.
-      destruct h as (bdef & hbdef & hF1 & hwfC).
-      inv hwfB; simplify_eq.
-      rewrite map_subst_ty_subst; last by rewrite H2.
-      apply hi with bdef => //.
-      by rewrite map_length.
-  Qed.
 
   (* Typing contexts *)
   Record local_tys := {

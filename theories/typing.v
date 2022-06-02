@@ -14,7 +14,7 @@ Section Typing.
   Context `{PDC: ProgDefContext}.
 
   (* Helping the inference with this notation that hides Δ *)
-  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ s t) (at level 70, s at next level, no associativity).
+  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ Plain s t) (at level 70, s at next level, no associativity).
   Local Notation "Γ ⊢ lty <:< rty" := (@lty_sub _ Γ lty rty) (lty at next level, at level 70, no associativity).
 
   (* At class + substitution is `ok` w.r.t. to a set of constraints `Γ` if
@@ -1255,7 +1255,7 @@ Section MethodTyping.
   Context `{PDC: ProgDefContext}.
 
   (* Helping the inference with this notation that hides Δ *)
-  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ s t) (at level 70, s at next level, no associativity).
+  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ Plain s t) (at level 70, s at next level, no associativity).
   Local Notation "Γ ⊢ lty <:< rty" := (@lty_sub _ Γ lty rty) (lty at next level, at level 70, no associativity).
 
   (* Let's consider that class C0 has/inherits a method m from class C1
