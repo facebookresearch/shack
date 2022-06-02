@@ -259,13 +259,17 @@ Section proofs.
   Definition interp_generic (Σi : list (interp Σ)) (tv: nat) : interp Σ :=
     default interp_nothing (Σi !! tv).
 
+  Definition interp_support_dynamic (rec: ty_interpO) : interp Σ :=
+    Interp (λ (v: value),
+      (∃ t def, ⌜Δ !! t = Some def ∧ def.(support_dynamic) = true⌝ ∗
+        interp_ex rec t v))%I.
+
   Definition interp_dynamic (rec: ty_interpO) : interp Σ :=
     Interp (λ (v: value),
       interp_int v ∨
       interp_bool v ∨
       interp_null v ∨
-      (∃ t def, ⌜Δ !! t = Some def ∧ def.(support_dynamic) = true⌝ ∗
-        interp_ex rec t v))%I.
+      interp_support_dynamic rec v)%I.
 
   (* we use a blend of Coq/Iris recursion, the
      Coq recursion lets us handle simple structural
@@ -291,6 +295,7 @@ Section proofs.
       | GenT n => interp_generic Σi n
       | ExT cname => interp_ex rec cname
       | DynamicT => interp_dynamic rec
+      | SupportDynT => interp_support_dynamic rec
       end.
   End interp_type_pre_rec.
 
@@ -318,7 +323,7 @@ Section proofs.
     NonExpansive (λ Σi, go rec Σi ty).
   Proof.
     induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i
-    | cname | ] => //= n x y h.
+    | cname | | ] => //= n x y h.
     - apply interp_tag_ne.
       rewrite Forall_forall in hi.
       apply list_dist_lookup => k.
@@ -398,7 +403,7 @@ Section proofs.
   Local Instance interp_type_pre_contractive : Contractive interp_type_pre.
   Proof.
     rewrite /interp_type_pre => n rec1 rec2 hdist ty Σi /=.
-    induction ty as [ | | | | C σ hi | | | A B hA hB | A B hA hB | i | C|  ] => /=.
+    induction ty as [ | | | | C σ hi | | | A B hA hB | A B hA hB | i | C | | ] => /=.
     - done.
     - done.
     - done.
@@ -443,8 +448,11 @@ Section proofs.
     - by solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - done.
     - by apply interp_ex_contractive.
-    - rewrite /interp_dynamic => v /=.
+    - rewrite /interp_dynamic /interp_support_dynamic => v /=.
       do 8 f_equiv.
+      by apply interp_ex_contractive.
+    - rewrite /interp_support_dynamic => v /=.
+      do 5 f_equiv.
       by apply interp_ex_contractive.
   Qed.
 
@@ -517,6 +525,11 @@ Section proofs.
     - rewrite !interp_type_unfold; by iSplit.
     - rewrite !interp_type_unfold; by iSplit.
     Qed.
+
+    Lemma interp_support_dynamic_unfold v:
+      interp_type SupportDynT Σi v ⊣⊢
+      interp_support_dynamic interp_type v.
+    Proof.  by rewrite interp_type_unfold. Qed.
 
     Lemma interp_dynamic_unfold v:
       interp_type DynamicT Σi v ⊣⊢
@@ -733,7 +746,7 @@ Section proofs.
   Proof.
     move => hbounded.
     rewrite !interp_type_unfold; revert v.
-    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | ] => //= v.
+    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | | ] => //= v.
     - rewrite !interp_tag_unseal /interp_tag_def /= /interp_variance.
       do 17 f_equiv.
       { f_equiv; by rewrite !fmap_length. }
@@ -771,7 +784,7 @@ Section proofs.
   Proof.
     move => hΣ ty v.
     rewrite !interp_type_unfold; revert v.
-    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | ] => //= v.
+    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | | ] => //= v.
     - apply interp_tag_equivI.
       apply list_fmap_equiv_ext_elem_of => ty hin w.
       rewrite Forall_forall in hi.
@@ -898,7 +911,7 @@ Section proofs.
   Proof.
     move => ??.
     iIntros (Σ0 Σ1 hmono hwf) "#h".
-    iInduction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | ] 
+    iInduction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | | ] 
         "IHty" forall (Σ0 Σ1 vs hmono) "h"; iIntros (v); rewrite !interp_type_unfold //=.
     - by iIntros.
     - rewrite !interp_tag_unseal /interp_tag_def /interp_fun !interp_car_simpl.
@@ -1066,6 +1079,7 @@ Section proofs.
     - iIntros "hh".
       iDestruct "hh" as (Σt) "hh".
       by iExists Σt.
+    - by iIntros "hh".
     - by iIntros "hh".
   Qed.
 
@@ -1259,7 +1273,7 @@ Section proofs.
   Proof.
     iIntros (A v hwf) "#wfΣi h".
     rewrite !interp_type_unfold /=.
-    iInduction A as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | ] 
+    iInduction A as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | | ] 
         "IHty" forall (v hwf).
     - by repeat iLeft.
     - by iLeft; iRight; iLeft.
@@ -1299,6 +1313,9 @@ Section proofs.
       { by iRight. }
       iLeft; iRight; iRight.
       iDestruct "h" as (t def h Σt) "hh".
+      by iExists _, _.
+    - iDestruct "h" as (t def h Σt) "hh".
+      iLeft; iRight; iRight.
       by iExists _, _.
   Qed.
 

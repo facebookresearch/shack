@@ -259,6 +259,7 @@ Section Subtype.
                     mono (neg_variance <$> vs) ti) →
         mono vs (ClassT cname targs)
     | MonoDynamic : mono vs DynamicT
+    | MonoSupportDyn : mono vs SupportDynT
   .
 
   Definition wf_cdef_mono cdef : Prop :=
@@ -303,7 +304,7 @@ Section Subtype.
   Proof.
     induction 1 as [ | | | | | | vs s t hs his ht hit
       | vs s t hs his ht hit | vs n hinv | vs n hco | vs n hnone
-      | vs cname | vs cname cdef targs hΔ hcov hicov hcontra hicontra | ]
+      | vs cname | vs cname cdef targs hΔ hcov hicov hcontra hicontra | | ]
       => hb ws σ hlen h0 h1 //=; try by constructor.
     - inv hb.
       constructor.
@@ -716,7 +717,7 @@ Section Subtype.
   Proof.
     induction 1 as [ | | | | | | vs s t hs his ht hit
       | vs s t hs his ht hit | vs n hinv | vs n hco | vs n hnone | vs cname
-      | vs cname cdef targs hΔ hcov hicov hcontra hicontra | ] => σ0 σ1 hwf hwf0 hwf1 hsub //=.
+      | vs cname cdef targs hΔ hcov hicov hcontra hicontra | | ] => σ0 σ1 hwf hwf0 hwf1 hsub //=.
     - inv hwf.
       constructor.
       + econstructor; first by eapply his.
