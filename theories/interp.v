@@ -135,11 +135,6 @@ Section proofs.
 
   Notation γ := sem_heap_name.
 
-  (* Helping the inference with this notation that hides Δ *)
-  Local Notation "Γ ⊢ s <: t" := (@subtype _ Γ Plain s t) (at level 70, s at next level, no associativity).
-  Local Notation "Γ ⊢ lts <: vs :> rts" := (@subtype_targs _ Γ Plain vs lts rts) (at level 70, lts, vs at next level).
-  Local Notation "Γ ⊢ lty <:< rty" := (@lty_sub _ Γ lty rty) (lty at next level, at level 70, no associativity).
-
   (* now, let's interpret some types ! *)
 
   (* Most interpretation functions are parametrized by Σi: tvar -> interp
@@ -1339,7 +1334,7 @@ Section proofs.
     { destruct 1 as [ kd A | kd A h | kd A σA B σB adef hΔ hlen hext
       | kd A adef hadef hL | kd A def σ0 σ1 hΔ hwfσ hσ | | | | | kd A B h
       | kd A B h | kd A B C h0 h1 | kd A B | kd A B | kd A B C h0 h1
-      | | kd A B C h0 h1 | kd A B hin | kd A adef σA hΔ hsupdyn hσA | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
+      | | kd A B C h0 h1 | A B hin | kd A adef σA hΔ hsupdyn hσA | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold.
         by iApply submixed_is_inclusion_aux.
@@ -1452,8 +1447,8 @@ Section proofs.
   Qed.
 
   (* A <: B → [|A|] ⊆ [|B|] *)
-  Theorem subtype_is_inclusion Σi:
-    ∀ A B, Σc ⊢ A <: B →
+  Theorem subtype_is_inclusion kd Σi:
+    ∀ A B, subtype Σc kd A B →
     ∀ v,
     wf_ty A →
     □ interp_env_as_mixed Σi -∗
@@ -1516,10 +1511,10 @@ Section proofs.
     (∀ v ty, ⌜lty.(ctxt) !! v = Some ty⌝ -∗
     ∃ val, ⌜le.(lenv) !! v = Some val⌝ ∗ interp_type ty Σi val)%I.
 
-  Lemma interp_local_tys_is_inclusion Σi lty rty le:
+  Lemma interp_local_tys_is_inclusion kd Σi lty rty le:
     wf_lty lty →
     Forall (λ (i: interp Σ), ∀ v, Persistent (i v)) Σi →
-    Σc ⊢ lty <:< rty →
+    lty_sub Σc kd lty rty →
     □ interp_env_as_mixed Σi -∗
     □ Σinterp Σi Σc -∗
     interp_local_tys Σi lty le -∗
