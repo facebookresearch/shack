@@ -397,6 +397,26 @@ Section Typing.
         by set_solver.
   Qed.
 
+  Lemma expr_has_ty_weaken Γ lty e ty:
+    expr_has_ty Γ lty e ty → ∀ Γ', Γ ⊆ Γ' → expr_has_ty Γ' lty e ty.
+  Proof.
+    induction 1 as [ z | b | | op e1 e2 hop h1 hi1 h2 hi2 |
+      op e1 e2 hop h1 hi1 h2 hi2 | e1 e2 h1 hi1 h2 hi2 | e h hi |
+      v ty h | | e s t h hi hok hsub | e s t h hi hok hsub ] => Γ' hincl;
+          try (econstructor; by eauto).
+     - eapply ESubTy.
+       + by eapply hi.
+       + done.
+       + by eapply ok_ty_weaken.
+       + by eapply subtype_weaken.
+     - eapply UpcastTy.
+       + by eapply hi.
+       + done.
+       + by eapply ok_ty_weaken.
+       + by eapply subtype_weaken.
+  Qed.
+
+
   Definition wf_lty lty :=
     wf_ty (this_type lty) ∧
     map_Forall (λ _, wf_ty) lty.(ctxt)
@@ -567,8 +587,77 @@ Section Typing.
          | _ => True
          end) →
         cmd_has_ty Γ lty (SetC recv fld rhs) lty
-    (* To be completed *)
+    | DynCallTy: ∀ lty lhs recv name (args: stringmap expr),
+        expr_has_ty Γ lty recv DynamicT →
+        (∀ x arg, args !! x = Some arg →
+          expr_has_ty Γ lty arg DynamicT) →
+        (match recv with
+         | ThisE => False
+         | _ => True
+         end) →
+        cmd_has_ty Γ lty (CallC lhs recv name args) (<[lhs := DynamicT]>lty)
   .
+
+  Lemma cmd_has_ty_constraint_weaken Γ lty cmd rty:
+    cmd_has_ty Γ lty cmd rty → ∀ Γ', Γ ⊆ Γ' → cmd_has_ty Γ' lty cmd rty.
+  Proof.
+    induction 1 as [ lty | ????? h1 hi1 h2 hi2 | ???? he |
+      ????? he h1 hi1 h2 hi2 | ?????? he hf | ???????? he hf |
+      ?????? he hf hr | ???????? he hf hr | ?????? ht hok hf hdom hargs |
+      ????????? he hm hdom hargs |
+      ???? hsub h hi | ?????? hin hr h hi | ????? hin hr h hi |
+      ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi |
+      ????? hcond hthn hi1 hels hi2 | ???? he hnotthis |
+      ???? hrecv hrhs hnotthis | ????? he hargs hnotthis
+      ] => Γ' hincl.
+    + by constructor.
+    + econstructor; by eauto.
+    + econstructor; by eapply expr_has_ty_weaken.
+    + econstructor; try by eauto.
+      by eapply expr_has_ty_weaken.
+    + econstructor; by eauto.
+    + econstructor; try by eauto.
+      by eapply expr_has_ty_weaken.
+    + econstructor; try by eauto.
+      by eapply expr_has_ty_weaken.
+    + econstructor; try by eauto.
+      - by eapply expr_has_ty_weaken.
+      - by eapply expr_has_ty_weaken.
+    + econstructor; try by eauto.
+      - by eapply ok_ty_weaken.
+      - move => f fty arg hff ha.
+        eapply expr_has_ty_weaken; by eauto.
+    + econstructor; try by eauto.
+      - by eapply expr_has_ty_weaken.
+      - move => f fty arg hff ha.
+        eapply expr_has_ty_weaken; by eauto.
+    + econstructor; last by eauto.
+      by eapply lty_sub_weaken.
+    + econstructor => //; last by eauto.
+      by eapply lty_sub_weaken.
+    + econstructor => //; last by eauto.
+      by eapply lty_sub_weaken.
+    + econstructor => //; last by eauto.
+      by eapply lty_sub_weaken.
+    + econstructor => //; last by eauto.
+      by eapply lty_sub_weaken.
+    + econstructor => //; last by eauto.
+      by eapply lty_sub_weaken.
+    + eapply DynIfTy; try by eauto.
+      by eapply expr_has_ty_weaken.
+    + eapply DynGetTy.
+      - by eapply expr_has_ty_weaken.
+      - by destruct recv.
+    + eapply DynSetTy.
+      - by eapply expr_has_ty_weaken.
+      - by eapply expr_has_ty_weaken.
+      - by destruct recv.
+    + eapply DynCallTy.
+      - by eapply expr_has_ty_weaken.
+      - move => f a ha.
+        eapply expr_has_ty_weaken; by eauto.
+      - by destruct recv.
+  Qed.
 
   Lemma cmd_has_ty_constraint_elim_ G lty cmd rty:
     cmd_has_ty G lty cmd rty →
@@ -583,7 +672,7 @@ Section Typing.
       ???? hsub h hi | ?????? hin hr h hi | ????? hin hr h hi |
       ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi |
       ????? hcond hthn hi1 hels hi2 | ???? he hnotthis |
-      ???? hrecv hrhs hnotthis    
+      ???? hrecv hrhs hnotthis | ????? he hargs hnotthis
       ] => Γ Γ' heq hΓ; subst.
     - by econstructor.
     - econstructor; by eauto.
@@ -636,6 +725,10 @@ Section Typing.
     - eapply DynSetTy => //.
       + by eapply expr_has_ty_constraint_elim.
       + by eapply expr_has_ty_constraint_elim.
+    - eapply DynCallTy => //.
+      + by eapply expr_has_ty_constraint_elim.
+      + move => ???; eapply expr_has_ty_constraint_elim => //.
+        by eapply hargs.
   Qed.
 
   Lemma cmd_has_ty_constraint_elim Γ Γ' lty cmd rty:
@@ -661,7 +754,7 @@ Section Typing.
       ???? hsub h hi | ?????? hin hr h hi | ????? hin hr h hi |
       ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi |
       ????? hcond hthn hi1 hels hi2 | ???? he hnotthis |
-      ???? hrecv hrhs hnotthis
+      ???? hrecv hrhs hnotthis | ????? he hargs hnotthis
       ] => //=; try (by eauto).
     - apply hi2.
       + by apply hi1.
@@ -746,7 +839,9 @@ Section Typing.
         }
         by apply hwf in hk.
     - by apply insert_wf_lty.
+    - by apply insert_wf_lty.
   Qed.
+
 
   Lemma cmd_has_ty_subst Γ' Γ σ lty cmd lty':
     map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
@@ -770,7 +865,7 @@ Section Typing.
       ???? hsub h hi | ?????? hin hr h hi | ????? hin hr h hi |
       ????? hin hr h hi | ????? hin hr h hi | ????? hin hr h hi |
       ????? hcond hthn hi1 hels hi2 | ???? he hnotthis |
-      ???? hrecv hrhs hnotthis
+      ???? hrecv hrhs hnotthis | ????? he hargs hnotthis
       ] => //=.
     - by constructor.
     - econstructor.
@@ -985,6 +1080,22 @@ Section Typing.
         by eapply expr_has_ty_subst.
       + change DynamicT with (subst_ty σ DynamicT).
         by eapply expr_has_ty_subst.
+      + by destruct recv.
+    - replace (subst_lty σ (<[lhs:=DynamicT]> lty)) with
+             (<[lhs := DynamicT]>(subst_lty σ lty)); last first.
+      { rewrite /subst_lty /= /insert /local_tys_insert /=.
+        f_equal.
+        by rewrite fmap_insert.
+      }
+      eapply DynCallTy.
+      + change DynamicT with (subst_ty σ DynamicT).
+        by eapply expr_has_ty_subst.
+      + move => ?? ha.
+        rewrite lookup_fmap_Some in ha.
+        destruct ha as [a [<- ha]].
+        change DynamicT with (subst_ty σ DynamicT).
+        eapply expr_has_ty_subst => //.
+        by eapply hargs.
       + by destruct recv.
   Qed.
 

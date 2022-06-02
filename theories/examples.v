@@ -236,6 +236,7 @@ Proof.
       by apply map_Forall_empty.
     - by rewrite lookup_insert.
     - by apply has_method_get0.
+    - by rewrite /Get /= !dom_empty_L.
     - by rewrite omap_empty.
     - eapply GetEv.
       + by constructor.
@@ -260,6 +261,7 @@ Proof.
       by apply map_Forall_empty.
     - by rewrite lookup_insert.
     - by apply has_method_get1.
+    - by rewrite /Get /= fmap_empty !dom_empty_L.
     - by rewrite omap_empty.
     - eapply GetEv.
       + by constructor.
@@ -284,6 +286,7 @@ Proof.
       by rewrite lookup_insert.
     - by rewrite lookup_insert.
     - by apply has_method_set.
+    - by rewrite /IntBoxSSet /= !dom_singleton_L.
     - by rewrite omap_singleton /= lookup_insert.
     - rewrite /IntBoxSSet /=.
       eapply SetEv.
@@ -1135,7 +1138,6 @@ Proof.
   by rewrite /wf_cdef_constraints_wf /= Forall_nil.
 Qed.
 
-
 Lemma wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) Δ.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
@@ -1256,7 +1258,6 @@ Qed.
 
 Lemma wf_dyn_parent: map_Forall (λ _cname, wf_cdef_dyn_parent) Δ.
 Proof.
-Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]] //.
@@ -1272,6 +1273,48 @@ Proof.
   rewrite lookup_insert_Some.
   case => [[? <-]|[?]]; last by rewrite lookup_empty.
   done.
+Qed.
+
+Lemma wf_methods_dyn_wf : map_Forall wf_cdef_methods_dyn_wf Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]] //.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]] //.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]] //.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]]; last by rewrite lookup_empty.
+  done.
+Qed.
+
+Lemma wf_mdef_dyn_ty : map_Forall cdef_wf_mdef_dyn_ty Δ.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[<- <-]|[?]].
+  { rewrite /cdef_wf_mdef_dyn_ty /ROBox /=.
+    by rewrite map_Forall_singleton.
+  }
+  rewrite lookup_insert_Some.
+  case => [[<- <-]|[?]].
+  { rewrite /cdef_wf_mdef_dyn_ty /Box /=.
+    rewrite map_Forall_lookup => x mx.
+    rewrite lookup_insert_Some.
+    case => [[? <-]|[?]] => //.
+    rewrite lookup_insert_Some.
+    case => [[? <-]|[?]] => //.
+  }
+  rewrite lookup_insert_Some.
+  case => [[<- <-]|[?]].
+  { rewrite /cdef_wf_mdef_dyn_ty /IntBoxS /=.
+    by rewrite map_Forall_singleton.
+  }
+  rewrite lookup_insert_Some.
+  case => [[<- <-]|[?]]; last by rewrite lookup_empty.
+  rewrite /cdef_wf_mdef_dyn_ty /Main /=.
+  by apply map_Forall_singleton.
 Qed.
 
 Lemma wf: wf_cdefs Δ.
@@ -1296,6 +1339,8 @@ Proof.
   by apply wf_mono.
   by apply wf_fields_dyn.
   by apply wf_dyn_parent.
+  by apply wf_methods_dyn_wf.
+  by apply wf_mdef_dyn_ty.
 Qed.
 
 (* Director level theorem: every execution that should produce an int
