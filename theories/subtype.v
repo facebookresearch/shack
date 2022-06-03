@@ -57,9 +57,7 @@ Section Subtype.
     | SubBoolDyn: subtype Γ Aware BoolT DynamicT
     | SubNullDyn: subtype Γ Aware NullT DynamicT
     | SubSupDyn: subtype Γ Aware SupportDynT DynamicT
-    (* TODO: question.
-     * do we need/want subtype Γ kd DynamicT (SupDyn | Int | Bool | Null) ?
-     *)
+    | SubDynPrim kd : subtype Γ kd DynamicT (UnionT IntT (UnionT BoolT (UnionT NullT SupportDynT)))
   with subtype_targs (Γ: list constraint) : subtype_kind → list variance → list lang_ty → list lang_ty → Prop :=
     | subtype_targs_nil kd: subtype_targs Γ kd [] [] []
     | subtype_targs_invariant: ∀ kd ty0 ty1 vs ty0s ty1s,
@@ -120,7 +118,7 @@ Section Subtype.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | s t hin | kd A adef σA hΔ hsupdyn hσA | | | | ] => Γ' hΓ; try by econstructor.
+      | kd s | kd s t u hs ht | s t hin | kd A adef σA hΔ hsupdyn hσA | | | | | ] => Γ' hΓ; try by econstructor.
       + econstructor; [ done | done | ].
         by eapply subtype_targs_weaken.
       + econstructor; by eapply subtype_weaken.
@@ -155,7 +153,7 @@ Section Subtype.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
-      | kd s t u hs ht | s t hin | kd A adef σA hΔ hsupdyn hσA | | | | ]
+      | kd s t u hs ht | s t hin | kd A adef σA hΔ hsupdyn hσA | | | | | ]
       => Γ Γ' heq hΓ; subst; try by econstructor.
       + econstructor; [done | done | ].
         by eapply subtype_targs_constraint_elim_.
@@ -205,7 +203,7 @@ Section Subtype.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | s t hin | kd A adef σA hΔ hsupdyn hσA | | | | ] => Γ' hΓ; try by econstructor.
+      | kd s | kd s t u hs ht | s t hin | kd A adef σA hΔ hsupdyn hσA | | | | | ] => Γ' hΓ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
         eapply subtype_targs_constraint_trans.
         * by apply hσ.
@@ -475,7 +473,7 @@ Section Subtype.
     induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hΔ hA hext
       | kd A adef hadef hL | kd A adef σ0 σ1 hΔ hwfσ hσ | | | | kd A args | kd s t h
       | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
-      | kd s t u hst hist htu hitu | s t hin | kd A adef σA hΔ hsupdyn hσA | | | | ]
+      | kd s t u hst hist htu hitu | s t hin | kd A adef σA hΔ hsupdyn hσA | | | | | ]
       => //=; try (by constructor).
     - inv hext; simplify_eq.
       rewrite /map_Forall_lookup in hp.
@@ -506,6 +504,7 @@ Section Subtype.
     - by eauto.
     - rewrite Forall_forall in hΓ.
       by apply hΓ in hin as [].
+    - by repeat constructor.
   Qed.
 
   Definition subst_constraint σ c := (subst_ty σ c.1, subst_ty σ c.2).
@@ -527,7 +526,7 @@ Section Subtype.
       destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hΔ hA hext
       | kd A adef hadef hL | kd A adef σ0 σ1 hΔ hwfσ hσ01 | | | | kd A args
       | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
-      | kd s t u hst htu | s t hin | kd A adef σA hΔ hsupdyn hσA | | | | ]
+      | kd s t u hst htu | s t hin | kd A adef σA hΔ hsupdyn hσA | | | | | ]
       => σ hσ => /=; try (by constructor).
       + constructor.
         by apply wf_ty_subst.
