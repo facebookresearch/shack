@@ -481,39 +481,49 @@ Section Typing.
     - by apply hok.
   Qed.
 
-  (* continuation-based typing for commands *)
-  Inductive cmd_has_ty Γ : subtype_kind → local_tys → cmd → local_tys → Prop :=
-    | SkipTy: ∀ lty kd, cmd_has_ty Γ kd lty SkipC lty
+  (* continuation-based typing for commands.
+   * Γ is the set of constraints S <: T of the current class
+   * and C is the tag of the current class (for `private` related checks)
+   *
+   * Note on Getter/Setter visibility check:
+   * if `e` has type `C<σ>` and we are typing `e->x`.
+   *
+   * For private access, we must make sure the current enclosing class
+   * is where the member is defined, and the member can only be accessed
+   * via `This`
+   *)
+  Inductive cmd_has_ty Γ (C : tag) : subtype_kind → local_tys → cmd → local_tys → Prop :=
+    | SkipTy: ∀ lty kd, cmd_has_ty Γ C kd lty SkipC lty
     | SeqTy: ∀ kd lty1 lty2 lty3 fstc sndc,
-        cmd_has_ty Γ kd lty1 fstc lty2 →
-        cmd_has_ty Γ kd lty2 sndc lty3 →
-        cmd_has_ty Γ kd lty1 (SeqC fstc sndc) lty3
+        cmd_has_ty Γ C kd lty1 fstc lty2 →
+        cmd_has_ty Γ C kd lty2 sndc lty3 →
+        cmd_has_ty Γ C kd lty1 (SeqC fstc sndc) lty3
     | LetTy: ∀ kd lty lhs e ty,
         expr_has_ty Γ lty kd e ty →
-        cmd_has_ty Γ kd lty (LetC lhs e) (<[lhs := ty]>lty)
+        cmd_has_ty Γ C kd lty (LetC lhs e) (<[lhs := ty]>lty)
     | IfTy: ∀ kd lty1 lty2 cond thn els,
         expr_has_ty Γ lty1 kd cond BoolT →
-        cmd_has_ty Γ kd lty1 thn lty2 →
-        cmd_has_ty Γ kd lty1 els lty2 →
-        cmd_has_ty Γ kd lty1 (IfC cond thn els) lty2
+        cmd_has_ty Γ C kd lty1 thn lty2 →
+        cmd_has_ty Γ C kd lty1 els lty2 →
+        cmd_has_ty Γ C kd lty1 (IfC cond thn els) lty2
     | GetPrivTy: ∀ kd lty lhs t σ name fty,
         type_of_this lty = (t, σ) →
-        has_field name t Private fty t →
-        cmd_has_ty Γ kd lty (GetC lhs ThisE name) (<[lhs := subst_ty σ fty]>lty)
+        has_field name t Private fty C →
+        cmd_has_ty Γ C kd lty (GetC lhs ThisE name) (<[lhs := subst_ty σ fty]>lty)
     | GetPubTy: ∀ kd lty lhs recv t σ name fty orig,
         expr_has_ty Γ lty kd recv (ClassT t σ) →
         has_field name t Public fty orig →
-        cmd_has_ty Γ kd lty (GetC lhs recv name) (<[lhs := subst_ty σ fty]>lty)
+        cmd_has_ty Γ C kd lty (GetC lhs recv name) (<[lhs := subst_ty σ fty]>lty)
     | SetPrivTy: ∀ kd lty fld rhs fty t σ,
         type_of_this lty = (t, σ) →
-        has_field fld t Private fty t →
+        has_field fld t Private fty C →
         expr_has_ty Γ lty kd rhs (subst_ty σ fty) →
-        cmd_has_ty Γ kd lty (SetC ThisE fld rhs) lty
+        cmd_has_ty Γ C kd lty (SetC ThisE fld rhs) lty
     | SetPubTy: ∀ kd lty recv fld rhs fty orig t σ,
         expr_has_ty Γ lty kd recv (ClassT t σ) →
         has_field fld t Public fty orig →
         expr_has_ty Γ lty kd rhs (subst_ty σ fty) →
-        cmd_has_ty Γ kd lty (SetC recv fld rhs) lty
+        cmd_has_ty Γ C kd lty (SetC recv fld rhs) lty
     | NewTy: ∀ kd lty lhs t targs args fields,
         wf_ty (ClassT t targs) →
         ok_ty Γ (ClassT t targs) →
@@ -523,7 +533,7 @@ Section Typing.
         fields !! f = Some fty →
         args !! f = Some arg →
         expr_has_ty Γ lty kd arg (subst_ty targs fty.1.2)) →
-        cmd_has_ty Γ kd lty (NewC lhs t targs args) (<[lhs := ClassT t targs]>lty)
+        cmd_has_ty Γ C kd lty (NewC lhs t targs args) (<[lhs := ClassT t targs]>lty)
     | CallTy: ∀ kd lty lhs recv t targs name orig mdef args,
         expr_has_ty Γ lty kd recv (ClassT t targs) →
         has_method name t orig mdef →
@@ -532,42 +542,42 @@ Section Typing.
         mdef.(methodargs) !! x = Some ty →
         args !! x = Some arg →
         expr_has_ty Γ lty kd arg (subst_ty targs ty)) →
-        cmd_has_ty Γ kd lty (CallC lhs recv name args) (<[lhs := subst_ty targs mdef.(methodrettype)]>lty)
+        cmd_has_ty Γ C kd lty (CallC lhs recv name args) (<[lhs := subst_ty targs mdef.(methodrettype)]>lty)
     | SubTy: ∀ kd lty c rty rty',
         lty_sub Γ kd rty' rty →
-        cmd_has_ty Γ kd lty c rty' →
-        cmd_has_ty Γ kd lty c rty
+        cmd_has_ty Γ C kd lty c rty' →
+        cmd_has_ty Γ C kd lty c rty
     | TagCheckTy kd lty rty v tv t cmd :
         lty.(ctxt) !! v = Some tv →
         lty_sub Γ kd lty rty →
-        cmd_has_ty Γ kd (<[v:=InterT tv (ExT t)]> lty) cmd rty →
-        cmd_has_ty Γ kd lty (RuntimeCheckC v (RCTag t) cmd) rty
+        cmd_has_ty Γ C kd (<[v:=InterT tv (ExT t)]> lty) cmd rty →
+        cmd_has_ty Γ C kd lty (RuntimeCheckC v (RCTag t) cmd) rty
     | IntCheckTy kd lty rty v tv cmd :
         lty.(ctxt) !! v = Some tv →
         lty_sub Γ kd lty rty →
-        cmd_has_ty Γ kd (<[v:=InterT tv IntT]> lty) cmd rty →
-        cmd_has_ty Γ kd lty (RuntimeCheckC v RCInt cmd) rty
+        cmd_has_ty Γ C kd (<[v:=InterT tv IntT]> lty) cmd rty →
+        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCInt cmd) rty
     | BoolCheckTy kd lty rty v tv cmd :
         lty.(ctxt) !! v = Some tv →
         lty_sub Γ kd lty rty →
-        cmd_has_ty Γ kd (<[v:=InterT tv BoolT]> lty) cmd rty →
-        cmd_has_ty Γ kd lty (RuntimeCheckC v RCBool cmd) rty
+        cmd_has_ty Γ C kd (<[v:=InterT tv BoolT]> lty) cmd rty →
+        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCBool cmd) rty
     | NullCheckTy kd lty rty v tv cmd :
         lty.(ctxt) !! v = Some tv →
         lty_sub Γ kd lty rty →
-        cmd_has_ty Γ kd (<[v:=InterT tv NullT]> lty) cmd rty →
-        cmd_has_ty Γ kd lty (RuntimeCheckC v RCNull cmd) rty
+        cmd_has_ty Γ C kd (<[v:=InterT tv NullT]> lty) cmd rty →
+        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCNull cmd) rty
     | NonNullCheckTy kd lty rty v tv cmd :
         lty.(ctxt) !! v = Some tv →
         lty_sub Γ kd lty rty →
-        cmd_has_ty Γ kd (<[v:=InterT tv NonNullT]> lty) cmd rty →
-        cmd_has_ty Γ kd lty (RuntimeCheckC v RCNonNull cmd) rty
+        cmd_has_ty Γ C kd (<[v:=InterT tv NonNullT]> lty) cmd rty →
+        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCNonNull cmd) rty
     (* Dynamic related typing rules *)
     | DynIfTy: ∀ kd lty1 lty2 cond thn els,
         expr_has_ty Γ lty1 kd cond DynamicT →
-        cmd_has_ty Γ kd lty1 thn lty2 →
-        cmd_has_ty Γ kd lty1 els lty2 →
-        cmd_has_ty Γ kd lty1 (IfC cond thn els) lty2
+        cmd_has_ty Γ C kd lty1 thn lty2 →
+        cmd_has_ty Γ C kd lty1 els lty2 →
+        cmd_has_ty Γ C kd lty1 (IfC cond thn els) lty2
     | DynGetTy : ∀ kd lty lhs recv name,
         expr_has_ty Γ lty kd recv DynamicT →
         (match recv with
@@ -575,7 +585,7 @@ Section Typing.
          | _ => True
          end
         ) →
-        cmd_has_ty Γ kd lty (GetC lhs recv name) (<[lhs := DynamicT]>lty)
+        cmd_has_ty Γ C kd lty (GetC lhs recv name) (<[lhs := DynamicT]>lty)
     | DynSetTy : ∀ kd lty recv fld rhs,
         expr_has_ty Γ lty kd recv DynamicT →
         expr_has_ty Γ lty kd rhs DynamicT →
@@ -583,7 +593,7 @@ Section Typing.
          | ThisE => False
          | _ => True
          end) →
-        cmd_has_ty Γ kd lty (SetC recv fld rhs) lty
+        cmd_has_ty Γ C kd lty (SetC recv fld rhs) lty
     | DynCallTy: ∀ kd lty lhs recv name (args: stringmap expr),
         expr_has_ty Γ lty kd recv DynamicT →
         (∀ x arg, args !! x = Some arg →
@@ -592,13 +602,13 @@ Section Typing.
          | ThisE => False
          | _ => True
          end) →
-        cmd_has_ty Γ kd lty (CallC lhs recv name args) (<[lhs := DynamicT]>lty)
+        cmd_has_ty Γ C kd lty (CallC lhs recv name args) (<[lhs := DynamicT]>lty)
   .
 
-  Lemma cmd_has_ty_constraint_weaken Γ kd lty cmd rty:
-    cmd_has_ty Γ kd lty cmd rty → ∀ Γ', Γ ⊆ Γ' → cmd_has_ty Γ' kd lty cmd rty.
+  Lemma cmd_has_ty_constraint_weaken Γ C kd lty cmd rty:
+    cmd_has_ty Γ C kd lty cmd rty → ∀ Γ', Γ ⊆ Γ' → cmd_has_ty Γ' C kd lty cmd rty.
   Proof.
-    induction 1 as [ ? lty | ?????? h1 hi1 h2 hi2 | ????? he |
+    induction 1 as [ | ?????? h1 hi1 h2 hi2 | ????? he |
       ?????? he h1 hi1 h2 hi2 | ??????? he hf | ????????? he hf |
       ??????? he hf hr | ????????? he hf hr | ??????? ht hok hf hdom hargs |
       ?????????? he hm hdom hargs |
@@ -656,13 +666,13 @@ Section Typing.
       - by destruct recv.
   Qed.
 
-  Lemma cmd_has_ty_constraint_elim_ G kd lty cmd rty:
-    cmd_has_ty G kd lty cmd rty →
+  Lemma cmd_has_ty_constraint_elim_ G C kd lty cmd rty:
+    cmd_has_ty G C kd lty cmd rty →
     ∀ Γ Γ', G = Γ ++ Γ' →
     (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <D: c.2) →
-    cmd_has_ty Γ kd lty cmd rty.
+    cmd_has_ty Γ C kd lty cmd rty.
   Proof.
-    induction 1 as [ ? lty | ?????? h1 hi1 h2 hi2 | ????? he |
+    induction 1 as [ | ?????? h1 hi1 h2 hi2 | ????? he |
       ?????? he h1 hi1 h2 hi2 | ??????? he hf | ????????? he hf |
       ??????? he hf hr | ????????? he hf hr | ??????? ht hok hf hdom hargs |
       ?????????? he hm hdom hargs |
@@ -728,19 +738,19 @@ Section Typing.
         by eapply hargs.
   Qed.
 
-  Lemma cmd_has_ty_constraint_elim Γ Γ' kd lty cmd rty:
-    cmd_has_ty (Γ ++ Γ') kd lty cmd rty →
+  Lemma cmd_has_ty_constraint_elim Γ Γ' C kd lty cmd rty:
+    cmd_has_ty (Γ ++ Γ') C kd lty cmd rty →
     (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <D: c.2) →
-    cmd_has_ty Γ kd lty cmd rty.
+    cmd_has_ty Γ C kd lty cmd rty.
   Proof. intros; by eapply cmd_has_ty_constraint_elim_. Qed.
 
-  Lemma cmd_has_ty_wf Γ kd lty cmd lty' :
+  Lemma cmd_has_ty_wf Γ C kd lty cmd lty' :
     map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
     map_Forall (λ _ : string, wf_cdef_fields_wf) Δ →
     map_Forall (λ _ : string, wf_cdef_methods_wf) Δ →
     Forall wf_constraint Γ →
     wf_lty lty →
-    cmd_has_ty Γ kd lty cmd lty' →
+    cmd_has_ty Γ C kd lty cmd lty' →
     wf_lty lty'.
   Proof.
     move => hp hfields hmethods hΓ [hthis hwf].
@@ -839,7 +849,7 @@ Section Typing.
     - by apply insert_wf_lty.
   Qed.
 
-  Lemma cmd_has_ty_subst Γ' Γ kd σ lty cmd lty':
+  Lemma cmd_has_ty_subst Γ' Γ C kd σ lty cmd lty':
     map_Forall (λ _ : string, wf_cdef_parent Δ) Δ →
     map_Forall (λ _ : string, wf_cdef_fields_wf) Δ →
     map_Forall (λ _ : string, wf_cdef_methods_wf) Δ →
@@ -850,8 +860,8 @@ Section Typing.
     wf_lty lty →
     Forall wf_ty σ →
     Forall (ok_ty Γ') σ →
-    cmd_has_ty Γ kd lty cmd lty' →
-    cmd_has_ty (Γ' ++ (subst_constraints σ Γ)) kd (subst_lty σ lty) (subst_cmd σ cmd) (subst_lty σ lty').
+    cmd_has_ty Γ C kd lty cmd lty' →
+    cmd_has_ty (Γ' ++ (subst_constraints σ Γ)) C kd (subst_lty σ lty) (subst_cmd σ cmd) (subst_lty σ lty').
   Proof.
     move => hp hfields hmethods hfb hmb hcb hΓ hwf0 hwf1 hwf2.
     induction 1 as [ | ?????? h1 hi1 h2 hi2 | ????? he |
@@ -1100,7 +1110,7 @@ Section Typing.
   Definition wf_mdef_ty Γ tag σ mdef :=
     ∃ rty,
     wf_lty rty ∧
-    cmd_has_ty Γ Plain
+    cmd_has_ty Γ tag Plain
       {| type_of_this := (tag, σ); ctxt := subst_ty σ <$> mdef.(methodargs) |}
       mdef.(methodbody) rty ∧
     expr_has_ty Γ rty Plain mdef.(methodret) (subst_ty σ mdef.(methodrettype))
@@ -1117,7 +1127,7 @@ Section Typing.
   Definition wf_mdef_dyn_ty Γ tag σ mdef :=
     ∃ rty,
     wf_lty rty ∧
-    cmd_has_ty Γ Aware
+    cmd_has_ty Γ tag Aware
       {| type_of_this := (tag, σ); ctxt := to_dyn <$> mdef.(methodargs) |}
       mdef.(methodbody) rty ∧
     expr_has_ty Γ rty Aware mdef.(methodret) (to_dyn mdef.(methodrettype))
@@ -1261,7 +1271,7 @@ Section MethodTyping.
     def.(classmethods) !! m = Some mdef →
     wf_ty (ClassT C σ) → ok_ty Σc (ClassT C σ) →
     ∃ rty, wf_lty rty ∧
-      cmd_has_ty Σc Plain {| type_of_this := (C, σ); ctxt := subst_ty σ <$> mdef.(methodargs) |}
+      cmd_has_ty Σc C Plain {| type_of_this := (C, σ); ctxt := subst_ty σ <$> mdef.(methodargs) |}
                 (subst_cmd σ mdef.(methodbody)) rty ∧
       expr_has_ty Σc rty Plain (subst_expr σ mdef.(methodret)) (subst_ty σ mdef.(methodrettype)).
   Proof.
@@ -1272,7 +1282,7 @@ Section MethodTyping.
     assert (hokσ : Forall (ok_ty Σc) σ) by (by apply ok_ty_class_inv in hok).
     (* Let's use the general substitution lemma to make the instantiation *)
     assert (hgen : ∃ rty, wf_lty rty ∧
-      cmd_has_ty (Σc ++ subst_constraints σ def.(constraints)) Plain
+      cmd_has_ty (Σc ++ subst_constraints σ def.(constraints)) C Plain
                  (subst_lty σ {| type_of_this := (C, gen_targs (length def.(generics))); ctxt := mdef.(methodargs) |})
                  (subst_cmd σ mdef.(methodbody)) rty ∧
       expr_has_ty (Σc ++ subst_constraints σ def.(constraints))

@@ -189,54 +189,58 @@ Section Evaluation.
         end
     end.
 
+  (* We keep track of the tag of the current class, to correctly implement
+   * the runtime check for visibility:
+   *)
+  Definition visibility_check (C t: tag) (recv: expr) name :=
+    ∃ vis fty orig,
+    has_field name t vis fty orig ∧
+    (match (vis, recv) with
+     | (Public, _) => True
+     | (Private, ThisE) => orig = C
+     | (Private, _) => False
+     end)
+  .
+
   Inductive cmd_eval:
+    tag →
     (local_env * heap) → cmd →
     (local_env * heap) → nat → Prop :=
-    | SkipEv : ∀ st, cmd_eval st SkipC st 0
-    | LetEv: ∀ le h v e val,
+    | SkipEv : ∀ C st, cmd_eval C st SkipC st 0
+    | LetEv: ∀ C le h v e val,
         expr_eval le e = Some val →
-        cmd_eval (le, h) (LetC v e) (<[v := val]> le, h) 0
-    | NewEv: ∀ le h lhs new t targs args vargs,
+        cmd_eval C (le, h) (LetC v e) (<[v := val]> le, h) 0
+    | NewEv: ∀ C le h lhs new t targs args vargs,
         (* targs are not stored in the heap: erased generics *)
         h !! new = None →
         map_args (expr_eval le) args = Some vargs →
-        cmd_eval (le, h) (NewC lhs t targs args) (<[lhs := LocV new]>le, <[new := (t, vargs)]>h) 1
-    | GetEv: ∀ le h lhs recv name l t vs v fty vis orig,
+        cmd_eval C (le, h) (NewC lhs t targs args) (<[lhs := LocV new]>le, <[new := (t, vargs)]>h) 1
+    | GetEv: ∀ C le h lhs recv name l t vs v,
         expr_eval le recv = Some (LocV l) →
         h !! l = Some (t, vs) →
         vs !! name = Some v →
-        has_field name t vis fty orig →
-        (match (vis, recv) with
-         | (Public, _) => True
-         | (Private, ThisE) => t = orig
-         | (Private, _) => False
-         end) →
-        cmd_eval (le, h) (GetC lhs recv name) (<[lhs := v]>le, h) 1
-    | SetEv: ∀ le h recv fld rhs l v t vs vs' fty vis orig,
+        visibility_check C t recv name →
+        cmd_eval C (le, h) (GetC lhs recv name) (<[lhs := v]>le, h) 1
+    | SetEv: ∀ C le h recv fld rhs l v t vs vs',
         expr_eval le recv = Some (LocV l) →
         expr_eval le rhs = Some v →
         h !! l = Some (t, vs) →
         vs' = <[ fld := v ]>vs →
-        has_field fld t vis fty orig →
-        (match (vis, recv) with
-         | (Public, _) => True
-         | (Private, ThisE) => t = orig
-         | (Private, _) => False
-         end) →
-        cmd_eval (le, h) (SetC recv fld rhs) (le, <[l := (t, vs')]> h) 0
-    | SeqEv: ∀ st1 st2 st3 fstc sndc n1 n2,
-        cmd_eval st1 fstc st2 n1 →
-        cmd_eval st2 sndc st3 n2 →
-        cmd_eval st1 (SeqC fstc sndc) st3 (n1 + n2)
-    | IfTrueEv: ∀ st1 st2 cond thn els n,
+        visibility_check C t recv fld →
+        cmd_eval C (le, h) (SetC recv fld rhs) (le, <[l := (t, vs')]> h) 0
+    | SeqEv: ∀ C st1 st2 st3 fstc sndc n1 n2,
+        cmd_eval C st1 fstc st2 n1 →
+        cmd_eval C st2 sndc st3 n2 →
+        cmd_eval C st1 (SeqC fstc sndc) st3 (n1 + n2)
+    | IfTrueEv: ∀ C st1 st2 cond thn els n,
         expr_eval st1.1 cond = Some (BoolV true) →
-        cmd_eval st1 thn st2 n →
-        cmd_eval st1 (IfC cond thn els) st2 n
-    | IfFalseEv: ∀ st1 st2 cond thn els n,
+        cmd_eval C st1 thn st2 n →
+        cmd_eval C st1 (IfC cond thn els) st2 n
+    | IfFalseEv: ∀ C st1 st2 cond thn els n,
         expr_eval st1.1 cond = Some (BoolV false) →
-        cmd_eval st1 els st2 n →
-        cmd_eval st1 (IfC cond thn els) st2 n
-    | CallEv: ∀ le h h' lhs recv l t vs name args vargs orig mdef
+        cmd_eval C st1 els st2 n →
+        cmd_eval C st1 (IfC cond thn els) st2 n
+    | CallEv: ∀ C le h h' lhs recv l t vs name args vargs orig mdef
         run_env run_env' ret n,
         expr_eval le recv = Some (LocV l) →
         map_args (expr_eval le) args = Some vargs →
@@ -244,38 +248,41 @@ Section Evaluation.
         has_method name t orig mdef →
         dom mdef.(methodargs) = dom args →
         {| vthis := l; lenv := vargs|} = run_env →
-        cmd_eval (run_env, h) mdef.(methodbody) (run_env', h') n →
+        cmd_eval orig (run_env, h) mdef.(methodbody) (run_env', h') n →
         expr_eval run_env' mdef.(methodret) = Some ret →
-        cmd_eval (le, h) (CallC lhs recv name args) (<[lhs := ret]>le, h') (S n)
-    | RuntimeCheck1Ev n st1 st2 v rc cmd :
+        cmd_eval C (le, h) (CallC lhs recv name args) (<[lhs := ret]>le, h') (S n)
+    | RuntimeCheck1Ev C n st1 st2 v rc cmd :
         rc_match st1 v rc →
-        cmd_eval st1 cmd st2 n →
-        cmd_eval st1 (RuntimeCheckC v rc cmd) st2 n
-    | RuntimeCheck2Ev st v rc cmd :
+        cmd_eval C st1 cmd st2 n →
+        cmd_eval C st1 (RuntimeCheckC v rc cmd) st2 n
+    | RuntimeCheck2Ev C st v rc cmd :
         ¬rc_match st v rc →
-        cmd_eval st (RuntimeCheckC v rc cmd) st 0
+        cmd_eval C st (RuntimeCheckC v rc cmd) st 0
 .
-  Lemma cmd_eval_subst st cmd st' n σ:
-    cmd_eval st cmd st' n → cmd_eval st (subst_cmd σ cmd) st' n.
+
+  Lemma cmd_eval_subst C st cmd st' n σ:
+    cmd_eval C st cmd st' n → cmd_eval C st (subst_cmd σ cmd) st' n.
   Proof.
-    induction 1 as [ | le h v e val he | ???????? hh hargs
-    | ???????????? hrecv hh hvs hf hvis
-    | ????????????? hrecv hrhs hh -> hf hvis 
-    | ??????? h1 hi1 h2 hi2 | ?????? he h hi | ?????? he h hi
-    | ?????????????????? he hargs hl hm <- h hi hret
-    | ?????? hrc h hi | ???? h ] => /=.
+    induction 1 as [ | ? le h v e val he | ????????? hh hargs
+    | ?????????? hrecv hh hvs hvis
+    | ??????????? hrecv hrhs hh -> hvis 
+    | ???????? h1 hi1 h2 hi2 | ??????? he h hi | ??????? he h hi
+    | ??????????????????? he hargs hl hm <- h hi hret
+    | ??????? hrc h hi | ????? h ] => /=.
     - by constructor.
     - constructor; by rewrite expr_eval_subst.
     - constructor => //.
       by rewrite -map_expr_eval_subst.
     - econstructor => //.
       + by rewrite expr_eval_subst.
-      + destruct vis => //.
+      + destruct hvis as (vis & fty & orig & hf & hvc).
+        exists vis, fty, orig; split; first done.
         by destruct recv.
     - econstructor => //.
       + by rewrite expr_eval_subst.
       + by rewrite expr_eval_subst.
-      + destruct vis => //.
+      + destruct hvis as (vis & fty & orig & hf & hvc).
+        exists vis, fty, orig; split; first done.
         by destruct recv.
     - econstructor; by eauto.
     - econstructor.
