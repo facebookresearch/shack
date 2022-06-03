@@ -1334,7 +1334,7 @@ Section proofs.
     { destruct 1 as [ kd A | kd A h | kd A σA B σB adef hΔ hlen hext
       | kd A adef hadef hL | kd A def σ0 σ1 hΔ hwfσ hσ | | | | | kd A B h
       | kd A B h | kd A B C h0 h1 | kd A B | kd A B | kd A B C h0 h1
-      | | kd A B C h0 h1 | A B hin | kd A adef σA hΔ hsupdyn hσA | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
+      | | kd A B C h0 h1 | A B hin | kd A adef σA hΔ hsupdyn hσA | | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold.
         by iApply submixed_is_inclusion_aux.
@@ -1405,14 +1405,12 @@ Section proofs.
       - apply elem_of_list_lookup_1 in hin as [i hin].
         rewrite -!interp_type_unfold /=.
         by iApply ("Σcoherency" $! i (A, B) hin).
-      - iRight; iRight; iRight.
-        iExists A, adef; iSplit; first done.
-        rewrite -interp_type_unfold interp_class_unfold //.
-        iExists (interp_list Σi σA).
-        by rewrite interp_tag_equiv.
+      - iExists A, adef; iSplit; first done.
+        by iExists (go interp_type Σi <$> σA).
       - by iLeft.
       - by iRight; iLeft.
       - by iRight; iRight; iLeft.
+      - by iRight; iRight; iRight.
     }
     move => hwfA hwfB.
     destruct 1 as [ | ?????? h0 h1 h | ?????? h0 h | ?????? h0 h]; iIntros "#wfΣi #Σcoherency".

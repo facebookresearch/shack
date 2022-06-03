@@ -328,15 +328,12 @@ Section Typing.
         ok_ty Γ t →
         subtype Γ kd s t →
         expr_has_ty Γ lty kd e t
-    (* SD.V2 we don't distinguish between plain subtyping vs
-       dynamic aware subtyping. Yet, we'll turn the switch
-       in the next commit, once all judgments are "kind" aware.
-     *)
+    (* SD.V3 <D: is only available using explicit UpcastE *)
     | UpcastTy: ∀ kd e s t,
         expr_has_ty Γ lty kd e s →
         wf_ty t →
         ok_ty Γ t →
-        subtype Γ kd s t →
+        Γ ⊢ s <D: t →
         expr_has_ty Γ lty kd (UpcastE e t) t
   .
 
@@ -353,13 +350,13 @@ Section Typing.
     - constructor; by eauto.
     - constructor; by eauto.
     - constructor; by eauto.
-    - econstructor.
-      + by eauto.
+    - eapply ESubTy.
+      + by eapply hi.
       + done.
       + by eapply ok_ty_constraint_elim.
       + by eapply subtype_constraint_elim.
     - eapply UpcastTy.
-      + by eauto.
+      + by eapply hi.
       + done.
       + by eapply ok_ty_constraint_elim.
       + by eapply subtype_constraint_elim.
@@ -416,7 +413,6 @@ Section Typing.
        + by eapply ok_ty_weaken.
        + by eapply subtype_weaken.
   Qed.
-
 
   Definition wf_lty lty :=
     wf_ty (this_type lty) ∧

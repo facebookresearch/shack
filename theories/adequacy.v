@@ -881,7 +881,7 @@ Section proofs.
       }
       destruct hincl0 as [hdom0 [hmargs0 hmret0_]].
       assert (
-        hmret0 : def1.(constraints) ⊢ methodrettype (subst_mdef σt1_o0 omdef0) <:
+        hmret0 : def1.(constraints) ⊢ methodrettype (subst_mdef σt1_o0 omdef0) <D:
                                       methodrettype (subst_mdef σin (subst_mdef σt_o omdef))).
       { apply subtype_constraint_elim with (Γ' := subst_constraints σt1_o0 odef0.(constraints)) => //.
         apply subtype_weaken with (Γ := subst_constraints σt1_o0 odef0.(constraints)) => //.
@@ -936,7 +936,7 @@ Section proofs.
             { by rewrite /subst_mdef /= !lookup_fmap htw. }
             assert (h2 : methodargs (subst_mdef σt1_o0 omdef0) !! v = Some (subst_ty σt1_o0 tv)).
             { by rewrite /subst_mdef /= lookup_fmap hv. }
-            assert (hsub: def1.(constraints) ⊢ subst_ty σin (subst_ty σt_o tw) <: subst_ty σt1_o0 tv).
+            assert (hsub: def1.(constraints) ⊢ subst_ty σin (subst_ty σt_o tw) <D: subst_ty σt1_o0 tv).
             { move: (hmargs0 v _ _ h2 h1) => hsub_.
               apply subtype_constraint_elim with (Γ' := subst_constraints σt1_o0 odef0.(constraints)) => //.
               apply subtype_weaken with (Γ := subst_constraints σt1_o0 odef0.(constraints)) => //.
