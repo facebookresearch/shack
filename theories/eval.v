@@ -63,14 +63,6 @@ Section Evaluation.
     end
   .
 
-  Lemma expr_eval_subst le e σ:
-    expr_eval le (subst_expr σ e) = expr_eval le e.
-  Proof.
-    induction e as [ | | | op e1 hi1 e2 hi2 | op e hi | | | e hi t] => //=.
-    - by rewrite hi1 hi2.
-    - by rewrite hi.
-  Qed.
-
   (* concrete heaps *)
   Definition heap : Type := gmap loc (tag * stringmap value).
 
@@ -138,35 +130,6 @@ Section Evaluation.
       rewrite lookup_insert_Some in h.
       destruct h as [[<- <-] | [hne hin]]; first by rewrite hb.
       now apply H in hin.
-  Qed.
-
-  Lemma map_expr_eval_subst le args σ:
-    map_args (expr_eval le) args = map_args (expr_eval le) (subst_expr σ <$> args).
-  Proof.
-    rewrite /map_args.
-    case_option_guard.
-    - case_option_guard.
-      * f_equal.
-        apply map_eq => k; rewrite !lookup_omap.
-        rewrite map_Forall_lookup in H.
-        rewrite map_Forall_lookup in H0.
-        rewrite lookup_fmap.
-        destruct (args !! k) eqn:hk => //=.
-        by rewrite expr_eval_subst.
-      * apply map_not_Forall in H0; last by (move => _; apply _).
-        destruct H0 as [k [e [h0 h1]]].
-        apply lookup_fmap_Some in h0 as [e' [<- h0]].
-        apply H in h0.
-        case: h1.
-        by rewrite expr_eval_subst.
-    - case_option_guard => //.
-      apply map_not_Forall in H; last by (move => _; apply _).
-      destruct H as [k [e [h0 h1]]].
-      rewrite map_Forall_lookup in H0.
-      case: h1.
-      rewrite -(expr_eval_subst _ _ σ).
-      apply H0 with k.
-      by rewrite lookup_fmap h0.
   Qed.
 
   Definition rc_match (st : local_env * heap) (v: string) (rc: runtime_check) :=
@@ -259,44 +222,4 @@ Section Evaluation.
         ¬rc_match st v rc →
         cmd_eval C st (RuntimeCheckC v rc cmd) st 0
 .
-
-  Lemma cmd_eval_subst C st cmd st' n σ:
-    cmd_eval C st cmd st' n → cmd_eval C st (subst_cmd σ cmd) st' n.
-  Proof.
-    induction 1 as [ | ? le h v e val he | ????????? hh hargs
-    | ?????????? hrecv hh hvs hvis
-    | ??????????? hrecv hrhs hh -> hvis 
-    | ???????? h1 hi1 h2 hi2 | ??????? he h hi | ??????? he h hi
-    | ??????????????????? he hargs hl hm <- h hi hret
-    | ??????? hrc h hi | ????? h ] => /=.
-    - by constructor.
-    - constructor; by rewrite expr_eval_subst.
-    - constructor => //.
-      by rewrite -map_expr_eval_subst.
-    - econstructor => //.
-      + by rewrite expr_eval_subst.
-      + destruct hvis as (vis & fty & orig & hf & hvc).
-        exists vis, fty, orig; split; first done.
-        by destruct recv.
-    - econstructor => //.
-      + by rewrite expr_eval_subst.
-      + by rewrite expr_eval_subst.
-      + destruct hvis as (vis & fty & orig & hf & hvc).
-        exists vis, fty, orig; split; first done.
-        by destruct recv.
-    - econstructor; by eauto.
-    - econstructor.
-      + by rewrite expr_eval_subst.
-      + by eauto.
-    - apply IfFalseEv.
-      + by rewrite expr_eval_subst.
-      + by eauto.
-    - econstructor => //.
-      + by rewrite expr_eval_subst.
-      + by rewrite -map_expr_eval_subst.
-      + by rewrite dom_fmap_L.
-    - econstructor; by eauto.
-    - econstructor; by eauto.
-  Qed.
-
 End Evaluation.

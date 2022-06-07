@@ -773,26 +773,6 @@ Section proofs.
         by lia.
   Qed.
 
-  Lemma interp_type_equivI (Σ0 Σ1: list (interp Σ)):
-    Σ0 ≡ Σ1 →
-    ∀ ty v, interp_type ty Σ0 v ≡ interp_type ty Σ1 v.
-  Proof.
-    move => hΣ ty v.
-    rewrite !interp_type_unfold; revert v.
-    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | | ] => //= v.
-    - apply interp_tag_equivI.
-      apply list_fmap_equiv_ext_elem_of => ty hin w.
-      rewrite Forall_forall in hi.
-      move: (hi ty hin w).
-      by rewrite /interp_type_pre /= => ->.
-    - by rewrite hA hB.
-    - by rewrite hA hB.
-    - rewrite /interp_generic.
-      assert (hh: (∀ i0 : nat, Σ0 !! i0 ≡ Σ1 !! i0)).
-      { move => j. by rewrite hΣ. }
-      by rewrite (hh i).
-  Qed.
-
   Lemma iForall3_interp_equivI (Σ0 Σ1 : list (interp Σ)):
     Σ0 ≡ Σ1 →
     ∀ vs Σi,

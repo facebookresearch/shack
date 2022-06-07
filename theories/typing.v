@@ -395,25 +395,6 @@ Section Typing.
         by set_solver.
   Qed.
 
-  Lemma expr_has_ty_weaken Γ lty kd e ty:
-    expr_has_ty Γ lty kd e ty → ∀ Γ', Γ ⊆ Γ' → expr_has_ty Γ' lty kd e ty.
-  Proof.
-    induction 1 as [ | | | kd op e1 e2 hop h1 hi1 h2 hi2 |
-      kd op e1 e2 hop h1 hi1 h2 hi2 | kd e1 e2 h1 hi1 h2 hi2 | kd e h hi |
-      kd v ty h | | kd e s t h hi hok hsub | kd e s t h hi hok hsub ] => Γ' hincl;
-          try (econstructor; by eauto).
-     - eapply ESubTy.
-       + by eapply hi.
-       + done.
-       + by eapply ok_ty_weaken.
-       + by eapply subtype_weaken.
-     - eapply UpcastTy.
-       + by eapply hi.
-       + done.
-       + by eapply ok_ty_weaken.
-       + by eapply subtype_weaken.
-  Qed.
-
   Definition wf_lty lty :=
     wf_ty (this_type lty) ∧
     map_Forall (λ _, wf_ty) lty.(ctxt)
@@ -461,24 +442,6 @@ Section Typing.
       kd v ty h | | kd e s t h hi hsub | kd e s t h hi hsub] => //=; try (by constructor).
     - by apply hwf in h.
     - by apply hwf.
-  Qed.
-
-  Definition ok_lty Γ lty :=
-    ok_ty Γ (this_type lty) ∧
-    map_Forall (λ _, ok_ty Γ) lty.(ctxt)
-  .
-
-  Lemma expr_has_ty_ok Γ lty kd e ty:
-    ok_lty Γ lty →
-    expr_has_ty Γ lty kd e ty →
-    ok_ty Γ ty.
-  Proof.
-    move => hok.
-    induction 1 as [ | | | kd op e1 e2 hop h1 hi1 h2 hi2 |
-      kd op e1 e2 hop h1 hi1 h2 hi2 | kd e1 e2 h1 hi1 h2 hi2 | kd e h hi |
-      kd v ty h | | kd e s t h hi hsub | kd e s t h hi hsub] => //=; try (by constructor).
-    - by apply hok in h.
-    - by apply hok.
   Qed.
 
   (* continuation-based typing for commands.
@@ -604,67 +567,6 @@ Section Typing.
          end) →
         cmd_has_ty Γ C kd lty (CallC lhs recv name args) (<[lhs := DynamicT]>lty)
   .
-
-  Lemma cmd_has_ty_constraint_weaken Γ C kd lty cmd rty:
-    cmd_has_ty Γ C kd lty cmd rty → ∀ Γ', Γ ⊆ Γ' → cmd_has_ty Γ' C kd lty cmd rty.
-  Proof.
-    induction 1 as [ | ?????? h1 hi1 h2 hi2 | ????? he |
-      ?????? he h1 hi1 h2 hi2 | ??????? he hf | ????????? he hf |
-      ??????? he hf hr | ????????? he hf hr | ??????? ht hok hf hdom hargs |
-      ?????????? he hm hdom hargs |
-      ????? hsub h hi | ??????? hin hr h hi | ?????? hin hr h hi |
-      ?????? hin hr h hi | ?????? hin hr h hi | ?????? hin hr h hi |
-      ?????? hcond hthn hi1 hels hi2 | ????? he hnotthis |
-      ????? hrecv hrhs hnotthis | ?????? he hargs hnotthis
-      ] => Γ' hincl.
-    + by constructor.
-    + econstructor; by eauto.
-    + econstructor; by eapply expr_has_ty_weaken.
-    + econstructor; try by eauto.
-      by eapply expr_has_ty_weaken.
-    + econstructor; by eauto.
-    + econstructor; try by eauto.
-      by eapply expr_has_ty_weaken.
-    + econstructor; try by eauto.
-      by eapply expr_has_ty_weaken.
-    + econstructor; try by eauto.
-      - by eapply expr_has_ty_weaken.
-      - by eapply expr_has_ty_weaken.
-    + econstructor; try by eauto.
-      - by eapply ok_ty_weaken.
-      - move => f fty arg hff ha.
-        eapply expr_has_ty_weaken; by eauto.
-    + econstructor; try by eauto.
-      - by eapply expr_has_ty_weaken.
-      - move => f fty arg hff ha.
-        eapply expr_has_ty_weaken; by eauto.
-    + econstructor; last by eauto.
-      by eapply lty_sub_weaken.
-    + econstructor => //; last by eauto.
-      by eapply lty_sub_weaken.
-    + econstructor => //; last by eauto.
-      by eapply lty_sub_weaken.
-    + econstructor => //; last by eauto.
-      by eapply lty_sub_weaken.
-    + econstructor => //; last by eauto.
-      by eapply lty_sub_weaken.
-    + econstructor => //; last by eauto.
-      by eapply lty_sub_weaken.
-    + eapply DynIfTy; try by eauto.
-      by eapply expr_has_ty_weaken.
-    + eapply DynGetTy.
-      - by eapply expr_has_ty_weaken.
-      - by destruct recv.
-    + eapply DynSetTy.
-      - by eapply expr_has_ty_weaken.
-      - by eapply expr_has_ty_weaken.
-      - by destruct recv.
-    + eapply DynCallTy.
-      - by eapply expr_has_ty_weaken.
-      - move => f a ha.
-        eapply expr_has_ty_weaken; by eauto.
-      - by destruct recv.
-  Qed.
 
   Lemma cmd_has_ty_constraint_elim_ G C kd lty cmd rty:
     cmd_has_ty G C kd lty cmd rty →

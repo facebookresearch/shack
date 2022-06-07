@@ -75,20 +75,8 @@ Section Subtype.
         subtype_targs Γ kd (Contravariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
   .
 
-  Corollary length_subtype_targs_v0 Γ kd: ∀ vs ty0s ty1s,
-    subtype_targs Γ kd vs ty0s ty1s → length vs = length ty0s.
-  Proof.
-    induction 1 as [ | ???????? h hi | ??????? h hi | ??????? h hi] => //=; by rewrite hi.
-  Qed.
-
   Corollary length_subtype_targs_v1 Γ kd: ∀ vs ty0s ty1s,
     subtype_targs Γ kd vs ty0s ty1s → length vs = length ty1s.
-  Proof.
-    induction 1 as [ | ???????? h hi | ??????? h hi | ??????? h hi] => //=; by rewrite hi.
-  Qed.
-
-  Corollary length_subtype_targs_01 Γ kd: ∀ vs ty0s ty1s,
-    subtype_targs Γ kd vs ty0s ty1s → length ty0s = length ty1s.
   Proof.
     induction 1 as [ | ???????? h hi | ??????? h hi | ??????? h hi] => //=; by rewrite hi.
   Qed.
@@ -99,17 +87,6 @@ Section Subtype.
   Notation "Γ ⊢ s <: t" := (subtype Γ Plain s t) (at level 70, s at next level, no associativity).
   Notation "Γ ⊢ s <D: t" := (subtype Γ Aware s t) (at level 70, s at next level, no associativity).
   Notation "Γ ⊢ lts <: vs :> rts" := (subtype_targs Γ Plain vs lts rts) (at level 70, lts, vs at next level).
-
-  Lemma subtype_targs_refl Γ kd vs: ∀ σ,
-    length vs = length σ → subtype_targs Γ kd vs σ σ.
-  Proof.
-    induction vs as [ | v vs hi] => σ hLen.
-    - by rewrite (nil_length_inv σ).
-    - destruct σ as [ | ty σ]; first by discriminate hLen.
-      case : hLen => hLen.
-      apply hi in hLen.
-      destruct v; by constructor.
-  Qed.
 
   Lemma subtype_weaken Γ kd s t: subtype Γ kd s t → ∀ Γ', Γ ⊆ Γ' → subtype Γ' kd s t
    with subtype_targs_weaken Γ kd lhs vs rhs:
@@ -185,12 +162,6 @@ Section Subtype.
     subtype Γ kd S T.
   Proof. intros; by eapply subtype_constraint_elim_. Qed.
 
-  Lemma subtype_targs_constraint_elim kd Γ Γ' lhs vs rhs:
-    subtype_targs (Γ ++ Γ') kd vs lhs rhs →
-    (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <D: c.2) →
-    subtype_targs Γ kd vs lhs rhs.
-  Proof. intros; by eapply subtype_targs_constraint_elim_. Qed.
-
   Lemma subtype_constraint_trans Γ kd s t:
     subtype Γ kd s t →
     ∀ Γ', (∀ i c, Γ !! i = Some c → Γ' ⊢ c.1 <D: c.2) →
@@ -224,15 +195,6 @@ Section Subtype.
         by eapply subtype_targs_constraint_trans.
       + econstructor; [ by eapply subtype_constraint_trans | ].
         by eapply subtype_targs_constraint_trans.
-  Qed.
-
-  Lemma neg_subtype_targs Γ kd vs σ0 σ1 :
-    subtype_targs Γ kd vs σ0 σ1 → subtype_targs Γ kd (neg_variance <$> vs) σ1 σ0.
-  Proof.
-    induction 1 as [ | ???????? h hi | ??????? h hi | ??????? h hi] => //=.
-    - by constructor.
-    - by constructor.
-    - by constructor.
   Qed.
 
   (* See Andrew Kennedy's paper:
@@ -645,26 +607,6 @@ Section Subtype.
     by eapply subtype_constraint_elim.
   Qed.
 
-  Lemma lty_sub_reflexive Γ kd: reflexive _ (lty_sub Γ kd).
-  Proof.
-    move => [this lty]; split => // k A ->.
-    by exists A.
-  Qed.
-
-  Lemma lty_sub_transitive Γ kd: transitive _ (lty_sub Γ kd).
-  Proof.
-    move => [[t0 σ0] lty] [[t1 σ1] rty] [[t2 σ2] zty] [h0 hlr] [h1 hrz].
-    move : h0 h1.
-    rewrite /this_type /=.
-    case => -> ->.
-    case => -> ->.
-    split; first by eauto.
-    move => k A hA.
-    apply hrz in hA as (C & hC & hsub).
-    apply hlr in hC as (B & hB & hsub').
-    exists B; by eauto.
-  Qed.
-
   Global Instance local_tys_insert : Insert string lang_ty local_tys :=
     λ x ty lty,
     {| type_of_this := lty.(type_of_this);
@@ -713,24 +655,6 @@ Section Subtype.
     move => mdef; split; first done.
     split; last done.
     by move => k A B -> [] ->.
-  Qed.
-
-  Lemma mdef_incl_transitive Γ: transitive _ (mdef_incl Γ).
-  Proof.
-    move => m0 m1 m2 [hdom1 [h1 ?]] [hdom2 [h2 ?]]; split; first by etransitivity.
-    split; last by eauto.
-    move => k A B hA hB.
-    destruct (methodargs m1 !! k) as [C | ] eqn:hC; last first.
-    { apply mk_is_Some in hA.
-      apply elem_of_dom in hA.
-      rewrite hdom1 in hA.
-      apply elem_of_dom in hA.
-      rewrite hC in hA.
-      by elim: hA.
-    }
-    apply SubTrans with C.
-    - by eapply h2.
-    - by eapply h1.
   Qed.
 
   Lemma mdef_incl_subst Γ mdef0 mdef1 σ :
