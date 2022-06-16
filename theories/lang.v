@@ -643,6 +643,13 @@ Proof.
   by rewrite /gen_targs list_lookup_fmap lookup_seq_lt.
 Qed.
 
+Lemma lookup_gen_targs_ge:
+  ∀ n pos, n <= pos → gen_targs n !! pos = None.
+Proof.
+  move => n pos h.
+  by rewrite /gen_targs list_lookup_fmap lookup_seq_ge.
+Qed.
+
 Lemma lookup_gen_targs:
   ∀ n pos ty, gen_targs n !! pos = Some ty -> ty = GenT pos.
 Proof.
