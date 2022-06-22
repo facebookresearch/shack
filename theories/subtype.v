@@ -201,7 +201,6 @@ Section Subtype.
     | MonoInter s t : mono vs s → mono vs t → mono vs (InterT s t)
     | MonoVInvGen n: vs !! n = Some Invariant → mono vs (GenT n)
     | MonoVCoGen n: vs !! n = Some Covariant → mono vs (GenT n)
-    | MonoGen n: vs !! n = None → mono vs (GenT n)
     | MonoEx cname: mono vs (ExT cname)
     | MonoClass cname cdef targs:
         Δ !! cname = Some cdef →
@@ -259,7 +258,7 @@ Section Subtype.
     mono ws (subst_ty σ ty).
   Proof.
     induction 1 as [ | | | | | | vs s t hs his ht hit
-      | vs s t hs his ht hit | vs n hinv | vs n hco | vs n hnone
+      | vs s t hs his ht hit | vs n hinv | vs n hco
       | vs cname | vs cname cdef targs hΔ hcov hicov hcontra hicontra | | ]
       => hb ws σ hlen h0 h1 //=; try by constructor.
     - inv hb.
@@ -284,10 +283,6 @@ Section Subtype.
         apply lookup_lt_is_Some_2 in hco.
         rewrite hty in hco.
         by elim hco.
-    - inv hb.
-      apply lookup_lt_is_Some_2 in H0.
-      rewrite hnone in H0.
-      by elim H0.
     - inv hb.
       econstructor; first done.
       + move => i ci ti hci hi hc.
