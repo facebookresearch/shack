@@ -386,6 +386,7 @@ Inductive cmd : Set :=
        * generics in a second phase.
        *)
   | RuntimeCheckC (v : var) (rc: runtime_check) (body : cmd)
+  | ErrorC
 .
 
 Fixpoint subst_cmd (σ:list lang_ty) (cmd: cmd) :=
@@ -401,13 +402,14 @@ Fixpoint subst_cmd (σ:list lang_ty) (cmd: cmd) :=
   | GetC lhs recv name => GetC lhs (subst_expr σ recv) name
   | SetC recv fld rhs => SetC (subst_expr σ recv) fld (subst_expr σ rhs)
   | RuntimeCheckC v rc cmd => RuntimeCheckC v rc (subst_cmd σ cmd)
+  | ErrorC => ErrorC
   end.
 
 Lemma subst_cmd_nil cmd : subst_cmd [] cmd = cmd.
 Proof.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
     | lhs recv name args | lhs C σ0 args | lhs recv name
-    | recv fld rhs | v rc body hi] => //=.
+    | recv fld rhs | v rc body hi| ] => //=.
   - by rewrite hi0 hi1.
   - by rewrite subst_expr_nil.
   - by rewrite subst_expr_nil hi0 hi1.
@@ -440,6 +442,7 @@ Inductive cmd_bounded (n: nat) : cmd → Prop :=
       cmd_bounded n (SetC recv fld rhs)
   | RuntimeCheckBounded v rc body: cmd_bounded n body →
       cmd_bounded n (RuntimeCheckC v rc body)
+  | ErrorBounded : cmd_bounded n ErrorC
 .
 
 Lemma subst_cmd_cmd k l cmd :
@@ -449,7 +452,7 @@ Proof.
   move => hb.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
     | lhs recv name args | lhs C σ0 args | lhs recv name
-    | recv fld rhs | v rc body hi] => //=.
+    | recv fld rhs | v rc body hi | ] => //=.
   - inv hb.
     by rewrite hi0 // hi1.
   - inv hb.
@@ -476,7 +479,7 @@ Lemma cmd_bounded_subst n cmd:
 Proof.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
     | lhs recv name args | lhs C σ0 args | lhs recv name
-    | recv fld rhs | v rc body hi]
+    | recv fld rhs | v rc body hi | ]
     => //= h m σ hlen hF; try by constructor.
   - inv h.
     constructor; first by apply hi0.
@@ -771,7 +774,7 @@ Lemma subst_cmd_gen_targs n cmd :
 Proof.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
     | lhs recv name args | lhs C σ0 args | lhs recv name
-    | recv fld rhs | v rc body hi] => //=h.
+    | recv fld rhs | v rc body hi | ] => //=h.
   - inv h.
     by rewrite hi0 // hi1.
   - inv h.

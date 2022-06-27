@@ -432,7 +432,8 @@ Section proofs.
     move => wfΔ wflty hΣc .
     iLöb as "IH" forall (Σc C kd lty cmd lty' wflty hΣc).
     iIntros "%hty" (Σi st st' n hc) "#hΣi #hΣiΣc".
-    iInduction hty as [ kd lty | kd lty1 lty2 lty3 fstc sndc hfst hi1 hsnd hi2 |
+    iInduction hty as [ kd lty |
+        kd lty rty hwf | kd lty1 lty2 lty3 fstc sndc hfst hi1 hsnd hi2 |
         kd lty lhs e ty he | kd lty1 lty2 cond thn els hcond hthn hi1 hels hi2 |
         kd lty lhs t targs name fty hrecv hf |
         kd lty lhs recv t targs name fty orig hrecv hf |
@@ -454,6 +455,8 @@ Section proofs.
     - (* SkipC *) inv hc.
       rewrite updN_zero.
       by iIntros "?".
+    - (* Error *)
+      by inv hc.
     - (* SeqC *) inv hc. iIntros "H".
       iSpecialize ("IHty" $! wflty with "[//] H").
       rewrite Nat_iter_add.

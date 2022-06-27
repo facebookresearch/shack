@@ -457,6 +457,8 @@ Section Typing.
    *)
   Inductive cmd_has_ty Γ (C : tag) : subtype_kind → local_tys → cmd → local_tys → Prop :=
     | SkipTy: ∀ lty kd, cmd_has_ty Γ C kd lty SkipC lty
+    | ErrorTy: ∀ kd lty rty,
+        wf_lty rty → cmd_has_ty Γ C kd lty ErrorC rty
     | SeqTy: ∀ kd lty1 lty2 lty3 fstc sndc,
         cmd_has_ty Γ C kd lty1 fstc lty2 →
         cmd_has_ty Γ C kd lty2 sndc lty3 →
@@ -574,7 +576,7 @@ Section Typing.
     (∀ i c, Γ' !! i = Some c → Γ ⊢ c.1 <D: c.2) →
     cmd_has_ty Γ C kd lty cmd rty.
   Proof.
-    induction 1 as [ | ?????? h1 hi1 h2 hi2 | ????? he |
+    induction 1 as [ | ???? | ?????? h1 hi1 h2 hi2 | ????? he |
       ?????? he h1 hi1 h2 hi2 | ??????? he hf | ????????? he hf |
       ??????? he hf hr | ????????? he hf hr | ??????? ht hok hf hdom hargs |
       ?????????? he hm hdom hargs |
@@ -584,6 +586,7 @@ Section Typing.
       ????? hrecv hrhs hnotthis | ?????? he hargs hnotthis
       ] => Γ Γ' heq hΓ; subst.
     - by econstructor.
+    - by eapply ErrorTy.
     - econstructor; by eauto.
     - econstructor => //.
       by eapply expr_has_ty_constraint_elim.
@@ -656,7 +659,7 @@ Section Typing.
     wf_lty lty'.
   Proof.
     move => hp hfields hmethods hΓ [hthis hwf].
-    induction 1 as [ | ?????? h1 hi1 h2 hi2 | ????? he |
+    induction 1 as [ | ???? | ?????? h1 hi1 h2 hi2 | ????? he |
       ?????? he h1 hi1 h2 hi2 | ??????? he hf | ????????? he hf |
       ??????? he hf hr | ????????? he hf hr | ??????? ht hok hf hdom hargs |
       ?????????? he hm hdom hargs |
@@ -766,7 +769,7 @@ Section Typing.
     cmd_has_ty (Γ' ++ (subst_constraints σ Γ)) C kd (subst_lty σ lty) (subst_cmd σ cmd) (subst_lty σ lty').
   Proof.
     move => hp hfields hmethods hfb hmb hcb hΓ hwf0 hwf1 hwf2.
-    induction 1 as [ | ?????? h1 hi1 h2 hi2 | ????? he |
+    induction 1 as [ | ???? | ?????? h1 hi1 h2 hi2 | ????? he |
       ?????? he h1 hi1 h2 hi2 | ??????? he hf | ????????? he hf |
       ??????? he hf hr | ????????? he hf hr | ??????? hwf hok hf hdom hargs |
       ?????????? he hm hdom hargs |
@@ -776,6 +779,8 @@ Section Typing.
       ????? hrecv hrhs hnotthis | ?????? he hargs hnotthis
       ] => //=.
     - by constructor.
+    - apply ErrorTy.
+      by apply subst_wf_lty.
     - econstructor.
       + by eapply hi1.
       + eapply hi2 => //.
@@ -1065,10 +1070,10 @@ Section Typing.
 
   Definition wf_cdef_dyn_parent cdef :=
     match cdef.(superclass) with
-    | Some (parent, _) => 
+    | Some (parent, _) =>
         ∀ def, Δ !! parent = Some def →
         def.(support_dynamic) = true →
-        cdef.(support_dynamic) = true 
+        cdef.(support_dynamic) = true
     | None => True
     end.
 
