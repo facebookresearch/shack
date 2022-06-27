@@ -214,12 +214,13 @@ Section Evaluation.
         cmd_eval orig (run_env, h) mdef.(methodbody) (run_env', h') n →
         expr_eval run_env' mdef.(methodret) = Some ret →
         cmd_eval C (le, h) (CallC lhs recv name args) (<[lhs := ret]>le, h') (S n)
-    | RuntimeCheck1Ev C n st1 st2 v rc cmd :
+    | RuntimeCheck1Ev C n st1 st2 v rc thn els:
         rc_match st1 v rc →
-        cmd_eval C st1 cmd st2 n →
-        cmd_eval C st1 (RuntimeCheckC v rc cmd) st2 n
-    | RuntimeCheck2Ev C st v rc cmd :
-        ¬rc_match st v rc →
-        cmd_eval C st (RuntimeCheckC v rc cmd) st 0
+        cmd_eval C st1 thn st2 n →
+        cmd_eval C st1 (RuntimeCheckC v rc thn els) st2 n
+    | RuntimeCheck2Ev C n st1 st2 v rc thn els:
+        ¬rc_match st1 v rc →
+        cmd_eval C st1 els st2 n →
+        cmd_eval C st1 (RuntimeCheckC v rc thn els) st2 n
 .
 End Evaluation.

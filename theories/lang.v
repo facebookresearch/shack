@@ -385,7 +385,7 @@ Inductive cmd : Set :=
        * classes without generics. We'll support classes with
        * generics in a second phase.
        *)
-  | RuntimeCheckC (v : var) (rc: runtime_check) (body : cmd)
+  | RuntimeCheckC (v : var) (rc: runtime_check) (thn els: cmd)
   | ErrorC
 .
 
@@ -401,7 +401,8 @@ Fixpoint subst_cmd (σ:list lang_ty) (cmd: cmd) :=
       NewC lhs C (subst_ty σ <$> σ0) (subst_expr σ <$> args)
   | GetC lhs recv name => GetC lhs (subst_expr σ recv) name
   | SetC recv fld rhs => SetC (subst_expr σ recv) fld (subst_expr σ rhs)
-  | RuntimeCheckC v rc cmd => RuntimeCheckC v rc (subst_cmd σ cmd)
+  | RuntimeCheckC v rc thn els =>
+      RuntimeCheckC v rc (subst_cmd σ thn) (subst_cmd σ els)
   | ErrorC => ErrorC
   end.
 
@@ -409,7 +410,7 @@ Lemma subst_cmd_nil cmd : subst_cmd [] cmd = cmd.
 Proof.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
     | lhs recv name args | lhs C σ0 args | lhs recv name
-    | recv fld rhs | v rc body hi| ] => //=.
+    | recv fld rhs | v rc thn hi0 els hi1 | ] => //=.
   - by rewrite hi0 hi1.
   - by rewrite subst_expr_nil.
   - by rewrite subst_expr_nil hi0 hi1.
@@ -417,7 +418,7 @@ Proof.
   - by rewrite map_subst_ty_nil fmap_subst_expr_nil.
   - by rewrite subst_expr_nil.
   - by rewrite !subst_expr_nil.
-  - by rewrite hi.
+  - by rewrite hi0 hi1.
 Qed.
 
 Inductive cmd_bounded (n: nat) : cmd → Prop :=
@@ -440,8 +441,10 @@ Inductive cmd_bounded (n: nat) : cmd → Prop :=
   | SetBounded recv fld rhs : expr_bounded n recv →
       expr_bounded n rhs →
       cmd_bounded n (SetC recv fld rhs)
-  | RuntimeCheckBounded v rc body: cmd_bounded n body →
-      cmd_bounded n (RuntimeCheckC v rc body)
+  | RuntimeCheckBounded v rc thn els:
+      cmd_bounded n thn →
+      cmd_bounded n els →
+      cmd_bounded n (RuntimeCheckC v rc thn els)
   | ErrorBounded : cmd_bounded n ErrorC
 .
 
@@ -452,7 +455,7 @@ Proof.
   move => hb.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
     | lhs recv name args | lhs C σ0 args | lhs recv name
-    | recv fld rhs | v rc body hi | ] => //=.
+    | recv fld rhs | v rc thn hi0 els hi1 | ] => //=.
   - inv hb.
     by rewrite hi0 // hi1.
   - inv hb.
@@ -468,7 +471,7 @@ Proof.
   - inv hb.
     by rewrite !subst_expr_subst.
   - inv hb.
-    by rewrite hi.
+    by rewrite hi0 // hi1.
 Qed.
 
 Lemma cmd_bounded_subst n cmd:
@@ -479,7 +482,7 @@ Lemma cmd_bounded_subst n cmd:
 Proof.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
     | lhs recv name args | lhs C σ0 args | lhs recv name
-    | recv fld rhs | v rc body hi | ]
+    | recv fld rhs | v rc thn hi0 els hi1 | ]
     => //= h m σ hlen hF; try by constructor.
   - inv h.
     constructor; first by apply hi0.
@@ -516,7 +519,8 @@ Proof.
     constructor; first by apply expr_bounded_subst with (length σ).
     by apply expr_bounded_subst with (length σ).
   - inv h.
-    constructor; by apply hi.
+    constructor; first by apply hi0.
+    by apply hi1.
 Qed.
 
 Record methodDef := {
@@ -774,7 +778,7 @@ Lemma subst_cmd_gen_targs n cmd :
 Proof.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
     | lhs recv name args | lhs C σ0 args | lhs recv name
-    | recv fld rhs | v rc body hi | ] => //=h.
+    | recv fld rhs | v rc thn hi0 els hi1 | ] => //=h.
   - inv h.
     by rewrite hi0 // hi1.
   - inv h.
@@ -790,7 +794,7 @@ Proof.
   - inv h.
     by rewrite !subst_expr_gen_targs.
   - inv h.
-    by rewrite hi.
+    by rewrite hi0 // hi1.
 Qed.
 
 Lemma subst_mdef_gen_targs n mdef :

@@ -512,31 +512,31 @@ Section Typing.
         lty_sub Γ kd rty' rty →
         cmd_has_ty Γ C kd lty c rty' →
         cmd_has_ty Γ C kd lty c rty
-    | TagCheckTy kd lty rty v tv t cmd :
+    | TagCheckTy kd lty rty v tv t thn els:
         lty.(ctxt) !! v = Some tv →
-        lty_sub Γ kd lty rty →
-        cmd_has_ty Γ C kd (<[v:=InterT tv (ExT t)]> lty) cmd rty →
-        cmd_has_ty Γ C kd lty (RuntimeCheckC v (RCTag t) cmd) rty
-    | IntCheckTy kd lty rty v tv cmd :
+        cmd_has_ty Γ C kd (<[v:=InterT tv (ExT t)]> lty) thn rty →
+        cmd_has_ty Γ C kd lty els rty →
+        cmd_has_ty Γ C kd lty (RuntimeCheckC v (RCTag t) thn els) rty
+    | IntCheckTy kd lty rty v tv thn els:
         lty.(ctxt) !! v = Some tv →
-        lty_sub Γ kd lty rty →
-        cmd_has_ty Γ C kd (<[v:=InterT tv IntT]> lty) cmd rty →
-        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCInt cmd) rty
-    | BoolCheckTy kd lty rty v tv cmd :
+        cmd_has_ty Γ C kd (<[v:=InterT tv IntT]> lty) thn rty →
+        cmd_has_ty Γ C kd lty els rty →
+        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCInt thn els) rty
+    | BoolCheckTy kd lty rty v tv thn els:
         lty.(ctxt) !! v = Some tv →
-        lty_sub Γ kd lty rty →
-        cmd_has_ty Γ C kd (<[v:=InterT tv BoolT]> lty) cmd rty →
-        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCBool cmd) rty
-    | NullCheckTy kd lty rty v tv cmd :
+        cmd_has_ty Γ C kd (<[v:=InterT tv BoolT]> lty) thn rty →
+        cmd_has_ty Γ C kd lty els rty →
+        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCBool thn els) rty
+    | NullCheckTy kd lty rty v tv thn els:
         lty.(ctxt) !! v = Some tv →
-        lty_sub Γ kd lty rty →
-        cmd_has_ty Γ C kd (<[v:=InterT tv NullT]> lty) cmd rty →
-        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCNull cmd) rty
-    | NonNullCheckTy kd lty rty v tv cmd :
+        cmd_has_ty Γ C kd (<[v:=InterT tv NullT]> lty) thn rty →
+        cmd_has_ty Γ C kd lty els rty →
+        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCNull thn els) rty
+    | NonNullCheckTy kd lty rty v tv thn els:
         lty.(ctxt) !! v = Some tv →
-        lty_sub Γ kd lty rty →
-        cmd_has_ty Γ C kd (<[v:=InterT tv NonNullT]> lty) cmd rty →
-        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCNonNull cmd) rty
+        cmd_has_ty Γ C kd (<[v:=InterT tv NonNullT]> lty) thn rty →
+        cmd_has_ty Γ C kd lty els rty →
+        cmd_has_ty Γ C kd lty (RuntimeCheckC v RCNonNull thn els) rty
     (* Dynamic related typing rules *)
     | DynIfTy: ∀ kd lty1 lty2 cond thn els,
         expr_has_ty Γ lty1 kd cond DynamicT →
@@ -580,8 +580,9 @@ Section Typing.
       ?????? he h1 hi1 h2 hi2 | ??????? he hf | ????????? he hf |
       ??????? he hf hr | ????????? he hf hr | ??????? ht hok hf hdom hargs |
       ?????????? he hm hdom hargs |
-      ????? hsub h hi | ??????? hin hr h hi | ?????? hin hr h hi |
-      ?????? hin hr h hi | ?????? hin hr h hi | ?????? hin hr h hi |
+      ????? hsub h hi | ???????? hin hthn hi0 hels hi1 |
+      ??????? hin hthn hi0 hels hi1 | ??????? hin hthn hi0 hels hi1 |
+      ??????? hin hthn hi0 hels hi1 | ??????? hin hthn hi0 helse hi1 |
       ?????? hcond hthn hi1 hels hi2 | ????? he hnotthis |
       ????? hrecv hrhs hnotthis | ?????? he hargs hnotthis
       ] => Γ Γ' heq hΓ; subst.
@@ -613,21 +614,11 @@ Section Typing.
     - econstructor => //.
       + eapply lty_sub_constraint_elim => //.
       + by eauto.
-    - eapply TagCheckTy => //.
-      + by eapply lty_sub_constraint_elim.
-      + by eauto.
-    - eapply IntCheckTy => //.
-      + by eapply lty_sub_constraint_elim.
-      + by eauto.
-    - eapply BoolCheckTy => //.
-      + by eapply lty_sub_constraint_elim.
-      + by eauto.
-    - eapply NullCheckTy => //.
-      + by eapply lty_sub_constraint_elim.
-      + by eauto.
-    - eapply NonNullCheckTy => //.
-      + by eapply lty_sub_constraint_elim.
-      + by eauto.
+    - eapply TagCheckTy => //; by eauto.
+    - eapply IntCheckTy => //; by eauto.
+    - eapply BoolCheckTy => //; by eauto.
+    - eapply NullCheckTy => //; by eauto.
+    - eapply NonNullCheckTy => //; by eauto.
     - eapply DynIfTy.
       + by eapply expr_has_ty_constraint_elim.
       + by eapply hi1.
@@ -663,8 +654,9 @@ Section Typing.
       ?????? he h1 hi1 h2 hi2 | ??????? he hf | ????????? he hf |
       ??????? he hf hr | ????????? he hf hr | ??????? ht hok hf hdom hargs |
       ?????????? he hm hdom hargs |
-      ????? hsub h hi | ??????? hin hr h hi | ?????? hin hr h hi |
-      ?????? hin hr h hi | ?????? hin hr h hi | ?????? hin hr h hi |
+      ????? hsub h hi | ???????? hin hthn hi0 hels hi1 |
+      ??????? hin hthn hi0 hels hi1 | ??????? hin hthn hi0 hels hi1 |
+      ??????? hin hthn hi0 hels hi1 | ??????? hin hthn hi0 helse hi1 |
       ?????? hcond hthn hi1 hels hi2 | ????? he hnotthis |
       ????? hrecv hrhs hnotthis | ?????? he hargs hnotthis
       ] => //=; try (by eauto).
@@ -700,56 +692,6 @@ Section Typing.
       destruct hty as [ty' [ hty' hsub']].
       apply hwf in hty'.
       by eapply subtype_wf.
-    - apply hi; clear hi.
-      + destruct lty as [[lt lσ] ?]; rewrite /this_type /=.
-        by apply hthis.
-      + rewrite map_Forall_lookup => k ty.
-        rewrite lookup_insert_Some.
-        case => [[heq <-] | [hne hk]].
-        { constructor; last by constructor.
-          by apply hwf in hin.
-        }
-        by apply hwf in hk.
-    - apply hi; clear hi.
-      + destruct lty as [[lt lσ] ?]; rewrite /this_type /=.
-        by apply hthis.
-      + rewrite map_Forall_lookup => k ty.
-        rewrite lookup_insert_Some.
-        case => [[heq <-] | [hne hk]].
-        { constructor; last by constructor.
-          by apply hwf in hin.
-        }
-        by apply hwf in hk.
-    - apply hi; clear hi.
-      + destruct lty as [[lt lσ] ?]; rewrite /this_type /=.
-        by apply hthis.
-      + rewrite map_Forall_lookup => k ty.
-        rewrite lookup_insert_Some.
-        case => [[heq <-] | [hne hk]].
-        { constructor; last by constructor.
-          by apply hwf in hin.
-        }
-        by apply hwf in hk.
-    - apply hi; clear hi.
-      + destruct lty as [[lt lσ] ?]; rewrite /this_type /=.
-        by apply hthis.
-      + rewrite map_Forall_lookup => k ty.
-        rewrite lookup_insert_Some.
-        case => [[heq <-] | [hne hk]].
-        { constructor; last by constructor.
-          by apply hwf in hin.
-        }
-        by apply hwf in hk.
-    - apply hi; clear hi.
-      + destruct lty as [[lt lσ] ?]; rewrite /this_type /=.
-        by apply hthis.
-      + rewrite map_Forall_lookup => k ty.
-        rewrite lookup_insert_Some.
-        case => [[heq <-] | [hne hk]].
-        { constructor; last by constructor.
-          by apply hwf in hin.
-        }
-        by apply hwf in hk.
     - by apply insert_wf_lty.
     - by apply insert_wf_lty.
   Qed.
@@ -773,8 +715,9 @@ Section Typing.
       ?????? he h1 hi1 h2 hi2 | ??????? he hf | ????????? he hf |
       ??????? he hf hr | ????????? he hf hr | ??????? hwf hok hf hdom hargs |
       ?????????? he hm hdom hargs |
-      ????? hsub h hi | ??????? hin hr h hi | ?????? hin hr h hi |
-      ?????? hin hr h hi | ?????? hin hr h hi | ?????? hin hr h hi |
+      ????? hsub h hi | ???????? hin hthn hi0 hels hi1 |
+      ??????? hin hthn hi0 hels hi1 | ??????? hin hthn hi0 hels hi1 |
+      ??????? hin hthn hi0 hels hi1 | ??????? hin hthn hi0 helse hi1 |
       ?????? hcond hthn hi1 hels hi2 | ????? he hnotthis |
       ????? hrecv hrhs hnotthis | ?????? he hargs hnotthis
       ] => //=.
@@ -908,10 +851,8 @@ Section Typing.
       by apply lty_sub_subst.
     - eapply TagCheckTy.
       + by rewrite lookup_fmap hin /=.
-      + apply lty_sub_weaken with (subst_constraints σ Γ); last by set_solver.
-        by apply lty_sub_subst.
-      + rewrite /subst_lty fmap_insert /= in hi.
-        apply hi => //.
+      + rewrite /subst_lty fmap_insert /= in hi0.
+        apply hi0 => //.
         destruct lty as [[lt lσ] lty].
         split.
         * rewrite /this_type /=.
@@ -919,12 +860,11 @@ Section Typing.
         * apply map_Forall_insert_2 => //; last by apply hwf0.
           constructor; last by constructor.
           by apply hwf0 in hin.
+      + by apply hi1.
     - eapply IntCheckTy.
       + by rewrite lookup_fmap hin /=.
-      + apply lty_sub_weaken with (subst_constraints σ Γ); last by set_solver.
-        by apply lty_sub_subst.
-      + rewrite /subst_lty fmap_insert /= in hi.
-        apply hi => //.
+      + rewrite /subst_lty fmap_insert /= in hi0.
+        apply hi0 => //.
         destruct lty as [[lt lσ] lty].
         split.
         * rewrite /this_type /=.
@@ -932,12 +872,11 @@ Section Typing.
         * apply map_Forall_insert_2 => //; last by apply hwf0.
           constructor; last by constructor.
           by apply hwf0 in hin.
+      + by apply hi1.
     - eapply BoolCheckTy.
       + by rewrite lookup_fmap hin /=.
-      + apply lty_sub_weaken with (subst_constraints σ Γ); last by set_solver.
-        by apply lty_sub_subst.
-      + rewrite /subst_lty fmap_insert /= in hi.
-        apply hi => //.
+      + rewrite /subst_lty fmap_insert /= in hi0.
+        apply hi0 => //.
         destruct lty as [[lt lσ] lty].
         split.
         * rewrite /this_type /=.
@@ -945,12 +884,11 @@ Section Typing.
         * apply map_Forall_insert_2 => //; last by apply hwf0.
           constructor; last by constructor.
           by apply hwf0 in hin.
+      + by apply hi1.
     - eapply NullCheckTy.
       + by rewrite lookup_fmap hin /=.
-      + apply lty_sub_weaken with (subst_constraints σ Γ); last by set_solver.
-        by apply lty_sub_subst.
-      + rewrite /subst_lty fmap_insert /= in hi.
-        apply hi => //.
+      + rewrite /subst_lty fmap_insert /= in hi0.
+        apply hi0 => //.
         destruct lty as [[lt lσ] lty].
         split.
         * rewrite /this_type /=.
@@ -958,12 +896,11 @@ Section Typing.
         * apply map_Forall_insert_2 => //; last by apply hwf0.
           constructor; last by constructor.
           by apply hwf0 in hin.
+      + by apply hi1.
     - eapply NonNullCheckTy.
       + by rewrite lookup_fmap hin /=.
-      + apply lty_sub_weaken with (subst_constraints σ Γ); last by set_solver.
-        by apply lty_sub_subst.
-      + rewrite /subst_lty fmap_insert /= in hi.
-        apply hi => //.
+      + rewrite /subst_lty fmap_insert /= in hi0.
+        apply hi0 => //.
         destruct lty as [[lt lσ] lty].
         split.
         * rewrite /this_type /=.
@@ -971,6 +908,7 @@ Section Typing.
         * apply map_Forall_insert_2 => //; last by apply hwf0.
           constructor; last by constructor.
           by apply hwf0 in hin.
+      + by apply hi1.
     - eapply DynIfTy.
       + change DynamicT with (subst_ty σ DynamicT).
         by eapply expr_has_ty_subst.

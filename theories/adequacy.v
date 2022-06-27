@@ -442,12 +442,12 @@ Section proofs.
         kd lty lhs t targs args fields hwf hok hf hdom harg |
         kd lty lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
         kd lty c rty' rty hsub h hi |
-        kd lty rty v tv t cmd hv hr h hi |
-        kd lty rty v tv cmd hv hr h hi |
-        kd lty rty v tv cmd hv hr h hi |
-        kd lty rty v tv cmd hv hr h hi |
-        kd lty rty v tv cmd hv hr h hi |
-        kd lty1 lty2 cond thn els hcond htn hi1 hels hi2 |
+        kd lty rty v tv t thn els hv hthn hi0 hels hi1 |
+        kd lty rty v tv thn els hv hthn hi0 hels hi1 |
+        kd lty rty v tv thn els hv hthn hi0 hels hi1 |
+        kd lty rty v tv thn els hv hthn hi0 hels hi1 |
+        kd lty rty v tv thn els hv hthn hi0 hels hi1 |
+        kd lty1 lty2 cond thn els hcond hthn hi1 hels hi2 |
         kd lty lhs recv name he hnotthis |
         kd lty recv fld rhs hrecv hrhs hnotthis |
         kd lty lhs recv name args hrecv hi hnotthis
@@ -1066,14 +1066,8 @@ Section proofs.
         by apply _.
     - (* RuntimeCheck tag *) inv hc; last first.
       { iIntros "[Hh H]".
-        iAssert (heap_models st'.2 ∗ interp_local_tys Σi rty st'.1)%I with "[Hh H]" as "H".
-        + iFrame.
-          destruct wfΔ.
-          iApply interp_local_tys_is_inclusion => //.
-          rewrite Forall_forall => ???.
-          by apply _.
-        + iRevert "H".
-          by iApply updN_intro.
+        iApply "IHty1" => //.
+        by iSplit.
       }
       iIntros "H".
       assert (hwf: wf_lty (<[v:=InterT tv (ExT t)]> lty)).
@@ -1082,8 +1076,8 @@ Section proofs.
         by constructor.
       }
       iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
-      clear H7 h.
-      destruct H6 as (l & hl & t' & fields & hlt & hinherits).
+      clear H8.
+      destruct H7 as (l & hl & t' & fields & hlt & hinherits).
       iDestruct "H" as "[H #Hle]".
       iDestruct "Hle" as "[Hthis Hle]".
       iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
@@ -1144,14 +1138,8 @@ Section proofs.
       by iApply inherits_is_ex_inclusion.
     - (* RuntimeCheck Int *) inv hc; last first.
       { iIntros "[Hh H]".
-        iAssert (heap_models st'.2 ∗ interp_local_tys Σi rty st'.1)%I with "[Hh H]" as "H".
-        + iFrame.
-          destruct wfΔ.
-          iApply interp_local_tys_is_inclusion => //.
-          rewrite Forall_forall => ???.
-          by apply _.
-        + iRevert "H".
-          by iApply updN_intro.
+        iApply "IHty1" => //.
+        by iSplit.
       }
       iIntros "H".
       assert (hwf: wf_lty (<[v:=InterT tv IntT]> lty)).
@@ -1160,8 +1148,8 @@ Section proofs.
         by constructor.
       }
       iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
-      clear H7 h.
-      destruct H6 as (z & hz).
+      clear H8.
+      destruct H7 as (z & hz).
       iDestruct "H" as "[H #Hle]".
       iDestruct "Hle" as "[Hthis Hle]".
       iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
@@ -1178,14 +1166,8 @@ Section proofs.
       by iExists z.
     - (* RuntimeCheck Bool *) inv hc; last first.
       { iIntros "[Hh H]".
-        iAssert (heap_models st'.2 ∗ interp_local_tys Σi rty st'.1)%I with "[Hh H]" as "H".
-        + iFrame.
-          destruct wfΔ.
-          iApply interp_local_tys_is_inclusion => //.
-          rewrite Forall_forall => ???.
-          by apply _.
-        + iRevert "H".
-          by iApply updN_intro.
+        iApply "IHty1" => //.
+        by iSplit.
       }
       iIntros "H".
       assert (hwf: wf_lty (<[v:=InterT tv BoolT]> lty)).
@@ -1194,8 +1176,8 @@ Section proofs.
         by constructor.
       }
       iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
-      clear H7 h.
-      destruct H6 as (b & hb).
+      clear H8.
+      destruct H7 as (b & hb).
       iDestruct "H" as "[H #Hle]".
       iDestruct "Hle" as "[Hthis Hle]".
       iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
@@ -1212,14 +1194,8 @@ Section proofs.
       by iExists b.
     - (* RuntimeCheck Null *) inv hc; last first.
       { iIntros "[Hh H]".
-        iAssert (heap_models st'.2 ∗ interp_local_tys Σi rty st'.1)%I with "[Hh H]" as "H".
-        + iFrame.
-          destruct wfΔ.
-          iApply interp_local_tys_is_inclusion => //.
-          rewrite Forall_forall => ???.
-          by apply _.
-        + iRevert "H".
-          by iApply updN_intro.
+        iApply "IHty1" => //.
+        by iSplit.
       }
       iIntros "H".
       assert (hwf: wf_lty (<[v:=InterT tv NullT]> lty)).
@@ -1228,12 +1204,12 @@ Section proofs.
         by constructor.
       }
       iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
-      clear H7 h.
-      simpl in H6.
+      clear H8.
+      simpl in H7.
       iDestruct "H" as "[H #Hle]".
       iDestruct "Hle" as "[Hthis Hle]".
       iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
-      rewrite Hlev in H6; simplify_eq.
+      rewrite Hlev in H7; simplify_eq.
       iFrame.
       iSplit => /=; first done.
       iIntros (w tw).
@@ -1245,14 +1221,8 @@ Section proofs.
       by rewrite !interp_type_unfold.
     - (* RuntimeCheck NonNull *) inv hc; last first.
       { iIntros "[Hh H]".
-        iAssert (heap_models st'.2 ∗ interp_local_tys Σi rty st'.1)%I with "[Hh H]" as "H".
-        + iFrame.
-          destruct wfΔ.
-          iApply interp_local_tys_is_inclusion => //.
-          rewrite Forall_forall => ???.
-          by apply _.
-        + iRevert "H".
-          by iApply updN_intro.
+        iApply "IHty1" => //.
+        by iSplit.
       }
       iIntros "H".
       assert (hwf: wf_lty (<[v:=InterT tv NonNullT]> lty)).
@@ -1261,8 +1231,8 @@ Section proofs.
         by constructor.
       }
       iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
-      clear H7 h.
-      simpl in H6.
+      clear H8.
+      simpl in H7.
       iDestruct "H" as "[H #Hle]".
       iFrame.
       iAssert (interp_local_tys Σi lty st.1) as "#Hle_"; first done.
@@ -1293,7 +1263,7 @@ Section proofs.
       iDestruct "Hmixed" as "[? | %hnull]".
       { by rewrite interp_nonnull_unfold. }
       rewrite hnull in Hlev.
-      by rewrite Hlev in H6.
+      by rewrite Hlev in H7.
     - (* Dynamic ifC *) inv hc.
       + iIntros "H". by iApply "IHty".
       + iIntros "H". by iApply "IHty1".
