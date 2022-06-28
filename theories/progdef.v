@@ -10,14 +10,14 @@ From iris.proofmode Require Import tactics.
 From shack Require Import lang.
 
 (* A program is a collection of classes *)
-Class ProgDefContext := { Δ : stringmap classDef }.
+Class ProgDefContext := { pdefs : stringmap classDef }.
 
 Section ProgDef.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
 
-  (* A type is well-formed w.r.t. Δ if all classes are
-   * defined in Δ, substitution applied to classes have the
+  (* A type is well-formed w.r.t. pdefs if all classes are
+   * defined in pdefs, substitution applied to classes have the
    * correct length, and they are all made of well-formed types.
    *)
   Inductive wf_ty : lang_ty → Prop :=
@@ -26,7 +26,7 @@ Section ProgDef.
     | WfNothing : wf_ty NothingT
     | WfMixed : wf_ty MixedT
     | WfClassT t σ def:
-        Δ !! t = Some def →
+        pdefs !! t = Some def →
         length σ = length def.(generics) →
         (∀ k ty, σ !! k = Some ty → wf_ty ty) →
         wf_ty (ClassT t σ)
@@ -43,7 +43,7 @@ Section ProgDef.
   Hint Constructors wf_ty : core.
 
   Lemma wf_ty_class t σ def:
-    Δ !! t = Some def →
+    pdefs !! t = Some def →
     length σ = length def.(generics) →
     Forall wf_ty σ →
     wf_ty (ClassT t σ).
@@ -138,17 +138,17 @@ Section ProgDef.
   (* source relation `class A<...> extends B<...>` *)
   Inductive extends_using : tag → tag → list lang_ty → Prop :=
     | ExtendsUsing A B adef σB:
-        Δ !! A = Some adef →
+        pdefs !! A = Some adef →
         adef.(superclass) = Some (B, σB) →
         extends_using A B σB.
 
   Hint Constructors extends_using : core.
 
   Lemma extends_using_wf A B σ:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     extends_using A B σ →
     ∃ adef,
-    Δ !! A = Some adef ∧
+    pdefs !! A = Some adef ∧
     Forall (bounded (length adef.(generics))) σ ∧
     wf_ty (ClassT B σ).
   Proof.
@@ -163,7 +163,7 @@ Section ProgDef.
 
   Inductive inherits_using : tag → tag → list lang_ty → Prop :=
     | InheritsRefl A adef:
-        Δ !! A = Some adef →
+        pdefs !! A = Some adef →
         inherits_using A A (gen_targs (length (adef.(generics))))
     | InheritsExtends A B σ:
         extends_using A B σ →
@@ -177,15 +177,15 @@ Section ProgDef.
   Hint Constructors inherits_using : core.
 
   Lemma inherits_using_wf A B σ:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     inherits_using A B σ →
     ∃ adef,
-    Δ !! A = Some adef ∧
+    pdefs !! A = Some adef ∧
     Forall (bounded (length adef.(generics))) σ ∧
     wf_ty (ClassT B σ).
   Proof.
     move => hwf.
-    induction 1 as [ A adef hΔ | A B σ hext | A B σ C σC hext h hi ].
+    induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
     - exists adef; repeat split => //.
       + by apply bounded_gen_targs.
       + econstructor => //; first by rewrite length_gen_targs.
@@ -210,14 +210,14 @@ Section ProgDef.
   Qed.
 
   Lemma inherits_using_trans A B C σB σC:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     inherits_using A B σB →
     inherits_using B C σC →
     inherits_using A C (subst_ty σB <$> σC).
   Proof.
     move => hwf h;
     move : h C σC.
-    induction 1 as [ A cdef hΔ | A B s hext | A B s C t hext h hi] => Z σ' hin.
+    induction 1 as [ A cdef hpdefs | A B s hext | A B s C t hext h hi] => Z σ' hin.
     - rewrite subst_tys_id //.
       apply inherits_using_wf in hin => //.
       destruct hin as (? & ? & hF & _ ).
@@ -238,7 +238,7 @@ Section ProgDef.
    *)
   Inductive extends: tag → tag → Prop :=
     | Extends A B cdef σB:
-        Δ !! A = Some cdef →
+        pdefs !! A = Some cdef →
         cdef.(superclass) = Some (B, σB) →
         extends A B.
 
@@ -253,7 +253,7 @@ Section ProgDef.
 
   Lemma inherits_using_erase t t' σ: inherits_using t t' σ → inherits t t'.
   Proof.
-    induction 1 as [ A adef hΔ | A B σ hext | A B σ C σC hext h hi ].
+    induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
     - by constructor.
     - apply extends_using_erase in hext.
       by econstructor.
@@ -270,14 +270,14 @@ Section ProgDef.
   (* if A inherits B and A inherits C,
    * then either B inherits C or C inherits B *)
   Lemma inherits_using_chain A B σ:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     inherits_using A B σ →
     ∀ C σ', inherits_using A C σ' →
     (∃ σ'', (subst_ty σ <$> σ'' = σ' ∧ inherits_using B C σ'') ∨
             (subst_ty σ' <$> σ'' = σ ∧ inherits_using C B σ'')).
   Proof.
     move => hwf.
-    induction 1 as [ A adef hΔ | A B s hext | A B s C t hext h hi] => Z σ' hz.
+    induction 1 as [ A adef hpdefs | A B s hext | A B s C t hext h hi] => Z σ' hz.
     - exists σ'; left; split => //.
       apply subst_tys_id.
       apply inherits_using_wf in hz => //.
@@ -345,12 +345,12 @@ Section ProgDef.
   Qed.
 
   Lemma inherits_using_refl A σ:
-    wf_no_cycle Δ →
+    wf_no_cycle pdefs →
     inherits_using A A σ →
-    ∃ adef, Δ !! A = Some adef ∧ σ = gen_targs (length adef.(generics)).
+    ∃ adef, pdefs !! A = Some adef ∧ σ = gen_targs (length adef.(generics)).
   Proof.
     move => hwf hA.
-    assert (h: ∃ adef, Δ !! A = Some adef).
+    assert (h: ∃ adef, pdefs !! A = Some adef).
     { inv hA.
       - by exists adef.
       - inv H.
@@ -358,20 +358,20 @@ Section ProgDef.
       - inv H.
         by exists adef.
     }
-    destruct h as [adef hΔ].
+    destruct h as [adef hpdefs].
     exists adef; split => //.
     eapply hwf; first by apply hA.
     by constructor.
   Qed.
 
   Lemma inherits_using_fun A B σ:
-    wf_no_cycle Δ →
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
+    wf_no_cycle pdefs →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     inherits_using A B σ →
     ∀ σ', inherits_using A B σ' → σ = σ'.
   Proof.
     move => hwf hp.
-    induction 1 as [ A adef hΔ | A B s hext | A B s C t hext h hi ] => σ' hother.
+    induction 1 as [ A adef hpdefs | A B s hext | A B s C t hext h hi ] => σ' hother.
     - apply inherits_using_refl in hother as [? [h ->]] => //.
       by simplify_eq.
     - inv hext; inv hother.
@@ -413,11 +413,11 @@ Section ProgDef.
    *)
   Inductive has_field (fname: string) : tag → visibility → lang_ty → tag → Prop :=
     | HasField tag cdef vtyp:
-        Δ !! tag = Some cdef →
+        pdefs !! tag = Some cdef →
         cdef.(classfields) !! fname = Some vtyp →
         has_field fname tag vtyp.1 vtyp.2 tag
     | InheritsField tag targs parent cdef vis typ orig:
-        Δ !! tag = Some cdef →
+        pdefs !! tag = Some cdef →
         cdef.(classfields) !! fname = None →
         cdef.(superclass) = Some (parent, targs) →
         has_field fname parent vis typ orig →
@@ -432,8 +432,8 @@ Section ProgDef.
     ∀ vis' typ' orig', has_field fname A vis' typ' orig' →
     vis = vis' ∧ typ = typ' ∧ orig = orig'.
   Proof.
-    induction 1 as [ tag cdef [vis typ] hΔ hf
-      | tag targs parent cdef vis typ orig hΔ hf hs h hi ] => vis' typ' orig' h'.
+    induction 1 as [ tag cdef [vis typ] hpdefs hf
+      | tag targs parent cdef vis typ orig hpdefs hf hs h hi ] => vis' typ' orig' h'.
     - inv h'; by simplify_eq.
     - inv h'.
       + by simplify_eq.
@@ -462,20 +462,20 @@ Section ProgDef.
     map_Forall (λ _fname vfty, wf_ty vfty.2) cdef.(classfields).
 
   Lemma has_field_wf f t vis fty orig:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    map_Forall (λ _, wf_cdef_fields_wf) Δ →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _, wf_cdef_fields_wf) pdefs →
     has_field f t vis fty orig →
     wf_ty fty.
   Proof.
     move => hp hwf.
-    induction 1 as [ tag cdef [? typ] hΔ hf
-      | tag targs parent cdef vis typ orig hΔ hf hs h hi ].
-    - apply hwf in hΔ.
-      by apply hΔ in hf.
+    induction 1 as [ tag cdef [? typ] hpdefs hf
+      | tag targs parent cdef vis typ orig hpdefs hf hs h hi ].
+    - apply hwf in hpdefs.
+      by apply hpdefs in hf.
     - apply wf_ty_subst => //.
-      apply hp in hΔ.
-      rewrite /wf_cdef_parent hs in hΔ.
-      destruct hΔ as [hwft _].
+      apply hp in hpdefs.
+      rewrite /wf_cdef_parent hs in hpdefs.
+      destruct hpdefs as [hwft _].
       by apply wf_ty_class_inv in hwft.
   Qed.
 
@@ -483,7 +483,7 @@ Section ProgDef.
    * with the right substituted type.
    *)
   Lemma has_field_extends_using f B vis typ orig:
-    map_Forall (λ _cname, wf_cdef_fields) Δ →
+    map_Forall (λ _cname, wf_cdef_fields) pdefs →
     has_field f B vis typ orig →
     ∀ A σB,
     extends_using A B σB →
@@ -496,31 +496,31 @@ Section ProgDef.
   Qed.
 
   Lemma has_field_bounded f t vis fty orig:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
     has_field f t vis fty orig →
-    ∃ def, Δ !! t = Some def ∧ bounded (length def.(generics)) fty.
+    ∃ def, pdefs !! t = Some def ∧ bounded (length def.(generics)) fty.
   Proof.
     move => hwfparent hwfb.
-    induction 1 as [ tag cdef [? typ] hΔ hf
-      | tag targs parent cdef vis typ orig hΔ hf hs h hi ].
+    induction 1 as [ tag cdef [? typ] hpdefs hf
+      | tag targs parent cdef vis typ orig hpdefs hf hs h hi ].
     - exists cdef; split => //.
-      apply hwfb in hΔ.
-      by apply hΔ in hf.
+      apply hwfb in hpdefs.
+      by apply hpdefs in hf.
     - exists cdef; split => //.
       destruct hi as [pdef [ hp hb]].
-      apply hwfparent in hΔ.
-      rewrite /wf_cdef_parent hs in hΔ.
-      destruct hΔ as [hΔ hF].
-      inv hΔ; simplify_eq.
+      apply hwfparent in hpdefs.
+      rewrite /wf_cdef_parent hs in hpdefs.
+      destruct hpdefs as [hpdefs hF].
+      inv hpdefs; simplify_eq.
       by eapply bounded_subst.
   Qed.
 
   (* like has_field_extends_using, for any chain of inheritance. *)
   Lemma has_field_inherits_using f B vis typ orig:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    map_Forall (λ _cname, wf_cdef_fields) Δ →
-    map_Forall (λ _cname, wf_cdef_fields_bounded) Δ →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_fields) pdefs →
+    map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
     has_field f B vis typ orig →
     ∀ A σB,
     inherits_using A B σB →
@@ -560,11 +560,11 @@ Section ProgDef.
    *)
   Inductive has_method (mname: string) : tag → tag → methodDef → Prop :=
     | HasMethod tag cdef mdef:
-        Δ !! tag = Some cdef →
+        pdefs !! tag = Some cdef →
         cdef.(classmethods) !! mname = Some mdef →
         has_method mname tag tag mdef
     | InheritsMethod tag parent orig σ cdef mdef:
-        Δ !! tag = Some cdef →
+        pdefs !! tag = Some cdef →
         cdef.(classmethods) !! mname = None →
         cdef.(superclass) = Some (parent, σ) →
         has_method mname parent orig mdef →
@@ -585,8 +585,8 @@ Section ProgDef.
     map_Forall (λ _mname, mdef_wf) cdef.(classmethods).
 
   Lemma has_method_wf m t orig mdef:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    map_Forall (λ _, wf_cdef_methods_wf) Δ →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _, wf_cdef_methods_wf) pdefs →
     has_method m t orig mdef →
     map_Forall (λ _mname, wf_ty) mdef.(methodargs) ∧
     wf_ty mdef.(methodrettype).
@@ -618,8 +618,8 @@ Section ProgDef.
     orig0 = orig1 ∧ mdef0 = mdef1.
   Proof.
     move => A name mdef0 mdef1 orig0 orig1 h; move: mdef1.
-    induction h as [ current cdef mdef hΔ hm
-      | current parent orig inst cdef mdef hΔ hm hs hp hi ] => mdef1 h1.
+    induction h as [ current cdef mdef hpdefs hm
+      | current parent orig inst cdef mdef hpdefs hm hs hp hi ] => mdef1 h1.
     - inv h1; by simplify_eq.
     - inv h1.
       + by simplify_eq.
@@ -634,22 +634,22 @@ Section ProgDef.
    *   location.
    *)
   Lemma has_method_from_def A m orig mdef:
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    map_Forall (λ _cname, cdef_methods_bounded) Δ →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, cdef_methods_bounded) pdefs →
     has_method m A orig mdef →
     ∃ cdef mdef_orig,
-      Δ !! orig = Some cdef ∧
+      pdefs !! orig = Some cdef ∧
       cdef.(classmethods) !! m = Some mdef_orig ∧
       has_method m orig orig mdef_orig ∧
       ∃ σ, inherits_using A orig σ ∧ mdef = subst_mdef σ mdef_orig.
   Proof.
     move => hp hmb.
-    induction 1 as [ A adef mdef hΔ hm | A parent orig σ cdef mdef hΔ hm hs h hi ].
+    induction 1 as [ A adef mdef hpdefs hm | A parent orig σ cdef mdef hpdefs hm hs h hi ].
     - exists adef, mdef; repeat split => //; first by econstructor.
       exists (gen_targs (length adef.(generics))); split; first by constructor.
       rewrite subst_mdef_gen_targs //.
-      apply hmb in hΔ.
-      by apply hΔ in hm.
+      apply hmb in hpdefs.
+      by apply hpdefs in hm.
     - destruct hi as (odef & omdef & ho & hom & hdef & [σo [hin ->]]).
       exists odef, omdef; repeat split => //.
       exists (subst_ty σ <$> σo); split.
@@ -669,27 +669,27 @@ Section ProgDef.
    * A <: B <: orig, then B must also inherits method m from orig.
    *)
   Lemma has_method_below_orig A m orig mdef:
-    wf_no_cycle Δ →
-    map_Forall (λ _cname, wf_cdef_parent Δ) Δ →
-    map_Forall (λ _cname, cdef_methods_bounded) Δ →
+    wf_no_cycle pdefs →
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, cdef_methods_bounded) pdefs →
     has_method m A orig mdef →
     ∀ B σ σ', inherits_using A B σ → inherits_using B orig σ' →
     ∃ odef mdefo mdefB,
-    Δ !! orig = Some odef ∧
+    pdefs !! orig = Some odef ∧
     odef.(classmethods) !! m = Some mdefo ∧
     has_method m B orig mdefB ∧
     mdefB = subst_mdef σ' mdefo.
   Proof.
     move => hc hp hb.
-    induction 1 as [ A cdef mdef hΔ hm | A parent orig σ cdef mdef hΔ hm hs h hi ] =>
+    induction 1 as [ A cdef mdef hpdefs hm | A parent orig σ cdef mdef hpdefs hm hs h hi ] =>
           B σA σB hAB hBO.
     - destruct (hc _ _ _ _ hAB hBO) as [-> ->].
       apply inherits_using_refl in hAB as [ ? [? ->]] => // ; simplify_eq.
       exists cdef, mdef, mdef; repeat split => //.
       + by econstructor.
       + rewrite subst_mdef_gen_targs //.
-        apply hb in hΔ.
-        by apply hΔ in hm.
+        apply hb in hpdefs.
+        by apply hpdefs in hm.
     - inv hAB.
       + simplify_eq.
         destruct (has_method_from_def _ _ _ _ hp hb h) as (odef & modef & ? & hmo & _ & [σo [hin ->]]).

@@ -10,7 +10,7 @@ From iris.proofmode Require Import tactics.
 From iris.base_logic.lib Require Import iprop own wsat.
 From iris.algebra.lib Require Import gmap_view.
 
-From shack Require Import lang progdef subtype typing eval heap modality interp adequacy.
+From shack Require Import lang progdef subtype typing eval heap modality interp soundness.
 
 Definition arraykey := UnionT IntT BoolT.
 
@@ -134,7 +134,7 @@ Definition Main := {|
   support_dynamic := false;
  |}.
 
-Local Instance PDC : ProgDefContext := { Δ := {[ "ROBox" := ROBox; "Box" := Box; "IntBoxS" := IntBoxS; "Main" := Main ]} }.
+Local Instance PDC : ProgDefContext := { pdefs := {[ "ROBox" := ROBox; "Box" := Box; "IntBoxS" := IntBoxS; "Main" := Main ]} }.
 
 Lemma wfσ : Forall wf_ty σ.
 Proof.
@@ -169,11 +169,11 @@ Lemma has_fields_ROBox : has_fields "ROBox" {[ "$data" := (Private, GenT 0, "ROB
 Proof.
   move => f vis fty orig; split => h.
   - inv h.
-    + rewrite /Δ /= lookup_insert in H.
+    + rewrite /pdefs /= lookup_insert in H.
       simplify_eq.
       rewrite /ROBox /= lookup_singleton_Some in H0.
       by destruct H0 as [<- <-].
-    + by rewrite /Δ /= lookup_insert in H; simplify_eq.
+    + by rewrite /pdefs /= lookup_insert in H; simplify_eq.
   - rewrite lookup_singleton_Some in h.
     destruct h as [<- [= <- <- <-]].
     change Private with (Private, GenT 0).1.
@@ -184,16 +184,16 @@ Lemma has_fields_IntBoxS : has_fields "IntBoxS" {[ "$data" := (Public, IntT, "Bo
 Proof.
   move => f vis fty orig; split => h.
   - inv h.
-    + rewrite /Δ /= lookup_insert_ne // lookup_insert_ne // lookup_insert in H; by simplify_eq.
-    + rewrite /Δ /= lookup_insert_ne // lookup_insert_ne // lookup_insert in H; simplify_eq.
+    + rewrite /pdefs /= lookup_insert_ne // lookup_insert_ne // lookup_insert in H; by simplify_eq.
+    + rewrite /pdefs /= lookup_insert_ne // lookup_insert_ne // lookup_insert in H; simplify_eq.
       apply lookup_singleton_Some.
       rewrite /IntBoxS /= in H1 H0.
       injection H1; intros; subst; clear H1.
       inv H2.
-      * rewrite /Δ /= lookup_insert_ne // lookup_insert in H; simplify_eq.
+      * rewrite /pdefs /= lookup_insert_ne // lookup_insert in H; simplify_eq.
         rewrite /Box /= lookup_singleton_Some in H1.
         by destruct H1 as [<- <-].
-      * by rewrite /Δ /= lookup_insert_ne // lookup_insert in H; simplify_eq.
+      * by rewrite /pdefs /= lookup_insert_ne // lookup_insert in H; simplify_eq.
   - rewrite lookup_singleton_Some in h.
     destruct h as [<- [= <- <- <-]].
     change IntT with (subst_ty σ (GenT 0)).
@@ -482,7 +482,7 @@ Qed.
 Lemma helper_ext: ∀ A B σ0, extends_using A B σ0 → A = "IntBoxS" ∧ B = "Box" ∧ σ0 = σ.
 Proof.
   move => A B σ0 h; inv h.
-  rewrite /Δ /= lookup_insert_Some in H.
+  rewrite /pdefs /= lookup_insert_Some in H.
   destruct H as [[<- <-] | [? H]].
   { by rewrite /Box in H0. }
   rewrite lookup_insert_Some in H.
@@ -499,7 +499,7 @@ Qed.
 Lemma helper_in_ROBox : ∀ T σt, inherits_using "ROBox" T σt → T = "ROBox" ∧ σt = [GenT 0].
 Proof.
   move => T σt h; inv h.
-  + rewrite /Δ /=.
+  + rewrite /pdefs /=.
     rewrite lookup_insert in H.
     by simplify_eq.
   + apply helper_ext in H.
@@ -511,7 +511,7 @@ Qed.
 Lemma helper_in_Main : ∀ T σt, inherits_using "Main" T σt → T = "Main" ∧ σt = [].
 Proof.
   move => T σt h; inv h.
-  + rewrite /Δ /=.
+  + rewrite /pdefs /=.
     do 3 (rewrite lookup_insert_ne // in H).
     rewrite lookup_singleton_Some in H.
     by case : H => _ <-.
@@ -524,7 +524,7 @@ Qed.
 Lemma helper_in_Box : ∀ T σt, inherits_using "Box" T σt → T = "Box" ∧ σt = [GenT 0].
 Proof.
   move => T σt h; inv h.
-  + rewrite /Δ /=.
+  + rewrite /pdefs /=.
     do 1 (rewrite lookup_insert_ne // in H).
     rewrite lookup_insert in H.
     by simplify_eq.
@@ -539,7 +539,7 @@ Lemma helper_in_IntBoxS : ∀ T σt, inherits_using "IntBoxS" T σt →
   (T = "Box" ∧ σt = σ).
 Proof.
   move => T σt h; inv h.
-  + rewrite /Δ /=.
+  + rewrite /pdefs /=.
     do 2 (rewrite lookup_insert_ne // in H).
     rewrite lookup_insert in H.
     left.
@@ -561,7 +561,7 @@ Lemma helper_in: ∀ A B σ0, inherits_using A B σ0 →
 Proof.
   move => A B σ0 h.
   inv h.
-  + rewrite /Δ /=.
+  + rewrite /pdefs /=.
     rewrite lookup_insert_Some in H.
     destruct H as [[<- ?]|[? H]]; first (right; right; right; left; by rewrite -H).
     rewrite lookup_insert_Some in H.
@@ -578,7 +578,7 @@ Proof.
     by left.
 Qed.
 
-Lemma wf_extends_wf : wf_no_cycle Δ.
+Lemma wf_extends_wf : wf_no_cycle pdefs.
 Proof.
   move => A B σ0 σ1 h0 h1.
   apply helper_in in h0.
@@ -594,7 +594,7 @@ Proof.
   by apply helper_in_Main in h1 as [_ ->].
 Qed.
 
-Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent Δ) Δ.
+Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs.
 Proof.
   apply map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -612,12 +612,12 @@ Proof.
   by case => [? <-].
 Qed.
 
-Lemma wf_override : wf_method_override Δ.
+Lemma wf_override : wf_method_override pdefs.
 Proof.
   move => A B adef bdef m σ0 mA mB hA hB hin hmA hmB.
   apply helper_in in hin.
   destruct hin as [[-> [-> ->]] | hin].
-  { rewrite /Δ /= in hA, hB.
+  { rewrite /pdefs /= in hA, hB.
     do 2 (rewrite lookup_insert_ne // in hA).
     do 1 (rewrite lookup_insert_ne // in hB).
     rewrite !lookup_insert in hA, hB.
@@ -641,7 +641,7 @@ Proof.
   }
   destruct hin as [[-> [-> ->]] | hin].
   { simplify_eq.
-    rewrite /Δ /=.
+    rewrite /pdefs /=.
     do 2 (rewrite  lookup_insert_ne // in hA).
     rewrite lookup_insert in hA.
     injection hA; intros; subst; clear hA.
@@ -653,7 +653,7 @@ Proof.
   }
   destruct hin as [[-> [-> ->]] | hin].
   { simplify_eq.
-    rewrite /Δ /=.
+    rewrite /pdefs /=.
     do 1 (rewrite  lookup_insert_ne // in hA).
     rewrite lookup_insert in hA.
     injection hA; intros; subst; clear hA.
@@ -678,7 +678,7 @@ Proof.
   }
   destruct hin as [[-> [-> ->]] | hin].
   { simplify_eq.
-    rewrite /Δ /=.
+    rewrite /pdefs /=.
     rewrite lookup_insert in hA.
     injection hA; intros; subst; clear hA.
     rewrite /IntBoxS /= in hmA.
@@ -692,7 +692,7 @@ Proof.
   }
   destruct hin as [-> [-> ->]].
   { simplify_eq.
-    rewrite /Δ /=.
+    rewrite /pdefs /=.
     do 3 (rewrite lookup_insert_ne // in hA).
     rewrite lookup_singleton_Some in hA.
     destruct hA as [_ <-].
@@ -707,7 +707,7 @@ Proof.
   }
 Qed.
 
-Lemma wf_fields : map_Forall (λ _cname, wf_cdef_fields) Δ.
+Lemma wf_fields : map_Forall (λ _cname, wf_cdef_fields) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -724,7 +724,7 @@ Proof.
   by rewrite /wf_cdef_fields /Main.
 Qed.
 
-Lemma wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) Δ.
+Lemma wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -751,7 +751,7 @@ Proof.
   by rewrite /wf_cdef_fields /Main.
 Qed.
 
-Lemma wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) Δ.
+Lemma wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -777,7 +777,7 @@ Proof.
   by apply map_Forall_empty.
 Qed.
 
-Lemma wf_fields_mono : map_Forall (λ _cname, wf_field_mono) Δ.
+Lemma wf_fields_mono : map_Forall (λ _cname, wf_field_mono) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -807,7 +807,7 @@ Proof.
   by apply map_Forall_empty.
 Qed.
 
-Lemma wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) Δ.
+Lemma wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -891,7 +891,7 @@ Proof.
   by repeat constructor.
 Qed.
 
-Lemma wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) Δ.
+Lemma wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -941,7 +941,7 @@ Proof.
   by apply map_Forall_empty.
 Qed.
 
-Lemma wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) Δ.
+Lemma wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -985,7 +985,7 @@ Proof.
   by apply map_Forall_empty.
 Qed.
 
-Lemma wf_mdefs : map_Forall cdef_wf_mdef_ty Δ.
+Lemma wf_mdefs : map_Forall cdef_wf_mdef_ty pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -1095,7 +1095,7 @@ Proof.
   by apply wf_mdef_ty_Main.
 Qed.
 
-Lemma wf_mono : map_Forall (λ _cname, wf_cdef_mono) Δ.
+Lemma wf_mono : map_Forall (λ _cname, wf_cdef_mono) pdefs.
 Proof.
   rewrite map_Forall_lookup => x cx.
   rewrite lookup_insert_Some.
@@ -1124,7 +1124,7 @@ Proof.
   done.
 Qed.
 
-Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) Δ.
+Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -1143,7 +1143,7 @@ Proof.
   by rewrite /wf_cdef_constraints_wf /= Forall_nil.
 Qed.
 
-Lemma wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) Δ.
+Lemma wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -1162,7 +1162,7 @@ Proof.
   by rewrite /wf_cdef_constraints_bounded /= Forall_nil.
 Qed.
 
-Lemma wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) Δ.
+Lemma wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -1184,7 +1184,7 @@ Proof.
   by rewrite /wf_cdef_parent_ok.
 Qed.
 
-Lemma wf_constraints_ok : map_Forall (λ _cname, wf_cdef_constraints_ok) Δ.
+Lemma wf_constraints_ok : map_Forall (λ _cname, wf_cdef_constraints_ok) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -1203,7 +1203,7 @@ Proof.
   rewrite /wf_cdef_constraints_ok; by constructor.
 Qed.
 
-Lemma wf_methods_ok : map_Forall (λ _cname, cdef_methods_ok) Δ.
+Lemma wf_methods_ok : map_Forall (λ _cname, cdef_methods_ok) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -1247,7 +1247,7 @@ Proof.
   by apply map_Forall_empty.
 Qed.
 
-Lemma wf_fields_dyn : map_Forall wf_cdef_fields_dyn_wf Δ.
+Lemma wf_fields_dyn : map_Forall wf_cdef_fields_dyn_wf pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -1261,7 +1261,7 @@ Proof.
   done.
 Qed.
 
-Lemma wf_dyn_parent: map_Forall (λ _cname, wf_cdef_dyn_parent) Δ.
+Lemma wf_dyn_parent: map_Forall (λ _cname, wf_cdef_dyn_parent) pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -1280,7 +1280,7 @@ Proof.
   done.
 Qed.
 
-Lemma wf_methods_dyn_wf : map_Forall wf_cdef_methods_dyn_wf Δ.
+Lemma wf_methods_dyn_wf : map_Forall wf_cdef_methods_dyn_wf pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -1294,7 +1294,7 @@ Proof.
   done.
 Qed.
 
-Lemma wf_mdef_dyn_ty : map_Forall cdef_wf_mdef_dyn_ty Δ.
+Lemma wf_mdef_dyn_ty : map_Forall cdef_wf_mdef_dyn_ty pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.
@@ -1322,7 +1322,7 @@ Proof.
   by apply map_Forall_singleton.
 Qed.
 
-Lemma wf: wf_cdefs Δ.
+Lemma wf: wf_cdefs pdefs.
 Proof.
   split.
   by apply wf_extends_wf.
@@ -1351,7 +1351,7 @@ Qed.
 (* Director level theorem: every execution that should produce an int
  * actually produceGs an int.
  *)
-Theorem int_adequacy cmd st lty n:
+Theorem int_soundness cmd st lty n:
   cmd_eval "Main" (main_le, main_heap "Main") cmd st n →
   cmd_has_ty [] "Main" Plain (main_lty "Main") cmd lty →
   ∀ v, lty.(ctxt) !! v = Some IntT →
@@ -1363,22 +1363,22 @@ Proof.
       by econstructor.
     - by apply map_Forall_empty.
   }
-  assert (hinit: Δ !! "Main" = Some (main_cdef "Main" {["entry_point" := EntryPoint ]})) by done.
+  assert (hinit: pdefs !! "Main" = Some (main_cdef "Main" {["entry_point" := EntryPoint ]})) by done.
   move => he ht v hin.
-  apply (@step_updN_soundness sem_heapΣ n).
+  apply (@step_updN_soundness sem_heapΘ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
   iModIntro.
-  iAssert ( Σinterp [] []) as "Σcoherency".
+  iAssert (Σinterp [] []) as "Σcoherency".
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
-  assert (wfΣc : Forall wf_constraint []).
+  assert (wfΔ : Forall wf_constraint []).
   { rewrite Forall_forall => ?. by set_solver. }
-  iAssert (interp_env_as_mixed []) as "wfΣi".
+  iAssert (interp_env_as_mixed []) as "wfΣ".
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
-  iDestruct ((cmd_adequacy [] "Main" _ [] _ _ _ wf wfinit wfΣc ht _ _ _ he) with "wfΣi Σcoherency Hmain") as "H" => /=.
+  iDestruct ((cmd_soundness [] "Main" _ [] _ _ _ wf wfinit wfΔ ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [Hthis Hl]]".
@@ -1389,7 +1389,7 @@ Proof.
   by eauto.
 Qed.
 
-Theorem class_adequacy cmd st lty n:
+Theorem class_soundness cmd st lty n:
   cmd_eval "Main" (main_le, main_heap "Main") cmd st n →
   cmd_has_ty [] "Main" Plain (main_lty "Main") cmd lty →
   ∀ v T σ, lty.(ctxt) !! v = Some (ClassT T σ) →
@@ -1403,22 +1403,22 @@ Proof.
       by econstructor.
     - by apply map_Forall_empty.
   }
-  assert (hinit: Δ !! "Main" = Some (main_cdef "Main" {["entry_point" := EntryPoint ]})) by done.
+  assert (hinit: pdefs !! "Main" = Some (main_cdef "Main" {["entry_point" := EntryPoint ]})) by done.
   move => he ht v T σ hin.
-  apply (@step_updN_soundness sem_heapΣ n).
+  apply (@step_updN_soundness sem_heapΘ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
   iModIntro.
-  iAssert ( Σinterp [] []) as "Σcoherency".
+  iAssert (Σinterp [] []) as "Σcoherency".
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
-  assert (wfΣc : Forall wf_constraint []).
+  assert (wfΔ : Forall wf_constraint []).
   { rewrite Forall_forall => ?. by set_solver. }
-  iAssert (interp_env_as_mixed []) as "wfΣi".
+  iAssert (interp_env_as_mixed []) as "wfΣ".
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
-  iDestruct ((cmd_adequacy [] "Main" _ [] _ _ _ wf wfinit wfΣc ht _ _ _ he) with "wfΣi Σcoherency Hmain") as "H" => /=.
+  iDestruct ((cmd_soundness [] "Main" _ [] _ _ _ wf wfinit wfΔ ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [_ Hl]]".
@@ -1449,4 +1449,4 @@ Proof.
   by apply inherits_using_erase in hinherits.
 Qed.
 
-Print Assumptions int_adequacy.
+Print Assumptions int_soundness.

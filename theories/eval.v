@@ -32,18 +32,18 @@ Section Evaluation.
   }.
 
   Global Instance local_env_insert : Insert string value local_env :=
-    λ x v le,
-    {| vthis := le.(vthis);
-      lenv := <[x := v]>le.(lenv);
+    λ x v Ω,
+    {| vthis := Ω.(vthis);
+      lenv := <[x := v]>Ω.(lenv);
     |}.
 
-  Fixpoint expr_eval (le : local_env) (e: expr) : option value :=
+  Fixpoint expr_eval (Ω : local_env) (e: expr) : option value :=
     match e with
     | IntE z => Some (IntV z)
     | BoolE b => Some (BoolV b)
     | NullE => Some NullV
     | BinOpE op e1 e2 =>
-        match expr_eval le e1, expr_eval le e2 with
+        match expr_eval Ω e1, expr_eval Ω e2 with
         | Some (IntV z1), Some (IntV z2) => Some (binop_eval op z1 z2)
         | Some (BoolV b1), Some (BoolV b2) =>
             match op with
@@ -53,13 +53,13 @@ Section Evaluation.
         | _, _ => None
         end
     | UniOpE op e =>
-        match op, expr_eval le e with
+        match op, expr_eval Ω e with
         | NotO, Some (BoolV b) => Some (BoolV (negb b))
         | _, _ => None
         end
-    | VarE v => le.(lenv) !! v
-    | ThisE => Some (LocV le.(vthis))
-    | UpcastE e _ => expr_eval le e
+    | VarE v => Ω.(lenv) !! v
+    | ThisE => Some (LocV Ω.(vthis))
+    | UpcastE e _ => expr_eval Ω e
     end
   .
 
@@ -170,27 +170,27 @@ Section Evaluation.
     (local_env * heap) → cmd →
     (local_env * heap) → nat → Prop :=
     | SkipEv : ∀ C st, cmd_eval C st SkipC st 0
-    | LetEv: ∀ C le h v e val,
-        expr_eval le e = Some val →
-        cmd_eval C (le, h) (LetC v e) (<[v := val]> le, h) 0
-    | NewEv: ∀ C le h lhs new t targs args vargs,
+    | LetEv: ∀ C Ω h v e val,
+        expr_eval Ω e = Some val →
+        cmd_eval C (Ω, h) (LetC v e) (<[v := val]> Ω, h) 0
+    | NewEv: ∀ C Ω h lhs new t targs args vargs,
         (* targs are not stored in the heap: erased generics *)
         h !! new = None →
-        map_args (expr_eval le) args = Some vargs →
-        cmd_eval C (le, h) (NewC lhs t targs args) (<[lhs := LocV new]>le, <[new := (t, vargs)]>h) 1
-    | GetEv: ∀ C le h lhs recv name l t vs v,
-        expr_eval le recv = Some (LocV l) →
+        map_args (expr_eval Ω) args = Some vargs →
+        cmd_eval C (Ω, h) (NewC lhs t targs args) (<[lhs := LocV new]>Ω, <[new := (t, vargs)]>h) 1
+    | GetEv: ∀ C Ω h lhs recv name l t vs v,
+        expr_eval Ω recv = Some (LocV l) →
         h !! l = Some (t, vs) →
         vs !! name = Some v →
         visibility_check C t recv name →
-        cmd_eval C (le, h) (GetC lhs recv name) (<[lhs := v]>le, h) 1
-    | SetEv: ∀ C le h recv fld rhs l v t vs vs',
-        expr_eval le recv = Some (LocV l) →
-        expr_eval le rhs = Some v →
+        cmd_eval C (Ω, h) (GetC lhs recv name) (<[lhs := v]>Ω, h) 1
+    | SetEv: ∀ C Ω h recv fld rhs l v t vs vs',
+        expr_eval Ω recv = Some (LocV l) →
+        expr_eval Ω rhs = Some v →
         h !! l = Some (t, vs) →
         vs' = <[ fld := v ]>vs →
         visibility_check C t recv fld →
-        cmd_eval C (le, h) (SetC recv fld rhs) (le, <[l := (t, vs')]> h) 0
+        cmd_eval C (Ω, h) (SetC recv fld rhs) (Ω, <[l := (t, vs')]> h) 0
     | SeqEv: ∀ C st1 st2 st3 fstc sndc n1 n2,
         cmd_eval C st1 fstc st2 n1 →
         cmd_eval C st2 sndc st3 n2 →
@@ -203,17 +203,17 @@ Section Evaluation.
         expr_eval st1.1 cond = Some (BoolV false) →
         cmd_eval C st1 els st2 n →
         cmd_eval C st1 (IfC cond thn els) st2 n
-    | CallEv: ∀ C le h h' lhs recv l t vs name args vargs orig mdef
+    | CallEv: ∀ C Ω h h' lhs recv l t vs name args vargs orig mdef
         run_env run_env' ret n,
-        expr_eval le recv = Some (LocV l) →
-        map_args (expr_eval le) args = Some vargs →
+        expr_eval Ω recv = Some (LocV l) →
+        map_args (expr_eval Ω) args = Some vargs →
         h !! l = Some (t, vs) →
         has_method name t orig mdef →
         dom mdef.(methodargs) = dom args →
         {| vthis := l; lenv := vargs|} = run_env →
         cmd_eval orig (run_env, h) mdef.(methodbody) (run_env', h') n →
         expr_eval run_env' mdef.(methodret) = Some ret →
-        cmd_eval C (le, h) (CallC lhs recv name args) (<[lhs := ret]>le, h') (S n)
+        cmd_eval C (Ω, h) (CallC lhs recv name args) (<[lhs := ret]>Ω, h') (S n)
     | RuntimeCheck1Ev C n st1 st2 v rc thn els:
         rc_match st1 v rc →
         cmd_eval C st1 thn st2 n →

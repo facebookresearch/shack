@@ -15,9 +15,8 @@ Canonical Structure tagO : ofe := leibnizO tag.
 Canonical Structure lang_tyO : ofe := leibnizO lang_ty.
 Canonical Structure valueO : ofe := leibnizO value.
 
-
 (* interpretation of types *)
-Definition sem_typeO (Σ : gFunctors) : ofe := value -d> iPropO Σ.
+Definition sem_typeO (Θ : gFunctors) : ofe := value -d> iPropO Θ.
 
 Definition sem_typeOF (F: oFunctor) : oFunctor := value -d> F.
 
@@ -25,30 +24,30 @@ Definition sem_typeOF (F: oFunctor) : oFunctor := value -d> F.
  * - a runtime tag
  * - the (gated by Next) interpretation of fields for this tag
  *)
-Class sem_heapGpreS (Σ : gFunctors) : Set := {
-  sem_heap :> inG Σ (gmap_viewR loc (prodO tagO (laterO (gmapO string (sem_typeO Σ)))));
+Class sem_heapGpreS (Θ : gFunctors) : Set := {
+  sem_heap :> inG Θ (gmap_viewR loc (prodO tagO (laterO (gmapO string (sem_typeO Θ)))));
 }.
 
-Definition sem_heapΣ : gFunctors :=
+Definition sem_heapΘ : gFunctors :=
   #[GFunctor (gmap_viewRF loc (tagO * (laterOF (gmapOF string (sem_typeOF ∙)))))].
 
-Global Instance subG_sem_heapΣ {Σ}: subG sem_heapΣ Σ → sem_heapGpreS Σ.
+Global Instance subG_sem_heapΘ {Θ}: subG sem_heapΘ Θ → sem_heapGpreS Θ.
 Proof.  solve_inG. Qed.
 
-Class sem_heapGS (Σ: gFunctors) := SemHeapGS {
-  sem_heap_inG :> sem_heapGpreS Σ;
+Class sem_heapGS (Θ: gFunctors) := SemHeapGS {
+  sem_heap_inG :> sem_heapGpreS Θ;
   sem_heap_name: gname;
 }.
 
 Section definitions.
-  Context `{hG: !sem_heapGS Σ}.
+  Context `{hG: !sem_heapGS Θ}.
 
   Definition loc_mapsto_def (ℓ: loc) (t: tag)
-    (iFs: gmapO string (sem_typeO Σ)) :=
+    (iFs: gmapO string (sem_typeO Θ)) :=
     (gmap_view_frag ℓ DfracDiscarded (t, Next iFs)).
 
   Definition mapsto_def (ℓ: loc) (t: tag)
-    (iFs: gmapO string (sem_typeO Σ)) :=
+    (iFs: gmapO string (sem_typeO Θ)) :=
     own (@sem_heap_name _ hG) (loc_mapsto_def ℓ t iFs).
 
   Definition loc_mapsto_aux : seal (@loc_mapsto_def). Proof. by eexists. Qed.
@@ -67,7 +66,7 @@ Notation "l ↦ '(' t ',' iFs ')'" := (mapsto l t iFs)
   (at level 20, format "l ↦ '(' t ',' iFs ')'") : bi_scope.
 
 Section sem_heap.
-  Context `{hG: !sem_heapGS Σ}.
+  Context `{hG: !sem_heapGS Θ}.
   Notation γ := sem_heap_name.
 
   Global Instance mapsto_persistent l t iFs: Persistent (mapsto l t iFs).
@@ -101,7 +100,7 @@ Section sem_heap.
   Lemma sem_heap_view_alloc sh new t iFs:
     sh !! new = None →
     gmap_view_auth (DfracOwn 1) sh ~~>
-    gmap_view_auth (DfracOwn 1) (<[new:=(t, Next iFs)]> sh) ⋅ (@loc_mapsto Σ new t iFs).
+    gmap_view_auth (DfracOwn 1) (<[new:=(t, Next iFs)]> sh) ⋅ (@loc_mapsto Θ new t iFs).
   Proof.
     move => hnew.
     rewrite loc_mapsto_eq /loc_mapsto_def.

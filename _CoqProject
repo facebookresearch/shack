@@ -12,6 +12,6 @@ theories/eval.v
 theories/heap.v
 theories/modality.v
 theories/interp.v
-theories/adequacy.v
+theories/soundness.v
 theories/examples.v
 theories/sd_examples.v

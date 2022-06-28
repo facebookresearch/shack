@@ -10,7 +10,7 @@ From iris.proofmode Require Import tactics.
 From iris.base_logic.lib Require Import iprop own wsat.
 From iris.algebra.lib Require Import gmap_view.
 
-From shack Require Import lang progdef subtype typing eval heap modality interp adequacy.
+From shack Require Import lang progdef subtype typing eval heap modality interp soundness.
 
 Definition like (T: lang_ty) : lang_ty := UnionT T DynamicT.
 
@@ -113,12 +113,12 @@ Definition Main := {|
   support_dynamic := false;
  |}.
 
-Local Instance PDC : ProgDefContext := { Δ := {[ "SDBox" := SDBox; "Test" := Test; "Main" := Main ]} }.
+Local Instance PDC : ProgDefContext := { pdefs := {[ "SDBox" := SDBox; "Test" := Test; "Main" := Main ]} }.
 
 Lemma helper_ext: ∀ A B σ0, extends_using A B σ0 → False.
 Proof.
   move => A B σ0 h; inv h.
-  rewrite /Δ /= lookup_insert_Some in H.
+  rewrite /pdefs /= lookup_insert_Some in H.
   destruct H as [[<- <-] | [? H]].
   { by rewrite /SDBox in H0. }
   rewrite lookup_insert_Some in H.
@@ -142,7 +142,7 @@ Qed.
 Lemma helper_in_Test : ∀ T σt, inherits_using "Test" T σt → T = "Test" ∧ σt = [].
 Proof.
   move => T σt h; inv h.
-  + rewrite /Δ /= in H.
+  + rewrite /pdefs /= in H.
     rewrite lookup_insert_ne // in H.
     rewrite lookup_insert in H.
     by case : H => <-.
@@ -153,7 +153,7 @@ Qed.
 Lemma helper_in_Box : ∀ T σt, inherits_using "SDBox" T σt → T = "SDBox" ∧ σt = [GenT 0].
 Proof.
   move => T σt h; inv h.
-  + rewrite /Δ /= in H.
+  + rewrite /pdefs /= in H.
     rewrite lookup_insert in H.
     by case : H => <-.
   + by apply helper_ext in H.
@@ -167,7 +167,7 @@ Lemma helper_in: ∀ A B σ0, inherits_using A B σ0 →
 Proof.
   move => A B σ0 h.
   inv h.
-  + rewrite /Δ /=.
+  + rewrite /pdefs /=.
     rewrite lookup_insert_Some in H.
     destruct H as [[<- ?]|[? H]]; first by left; rewrite -H.
     rewrite lookup_insert_Some in H.
@@ -178,10 +178,10 @@ Proof.
   + by apply helper_ext in H.
 Qed.
 
-Lemma wf_mdefs : map_Forall cdef_wf_mdef_ty Δ.
+Lemma wf_mdefs : map_Forall cdef_wf_mdef_ty pdefs.
 Proof.
   apply map_Forall_lookup => cname cdef h.
-  rewrite /Δ /= in h.
+  rewrite /pdefs /= in h.
   rewrite lookup_insert_Some in h.
   destruct h as [[<- <-] | [? h]].
   { rewrite /cdef_wf_mdef_ty.
@@ -282,10 +282,10 @@ Proof.
     done.
 Qed.
 
-Lemma wf_mdef_dyn_ty : map_Forall cdef_wf_mdef_dyn_ty Δ.
+Lemma wf_mdef_dyn_ty : map_Forall cdef_wf_mdef_dyn_ty pdefs.
 Proof.
   apply map_Forall_lookup => cname cdef h.
-  rewrite /Δ /= in h.
+  rewrite /pdefs /= in h.
   rewrite lookup_insert_Some in h.
   destruct h as [[<- <-] | [? h]].
   { rewrite /cdef_wf_mdef_dyn_ty.

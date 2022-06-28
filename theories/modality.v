@@ -11,24 +11,24 @@ From iris.base_logic.lib Require Import iprop own wsat.
 Section Modality.
 
 (* Iris semantic context *)
-Context `{Σ: gFunctors}.
+Context `{Θ: gFunctors}.
 
 (* Helper to iterate laters *)
-Lemma laterN_soundness n (P : iProp Σ) : (⊢ ▷^n P) → ⊢ P.
+Lemma laterN_soundness n (P : iProp Θ) : (⊢ ▷^n P) → ⊢ P.
 Proof.
   elim : n => [ | n hi] //= h.
   apply uPred.later_soundness in h.
   by apply hi.
 Qed.
 
-Lemma bupd_elim (P Q: iProp Σ) : (Q -∗ (|==> P)) → (|==> Q) -∗ (|==> P).
+Lemma bupd_elim (P Q: iProp Θ) : (Q -∗ (|==> P)) → (|==> Q) -∗ (|==> P).
 Proof.
   move => ->.
   iIntros "H".
   by iMod "H".
 Qed.
 
-Lemma bupd_plainly_later (P : iProp Σ) : (▷ |==> ■ P) ⊢ |==> ▷ ◇ P.
+Lemma bupd_plainly_later (P : iProp Θ) : (▷ |==> ■ P) ⊢ |==> ▷ ◇ P.
 Proof.
   iIntros "H".
   iModIntro.
@@ -37,21 +37,21 @@ Proof.
   by auto.
 Qed.
 
-Lemma bupd_plain_later (P: iProp Σ) `{!Plain P} : (▷ |==> P) ⊢ |==> ▷ ◇ P.
+Lemma bupd_plain_later (P: iProp Θ) `{!Plain P} : (▷ |==> P) ⊢ |==> ▷ ◇ P.
 Proof.  by rewrite {1}(plain P) bupd_plainly_later. Qed.
 
 Notation "|=▷^ n Q" := (Nat.iter n (λ P, |==> ▷ P) Q)%I
     (at level 99, n at level 9, Q at level 200,
     format "|=▷^ n  Q") : bi_scope.
 
-Lemma updN_zero (Q : iProp Σ) : (|=▷^0 Q) ⊣⊢ Q.
+Lemma updN_zero (Q : iProp Θ) : (|=▷^0 Q) ⊣⊢ Q.
 Proof. done. Qed.
 
-Lemma updN_S n (Q : iProp Σ) :
+Lemma updN_S n (Q : iProp Θ) :
   (|=▷^(S n) Q) ⊣⊢ |==> ▷ |=▷^n Q.
 Proof. done. Qed.
 
-Lemma updN_mono n (P Q : iProp Σ) :
+Lemma updN_mono n (P Q : iProp Θ) :
   (P -∗ Q) → (|=▷^n P) -∗ (|=▷^n Q).
 Proof.
   elim: n => [//|n HI H /=].
@@ -60,7 +60,7 @@ Proof.
   by iApply HI.
 Qed.
 
-Lemma updN_mono_I n (P Q : iProp Σ) :
+Lemma updN_mono_I n (P Q : iProp Θ) :
   (P -∗ Q) -∗ (|=▷^n P) -∗ (|=▷^n Q).
 Proof.
   elim: n => [|n hi]; first done.
@@ -73,7 +73,7 @@ Proof.
   by iApply (hi with "H").
 Qed.
 
-Lemma updN_intro n (P: iProp Σ) : P -∗ (|=▷^n P).
+Lemma updN_intro n (P: iProp Θ) : P -∗ (|=▷^n P).
 Proof.
   elim: n => [// | n hi /=].
   iIntros "p".
@@ -82,7 +82,7 @@ Proof.
   by iApply hi.
 Qed.
 
-Lemma updN_sep n (P R: iProp Σ) : ((|=▷^n P) ∗ (|=▷^n R)) -∗ |=▷^n (P ∗ R).
+Lemma updN_sep n (P R: iProp Θ) : ((|=▷^n P) ∗ (|=▷^n R)) -∗ |=▷^n (P ∗ R).
 Proof.
   elim: n => [// | n hi /=].
   iIntros "[H0 H1]".
@@ -94,7 +94,7 @@ Proof.
   by iSplitL "H0".
 Qed.
 
-Lemma updN_frame_r n (P R: iProp Σ) : (|=▷^n P) ∗ R -∗ |=▷^n P ∗ R.
+Lemma updN_frame_r n (P R: iProp Θ) : (|=▷^n P) ∗ R -∗ |=▷^n P ∗ R.
 Proof.
   elim: n => [// | n hi /=].
   iIntros "[H HR]".
@@ -104,7 +104,7 @@ Proof.
   by iSplitL "H".
 Qed.
 
-Lemma updN_plus n1 (P: iProp Σ) : ∀ n2,
+Lemma updN_plus n1 (P: iProp Θ) : ∀ n2,
   (|=▷^n1 P) -∗ (|=▷^(n1 + n2) P).
 Proof.
   elim:n1 => [ | n1 hi] /= => n2; iIntros "h1"; first by iApply updN_intro.
@@ -114,13 +114,13 @@ Proof.
   by iApply hi.
 Qed.
 
-Lemma step_upd_plain (P: iProp Σ) `{!Plain P} : (|==> ▷ |==> P) -∗ |==> ▷ ◇ P.
+Lemma step_upd_plain (P: iProp Θ) `{!Plain P} : (|==> ▷ |==> P) -∗ |==> ▷ ◇ P.
 Proof.
   apply bupd_elim.
   by rewrite bupd_plain_later.
 Qed.
 
-Lemma step_updN_plain n (P: iProp Σ) `{!Plain P} : (|=▷^n P) -∗ |==> ▷^n ◇ P.
+Lemma step_updN_plain n (P: iProp Θ) `{!Plain P} : (|=▷^n P) -∗ |==> ▷^n ◇ P.
 Proof.
   elim : n => [ | n hi] /=.
   - rewrite -bupd_intro; by auto.
@@ -135,10 +135,10 @@ Notation "|=▷^ n Q" := (Nat.iter n (λ P, |==> ▷ P) Q)%I
     (at level 99, n at level 9, Q at level 200,
     format "|=▷^ n  Q") : bi_scope.
 
-Lemma step_updN_soundness Σ n φ: (⊢@{iPropI Σ} |==> |=▷^n ⌜ φ ⌝) → φ.
+Lemma step_updN_soundness Θ n φ: (⊢@{iPropI Θ} |==> |=▷^n ⌜ φ ⌝) → φ.
 Proof.
   move => Hiter.
-  apply (uPred.soundness (M:=iResUR Σ) _  (S n)); simpl.
+  apply (uPred.soundness (M:=iResUR Θ) _  (S n)); simpl.
   apply uPred.bupd_plain_soundness.
   { rewrite -bi.later_laterN.
     apply laterN_plain.
