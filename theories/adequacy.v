@@ -28,18 +28,18 @@ Section proofs.
      not appear because it is hidden in iProp  *)
   (* Helper defintion to state that fields are correctly modeled *)
   Definition heap_models_fields
-    (iFs: gmapO string (laterO (sem_typeO Σ))) (vs: stringmap value) : iProp Σ :=
+    (iFs: gmapO string (sem_typeO Σ)) (vs: stringmap value) : iProp Σ :=
     ⌜dom vs ≡ dom iFs⌝  ∗
     ∀ f (iF: sem_typeO Σ),
-    iFs !! f ≡ Some (Next iF) -∗ ∃ v, (⌜vs !! f = Some v⌝ ∗ ▷iF v).
+    iFs !! f ≡ Some iF -∗ ∃ v, (⌜vs !! f = Some v⌝ ∗ iF v).
 
   Definition heap_models (h : heap) : iProp Σ :=
-    ∃ (sh: gmap loc (prodO tagO (gmapO string (laterO (sem_typeO Σ))))),
+    ∃ (sh: gmap loc (prodO tagO (laterO (gmapO string (sem_typeO Σ))))),
     own γ (gmap_view_auth (DfracOwn 1) sh) ∗ ⌜dom sh = dom h⌝ ∗
     □ ∀ (ℓ : loc) (t : tag) (vs : stringmap value),
     ⌜h !! ℓ = Some (t, vs)⌝ -∗
-    ∃ (iFs : gmapO string (laterO (sem_typeO Σ))),
-    sh !! ℓ ≡ Some (t, iFs) ∗ heap_models_fields iFs vs.
+    ∃ (iFs : gmapO string (sem_typeO Σ)),
+    sh !! ℓ ≡ Some (t, Next iFs) ∗ ▷ heap_models_fields iFs vs.
 
   Lemma expr_adequacy (Σc: list constraint) (Σi: list (interp Σ)) kd e lty le ty val :
     map_Forall (λ _, wf_cdef_parent Δ) Δ →
@@ -214,13 +214,13 @@ Section proofs.
   Proof.
     move => ??????? hheap hfield hwf.
     iIntros "#wfΣi #Σcoherency hrecv".
-    iAssert (∃ t' σ' Σt fields (ifields: gmapO string (laterO (sem_typeO Σ))),
+    iAssert (∃ t' σ' Σt fields (ifields: gmapO string (sem_typeO Σ)),
       ⌜inherits_using t' t σ' ∧ has_fields t' fields ∧ dom fields = dom ifields⌝ ∗
        (□ ▷ ∀ w,
            interp_type fty (interp_list Σi σt) w ∗-∗
            interp_type (subst_ty σ' fty) Σt w)
        ∗
-       (∀ f vis ty orig, ⌜has_field f t' vis ty orig⌝ -∗ ifields !! f ≡ Some (Next (interp_car (interp_type ty Σt)))) ∗
+       (▷ ∀ f vis ty orig, ⌜has_field f t' vis ty orig⌝ -∗ (ifields !! f ≡ Some (interp_car (interp_type ty Σt)))) ∗
       l↦(t',ifields))%I with "[hrecv]" as "hrecv".
     { destruct vis.
       - rewrite interp_class_unfold //.
@@ -307,6 +307,7 @@ Section proofs.
     fold_leibniz; subst.
     assert (hfield2 : has_field f rt vis (subst_ty σ' fty) orig) by (by eapply has_field_inherits_using).
     iSpecialize ("hdyn" $! f vis (subst_ty σ' fty) orig hfield2).
+    rewrite later_equivI. iNext.
     iAssert (⌜is_Some (iFs !! f)⌝)%I as "%hiFs".
     { iRewrite -"hifs".
       by iRewrite "hdyn".
@@ -326,8 +327,7 @@ Section proofs.
     iExists v; iSplitR; first done.
     iRewrite -"hifs" in "hf'".
     iRewrite "hdyn" in "hf'".
-    rewrite !option_equivI later_equivI discrete_fun_equivI.
-    iNext.
+    rewrite !option_equivI discrete_fun_equivI.
     iSpecialize ("hf'" $! v).
     iRewrite -"hf'".
     rewrite interp_type_subst; last first.
@@ -503,12 +503,12 @@ Section proofs.
         iSplitL. { iExists _. iFrame. by iSplit. }
         assert (hfC: has_field name t1 Private (subst_ty σ fty) C) by (destruct wfΔ; by eapply has_field_inherits_using).
         iSpecialize ("hdyn" $! name Private (subst_ty σ fty) C hfC).
-        iDestruct "H▷" as "[%hdf h]".
+        iDestruct "H▷" as "[hdf h]".
+        rewrite later_equivI. iNext.
         iRewrite -"HΦ" in "hdyn".
         iSpecialize ("h" $! name _ with "[hdyn]"); first done.
         iDestruct "h" as (w) "[%hw hiw]".
         simplify_eq.
-        iNext.
         rewrite interp_type_subst; last first.
         { destruct wfΔ.
           apply has_field_bounded in hf => //.
@@ -570,6 +570,7 @@ Section proofs.
         iSplitR; first done.
         iSplitL. { iExists _. iFrame. by iSplit. }
         iSpecialize ("hdyn" $! name Public (subst_ty σ fty) orig hff).
+        iNext.
         iDestruct "H▷" as "[%hdf h]".
         iRewrite -"HΦ" in "hdyn".
         iSpecialize ("h" $! name _ with "[hdyn]"); first done.
@@ -635,7 +636,7 @@ Section proofs.
         by rewrite Hdom not_elem_of_dom.
       }
       set (iFs :=
-         (λ(ty: lang_ty), Next (interp_car (interp_type ty Σi))) <$> ((λ x, subst_ty targs x.1.2) <$> fields)
+         (λ(ty: lang_ty), (interp_car (interp_type ty Σi))) <$> ((λ x, subst_ty targs x.1.2) <$> fields)
       ).
       iMod ((sem_heap_own_update new) with "H●") as "[H● #H◯]" => //;
         first by apply (sem_heap_view_alloc _ new t iFs).
@@ -731,7 +732,7 @@ Section proofs.
           by rewrite H2.
         }
         apply hf in hff.
-        rewrite !lookup_fmap hff /= option_equivI later_equivI.
+        rewrite !lookup_fmap hff /= option_equivI.
         iPureIntro.
         move => x.
         by apply interp_type_subst.
@@ -752,6 +753,7 @@ Section proofs.
         apply dom_map_args in H8.
         by rewrite /iFs !dom_fmap_L H8 -hdom.
       }
+      iNext.
       iIntros (f iF) "hiF".
       iAssert (⌜f ∈ dom fields⌝)%I as "%hfield".
       {
@@ -782,8 +784,7 @@ Section proofs.
         by rewrite ha0 in hv0.
       }
       assert (hty0: expr_has_ty Σc lty kd a0 (subst_ty targs fty.1.2)) by (by apply harg with f).
-      rewrite !lookup_fmap hty /= option_equivI later_equivI.
-      iNext.
+      rewrite !lookup_fmap hty /= option_equivI.
       rewrite discrete_fun_equivI.
       iSpecialize ("hiF" $! v0).
       iRewrite -"hiF".
@@ -1326,12 +1327,12 @@ Section proofs.
         destruct wfΔ.
         assert (hwfc: Forall wf_constraint def0.(constraints)) by by apply wf_constraints_wf in hdef0.
         iSpecialize ("hdyn" $! name Public fty orig hf).
+        iNext.
         iDestruct "H▷" as "[%hdf h]".
         iRewrite -"HΦ" in "hdyn".
         iSpecialize ("h" $! name _ with "[hdyn]"); first done.
         iDestruct "h" as (w) "[%hw hiw]".
         simplify_eq.
-        iNext.
         iDestruct (subtype_is_inclusion _ hwfc wf_parent wf_mono _ Σt _ _ hsub v) as "hsub".
         { by apply has_field_wf in hf. }
         by iApply "hsub".
@@ -1398,6 +1399,7 @@ Section proofs.
       iDestruct "hsh" as "[%ht #hifs]".
       fold_leibniz; subst.
       iSpecialize ("hdyn" $! fld Public fty orig hf).
+      rewrite later_equivI. iNext.
       iAssert (⌜is_Some (iFs !! fld)⌝)%I as "%hiFs".
       { iRewrite -"hifs".
         by iRewrite "hdyn".
@@ -1417,8 +1419,7 @@ Section proofs.
       iExists v; iSplitR; first done.
       iRewrite -"hifs" in "hf'".
       iRewrite "hdyn" in "hf'".
-      rewrite !option_equivI later_equivI discrete_fun_equivI.
-      iNext.
+      rewrite !option_equivI discrete_fun_equivI.
       iSpecialize ("hf'" $! v).
       iRewrite -"hf'".
       iAssert (interp_type DynamicT Σi v) as "#Hve".
@@ -1674,12 +1675,12 @@ Lemma sem_heap_init
   ⊢@{iPropI Σ} |==> ∃ _: sem_heapGS Σ, (heap_models (main_heap MainTag) ∗ interp_local_tys [] (main_lty MainTag) main_le).
 Proof.
   move => MainTag methods hΔ.
-  set (empty := ∅ : gmap loc (prodO tagO (gmapO string (laterO (sem_typeO Σ))))).
+  set (empty := ∅ : gmap loc (prodO tagO (laterO (gmapO string (sem_typeO Σ))))).
   assert (hl : empty !! 1%positive = None) by (by rewrite /empty lookup_empty).
   iMod (own_alloc (gmap_view_auth (DfracOwn 1) empty)) as (γI) "HI";
     first by apply gmap_view_auth_valid.
   iMod (own_update with "HI") as "[? ?]";
-    first by apply (gmap_view_alloc _ 1%positive DfracDiscarded (MainTag, ∅)).
+    first by apply (gmap_view_alloc _ 1%positive DfracDiscarded (MainTag, Next ∅)).
   iExists (SemHeapGS _ _ γI).
   iModIntro; iSplit.
   - iExists _.
@@ -1692,6 +1693,7 @@ Proof.
     + by rewrite lookup_insert.
     + iSplit; first done.
       iIntros (v t); rewrite !lookup_empty option_equivI.
+      iNext.
       by iIntros "?".
   - rewrite /main_lty /main_le; iSplit => /=.
     + rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
