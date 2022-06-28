@@ -38,6 +38,7 @@ Section Subtype.
     | SubMixed2 kd: subtype Δ kd MixedT (UnionT NonNullT NullT)
     | SubIntNonNull kd: subtype Δ kd IntT NonNullT
     | SubBoolNonNull kd: subtype Δ kd BoolT NonNullT
+    | SubIntBoolDisj kd: subtype Δ kd (InterT IntT BoolT) NothingT
     | SubClassNonNull: ∀ kd A targs, subtype Δ kd (ClassT A targs) NonNullT
     | SubUnionUpper1: ∀ kd s t, wf_ty t → subtype Δ kd s (UnionT s t)
     | SubUnionUpper2: ∀ kd s t, wf_ty s → subtype Δ kd t (UnionT s t)
@@ -92,7 +93,7 @@ Section Subtype.
      subtype_targs Δ kd vs lhs rhs → ∀ Δ', Δ ⊆ Δ' → subtype_targs Δ' kd vs lhs rhs.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
-      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | | | | kd A targs
+      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
       | kd s | kd s t u hs ht | s t hin | kd A adef σA hpdefs hsupdyn | | | | | ] => Δ' hΔ; try by econstructor.
       + econstructor; [ done | done | ].
@@ -124,7 +125,7 @@ Section Subtype.
     subtype_targs Δ kd vs lhs rhs.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
-      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd A targs
+      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd |  kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
       | kd s t u hs ht | s t hin | kd A adef σA hpdefs hsupdyn | | | | | ]
       => Δ Δ' heq hΔ; subst; try by econstructor.
@@ -165,7 +166,7 @@ Section Subtype.
     subtype_targs Δ' kd vs lhs rhs.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
-      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | | | | kd A targs
+      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
       | kd s | kd s t u hs ht | s t hin | kd A adef σA hpdefs hsupdyn | | | | | ] => Δ' hΔ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
@@ -418,7 +419,7 @@ Section Subtype.
   Proof.
     move => hp hΔ hwf.
     induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
-      | kd A adef hadef hL | kd A adef σ0 σ1 hpdefs hwfσ hσ | | | | kd A args | kd s t h
+      | kd A adef hadef hL | kd A adef σ0 σ1 hpdefs hwfσ hσ | | | | | kd A args | kd s t h
       | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
       | kd s t u hst hist htu hitu | s t hin | kd A adef σA hpdefs hsupdyn | | | | | ]
       => //=; try (by constructor).
@@ -471,7 +472,7 @@ Section Subtype.
   Proof.
     - move => hp.
       destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
-      | kd A adef hadef hL | kd A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | kd A args
+      | kd A adef hadef hL | kd A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | | kd A args
       | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
       | kd s t u hst htu | s t hin | kd A adef σA hpdefs hsupdyn | | | | | ]
       => σ hσ => /=; try (by constructor).

@@ -1313,7 +1313,7 @@ Section proofs.
     □ iForall3 interp_variance Vs (interp_list Σ As) (interp_list Σ Bs).
   Proof.
     { destruct 1 as [ kd A | kd A h | kd A σA B σB adef hpdefs hlen hext
-      | kd A adef hadef hL | kd A def σ0 σ1 hpdefs hwfσ hσ | | | | | kd A B h
+      | kd A adef hadef hL | kd A def σ0 σ1 hpdefs hwfσ hσ | | | | | | kd A B h
       | kd A B h | kd A B C h0 h1 | kd A B | kd A B | kd A B C h0 h1
       | | kd A B C h0 h1 | A B hin | kd A adef σA hpdefs hsupdyn | | | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
@@ -1347,6 +1347,11 @@ Section proofs.
         by iLeft.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         by iRight; iLeft.
+      - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
+        iDestruct "h" as "[#hint #hbool]".
+        iDestruct "hint" as (z) "%hz".
+        iDestruct "hbool" as (b) "%hb".
+        by simplify_eq.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         iRight; iRight.
         iExists A, (go interp_type Σ <$> targs).
