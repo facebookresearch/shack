@@ -196,7 +196,7 @@ Section proofs.
     Interp (
       λ (w : value), (∃ ℓ t cdef tdef σ (Σt: list (interp Σ))
        (fields: stringmap ((visibility * lang_ty) * tag))
-       (ifields: gmapO string (laterO (sem_typeO Σ))),
+       (ifields: gmapO string (sem_typeO Σ)),
       ⌜w = LocV ℓ ∧
        Δ !! C = Some cdef ∧
        Δ !! t = Some tdef ∧
@@ -218,8 +218,8 @@ Section proofs.
          Σi !! k ≡ Some i1 →
          interp_variance v i0 i1) ∗
 
-      (∀ f vis ty orig, ⌜has_field f t vis ty orig⌝ -∗
-        ifields !! f ≡ Some (Next (interp_car (rec ty Σt)))) ∗
+      ▷ (∀ f vis ty orig, ⌜has_field f t vis ty orig⌝ -∗
+          (ifields !! f ≡ Some (interp_car (rec ty Σt)))) ∗
 
       (ℓ ↦ (t, ifields)))%I
     ).
@@ -374,7 +374,7 @@ Section proofs.
       f_equiv.
       by  f_equiv.
     }
-    do 12 f_equiv.
+    f_equiv.
     f_contractive.
     by repeat f_equiv.
   Qed.
@@ -434,8 +434,9 @@ Section proofs.
           apply dist_S.
           by apply hi.
       }
-      do 12 f_equiv.
+      f_equiv.
       f_contractive.
+      do 11 f_equiv.
       by apply hdist.
     - done.
     - by apply interp_nonnull_contractive.
@@ -539,7 +540,7 @@ Section proofs.
     Interp (
       λ (w : value), (∃ ℓ t cdef tdef σ (Σt: list (interp Σ))
        (fields: stringmap ((visibility * lang_ty) * tag))
-       (ifields: gmapO string (laterO (sem_typeO Σ))),
+       (ifields: gmapO string (sem_typeO Σ)),
       ⌜w = LocV ℓ ∧
        Δ !! C = Some cdef ∧
        Δ !! t = Some tdef ∧
@@ -555,8 +556,8 @@ Section proofs.
 
       □ ▷ iForall3 interp_variance cdef.(generics) (interp_list Σt σ) Σi ∗
 
-      (∀ f vis ty orig, ⌜has_field f t vis ty orig⌝ -∗
-        ifields !! f ≡ Some (Next (interp_car (interp_type ty Σt)))) ∗
+      ▷ (∀ f vis ty orig, ⌜has_field f t vis ty orig⌝ -∗
+          (ifields !! f ≡ Some (interp_car (interp_type ty Σt)))) ∗
 
       (ℓ ↦ (t, ifields)))%I
     ).
@@ -1451,7 +1452,7 @@ Section proofs.
     Interp (
       λ (w : value), (∃ ℓ t cdef tdef σ (Σt: list (interp Σ))
        (fields: stringmap ((visibility * lang_ty) * tag))
-       (ifields: gmapO string (laterO (sem_typeO Σ))),
+       (ifields: gmapO string (sem_typeO Σ)),
       ⌜w = LocV ℓ ∧
        Δ !! C = Some cdef ∧
        Δ !! t = Some tdef ∧
@@ -1467,8 +1468,8 @@ Section proofs.
 
       ((λ ty, interp_type ty Σt) <$> σ) ≡ Σi ∗
 
-      (∀ f vis ty orig, ⌜has_field f t vis ty orig⌝ -∗
-        ifields !! f ≡ Some (Next (interp_car (interp_type ty Σt)))) ∗
+      ▷ (∀ f vis ty orig, ⌜has_field f t vis ty orig⌝ -∗
+          (ifields !! f ≡ Some (interp_car (interp_type ty Σt)))) ∗
 
       (ℓ ↦ (t, ifields)))%I
     ).

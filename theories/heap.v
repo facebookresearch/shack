@@ -26,11 +26,11 @@ Definition sem_typeOF (F: oFunctor) : oFunctor := value -d> F.
  * - the (gated by Next) interpretation of fields for this tag
  *)
 Class sem_heapGpreS (Σ : gFunctors) : Set := {
-  sem_heap :> inG Σ (gmap_viewR loc (prodO tagO (gmapO string (laterO (sem_typeO Σ)))));
+  sem_heap :> inG Σ (gmap_viewR loc (prodO tagO (laterO (gmapO string (sem_typeO Σ)))));
 }.
 
 Definition sem_heapΣ : gFunctors :=
-  #[GFunctor (gmap_viewRF loc (tagO * (gmapOF string (laterOF (sem_typeOF ∙)))))].
+  #[GFunctor (gmap_viewRF loc (tagO * (laterOF (gmapOF string (sem_typeOF ∙)))))].
 
 Global Instance subG_sem_heapΣ {Σ}: subG sem_heapΣ Σ → sem_heapGpreS Σ.
 Proof.  solve_inG. Qed.
@@ -44,11 +44,11 @@ Section definitions.
   Context `{hG: !sem_heapGS Σ}.
 
   Definition loc_mapsto_def (ℓ: loc) (t: tag)
-    (iFs: gmapO string (laterO (sem_typeO Σ))) :=
-    (gmap_view_frag ℓ DfracDiscarded (t, iFs)).
+    (iFs: gmapO string (sem_typeO Σ)) :=
+    (gmap_view_frag ℓ DfracDiscarded (t, Next iFs)).
 
   Definition mapsto_def (ℓ: loc) (t: tag)
-    (iFs: gmapO string (laterO (sem_typeO Σ))) :=
+    (iFs: gmapO string (sem_typeO Σ)) :=
     own (@sem_heap_name _ hG) (loc_mapsto_def ℓ t iFs).
 
   Definition loc_mapsto_aux : seal (@loc_mapsto_def). Proof. by eexists. Qed.
@@ -89,7 +89,7 @@ Section sem_heap.
   Lemma sem_heap_own_valid_2 sh l t iFs:
     own γ (gmap_view_auth (DfracOwn 1) sh) -∗
     l ↦ (t, iFs) -∗
-    sh !! l ≡ Some (t, iFs).
+    sh !! l ≡ Some (t, Next iFs).
   Proof.
     rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
     iIntros "H● H◯".
@@ -101,7 +101,7 @@ Section sem_heap.
   Lemma sem_heap_view_alloc sh new t iFs:
     sh !! new = None →
     gmap_view_auth (DfracOwn 1) sh ~~>
-    gmap_view_auth (DfracOwn 1) (<[new:=(t, iFs)]> sh) ⋅ (@loc_mapsto Σ new t iFs).
+    gmap_view_auth (DfracOwn 1) (<[new:=(t, Next iFs)]> sh) ⋅ (@loc_mapsto Σ new t iFs).
   Proof.
     move => hnew.
     rewrite loc_mapsto_eq /loc_mapsto_def.
@@ -111,15 +111,15 @@ Section sem_heap.
   Lemma sem_heap_own_update new sh t iFs:
     sh !! new = None →
     (gmap_view_auth (DfracOwn 1) sh ~~>
-      gmap_view_auth (DfracOwn 1) (<[new:=(t, iFs)]> sh) ⋅ (new ↪ (t, iFs))%I) →
+      gmap_view_auth (DfracOwn 1) (<[new:=(t, Next iFs)]> sh) ⋅ (new ↪ (t, iFs))%I) →
     own γ (gmap_view_auth (DfracOwn 1) sh) -∗
-    |==> (own γ (gmap_view_auth (DfracOwn 1) (<[new:=(t, iFs)]> sh))) ∗
+    |==> (own γ (gmap_view_auth (DfracOwn 1) (<[new:=(t, Next iFs)]> sh))) ∗
          (new ↦ (t, iFs))%I.
   Proof.
     rewrite loc_mapsto_eq /loc_mapsto_def  => hnew h.
     iIntros "H●".
     iMod (own_update with "H●") as "[? ?]";
-      first by apply (gmap_view_alloc _ new DfracDiscarded (t, iFs)).
+      first by apply (gmap_view_alloc _ new DfracDiscarded (t, Next iFs)).
     iModIntro.
     iSplit; first done.
     by rewrite mapsto_eq /mapsto_def /loc_mapsto_def.
