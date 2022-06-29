@@ -956,9 +956,9 @@ Section Typing.
     ∃ Γ',
     wf_lty Γ' ∧
     cmd_has_ty Δ tag Plain
-      {| type_of_this := (tag, σ); ctxt := subst_ty σ <$> mdef.(methodargs) |}
+      {| type_of_this := (tag, σ); ctxt := mdef.(methodargs) |}
       mdef.(methodbody) Γ' ∧
-    expr_has_ty Δ Γ' Plain mdef.(methodret) (subst_ty σ mdef.(methodrettype))
+    expr_has_ty Δ Γ' Plain mdef.(methodret) mdef.(methodrettype)
   .
 
   Definition cdef_wf_mdef_ty cname cdef :=
@@ -1139,30 +1139,20 @@ Section MethodTyping.
       exists (subst_lty σ Γ'); split; last split.
       - by apply subst_wf_lty.
       - apply cmd_has_ty_subst => //.
-        { assert (hd1 := hdef).
+        + assert (hd1 := hdef).
           apply wf_constraints_wf0 in hd1.
           rewrite /wf_cdef_constraints_wf Forall_forall in hd1.
           rewrite Forall_forall /subst_constraints => c hc.
           by apply hd1.
-        }
-        { split => /=.
-          - rewrite /this_type /=.
+        + split => /=.
+          * rewrite /this_type /=.
             econstructor => //; first by rewrite length_gen_targs.
             by apply gen_targs_wf.
-          - rewrite map_Forall_lookup => k tk hk.
+          * rewrite map_Forall_lookup => k tk hk.
             apply wf_methods_wf0 in hdef.
             apply hdef in hmdef.
             by apply hmdef in hk.
-        }
-        rewrite fmap_subst_tys_id // in hbody.
-        apply wf_methods_bounded0 in hdef.
-        apply hdef in hmdef.
-        by apply hmdef.
-      - apply expr_has_ty_subst => //.
-        rewrite subst_ty_id // in hret.
-        apply wf_methods_bounded0 in hdef.
-        apply hdef in hmdef.
-        by apply hmdef.
+      - by apply expr_has_ty_subst.
     }
     destruct hgen as (Γ' & hwf_Γ' & hbody & hret).
     (* Now, because everything is correctly typed, let's discharge

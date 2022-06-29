@@ -63,6 +63,14 @@ Section Evaluation.
     end
   .
 
+  Lemma expr_eval_subst le e σ:
+    expr_eval le (subst_expr σ e) = expr_eval le e.
+  Proof.
+    induction e as [ | | | op e1 hi1 e2 hi2 | op e hi | | | e hi t] => //=.
+    - by rewrite hi1 hi2.
+    - by rewrite hi.
+  Qed.
+
   (* concrete heaps *)
   Definition heap : Type := gmap loc (tag * stringmap value).
 
@@ -130,6 +138,35 @@ Section Evaluation.
       rewrite lookup_insert_Some in h.
       destruct h as [[<- <-] | [hne hin]]; first by rewrite hb.
       now apply H in hin.
+  Qed.
+
+  Lemma map_expr_eval_subst le args σ:
+    map_args (expr_eval le) (subst_expr σ <$> args) = map_args (expr_eval le) args.
+  Proof.
+    rewrite /map_args.
+    case_option_guard.
+    - case_option_guard.
+      * f_equal.
+        apply map_eq => k; rewrite !lookup_omap.
+        rewrite map_Forall_lookup in H.
+        rewrite map_Forall_lookup in H0.
+        rewrite lookup_fmap.
+        destruct (args !! k) eqn:hk => //=.
+        by rewrite expr_eval_subst.
+      * apply map_not_Forall in H0; last by (move => _; apply _).
+        destruct H0 as [k [e [h0 h1]]].
+        rewrite map_Forall_lookup in H.
+        case: h1.
+        rewrite -(expr_eval_subst _ _ σ).
+        apply H with k.
+        by rewrite lookup_fmap h0.
+    - case_option_guard => //.
+      apply map_not_Forall in H; last by (move => _; apply _).
+      destruct H as [k [e [h0 h1]]].
+      apply lookup_fmap_Some in h0 as [e' [<- h0]].
+      apply H0 in h0.
+      case: h1.
+      by rewrite expr_eval_subst.
   Qed.
 
   Definition rc_match (st : local_env * heap) (v: string) (rc: runtime_check) :=
@@ -222,5 +259,51 @@ Section Evaluation.
         ¬rc_match st1 v rc →
         cmd_eval C st1 els st2 n →
         cmd_eval C st1 (RuntimeCheckC v rc thn els) st2 n
-.
+  .
+
+  Lemma cmd_eval_subst cmd: ∀ C st st' n σ,
+    cmd_eval C st (subst_cmd σ cmd) st' n →
+    cmd_eval C st cmd st' n.
+  Proof.
+    induction cmd as [ | fst hi0 snd hi1 | lhs e | cond thn hi0 els hi1 |
+        lhs recv name args | lhs cname type_args args | lhs recv name |
+            recv fld rhs | v rc thn hi0 els hi1 | ] => C st st' n σ /= h.
+    - inv h; by constructor.
+    - inv h.
+      econstructor; first by eapply hi0.
+      by eapply hi1.
+    - inv h; constructor.
+      by rewrite -(expr_eval_subst _ _ σ).
+    - inv h.
+      + econstructor.
+        * by rewrite -(expr_eval_subst _ _ σ).
+        * by eapply hi0.
+      + eapply IfFalseEv.
+        * by rewrite -(expr_eval_subst _ _ σ).
+        * by eapply hi1.
+    - inv h; econstructor => //.
+      + by rewrite -(expr_eval_subst _ _ σ).
+      + by rewrite -(map_expr_eval_subst _ _ σ).
+      + by rewrite H9 dom_fmap_L.
+    - inv h; econstructor => //.
+      by rewrite -(map_expr_eval_subst _ _ σ).
+    - inv h; econstructor => //.
+      + by rewrite -(expr_eval_subst _ _ σ).
+      + destruct H9 as (vis & fty & orig & hf & hvc).
+        exists vis, fty, orig; split; first done.
+        by destruct recv.
+    - inv h; econstructor => //.
+      + by rewrite -(expr_eval_subst _ _ σ).
+      + by rewrite -(expr_eval_subst _ _ σ).
+      + destruct H10 as (vis & fty & orig & hf & hvc).
+        exists vis, fty, orig; split; first done.
+        by destruct recv.
+    - inv h.
+      + econstructor => //.
+        by eapply hi0.
+      + eapply RuntimeCheck2Ev => //.
+        by eapply hi1.
+    - by inv h.
+  Qed.
+
 End Evaluation.

@@ -819,6 +819,47 @@ Section proofs.
       destruct (has_method_ordered _ _ _ _ _ _ _ _ wf_extends_wf wf_override wf_parent wf_methods_bounded hin_t1_t hhasm0 hhasm)
         as (odef0 & odef & σt1_o0 & σt_o & omdef0 & omdef & hodef0 & hodef & homdef0 & homdef & hin_t1_o0
         & hin_t_o & -> & -> & hincl0 & _).
+      (*****)
+      assert (h0 := hodef0).
+      apply wf_mdefs in h0.
+      assert (h1 := homdef0).
+      apply h0 in h1; clear h0.
+      destruct h1 as (Γ' & hwfΓ' & hbody & hret).
+      assert (hwf_lty : wf_lty
+           {|
+             type_of_this := (orig0, gen_targs (length odef0.(generics)));
+             ctxt := omdef0.(methodargs)
+           |}).
+      { split => /=.
+        - rewrite /this_type /=.
+          econstructor => //; last by apply gen_targs_wf.
+          by rewrite length_gen_targs.
+        - rewrite map_Forall_lookup => k tk hk.
+          apply wf_methods_wf in hodef0.
+          apply hodef0 in homdef0.
+          by apply homdef0 in hk.
+      }
+      assert (hΔ : Forall wf_constraint odef0.(constraints)).
+      { by apply wf_constraints_wf in hodef0. }
+      assert (heval_body0 : cmd_eval orig0 ({| vthis := l; lenv := vargs |}, h)
+               (omdef0.(methodbody))
+               (run_env', h') n0) by a
+      assert (hok0: ok_ty (constraints def1) (ClassT orig0 σt1_o0)).
+      { apply inherits_using_ok in hin_t1_o0 => //.
+        destruct hin_t1_o0 as (? & ? & ?).
+        by simplify_eq.
+      }
+      iAssert (Σinterp Σt odef0.(constraints)) as "hΣtΔ".
+      { iIntros (k c hc v) "#hv".
+        inv hok0; simplify_eq.
+        apply H4 in hc.
+        (* CP *)
+
+      iModIntro; iNext.
+      iDestruct (neg_interp_variance with "hf") as "hf2".
+      iSpecialize ("IH" $! _ _ Plain _ _ _ hwf_lty hΔ hbody Σt _ _ _ heval_body0 with "hΣt hΣtΣ1"); simpl.
+      iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
+      (*****)
       assert (hwf0: wf_ty (ClassT orig0 σt1_o0)).
       { apply inherits_using_wf in hin_t1_o0 => //.
         destruct hin_t1_o0 as (? & ? & ? & ?).
