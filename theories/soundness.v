@@ -57,20 +57,20 @@ Section proofs.
     induction h as [| | | kd op e1 e2 hop he1 hi1 he2 hi2 |
         kd op e1 e2 hop he1 hi1 he2 hi2 | kd e1 e2 h1 hi1 h2 hi2 | kd e0 h hi |
         kd v vty hv | | kd exp S T hS hi hwf hok hsub | kd exp S T hS hi hwf hok hsub]
-        => Ω val he; iIntros "#wfΣi #Σcoherency #Hlty".
+        => Ω val he; iIntros "#wfΣ #Σcoherency #Hlty".
     - inv he; rewrite interp_type_unfold /=; by eauto.
     - inv he; rewrite interp_type_unfold /=; by eauto.
     - inv he; rewrite interp_type_unfold /=; by eauto.
     - inv he.
       case heq1 : (expr_eval Ω e1) => [v1 | ]; rewrite heq1 in H0; last by done.
       apply hi1 in heq1.
-      iDestruct (heq1 with "wfΣi Σcoherency Hlty") as "hv1".
+      iDestruct (heq1 with "wfΣ Σcoherency Hlty") as "hv1".
       rewrite interp_type_unfold /=.
       iDestruct "hv1" as (z1) "%hz1".
       rewrite hz1 in H0.
       case heq2 : (expr_eval Ω e2) => [v2 | ]; rewrite heq2 in H0; last by done.
       apply hi2 in heq2.
-      iDestruct (heq2 with "wfΣi Σcoherency Hlty") as "hv2".
+      iDestruct (heq2 with "wfΣ Σcoherency Hlty") as "hv2".
       rewrite interp_type_unfold /=.
       iDestruct "hv2" as (z2) "%hz2".
       rewrite hz2 in H0.
@@ -80,13 +80,13 @@ Section proofs.
     - inv he.
       case heq1 : (expr_eval Ω e1) => [v1 | ]; rewrite heq1 in H0; last by done.
       apply hi1 in heq1.
-      iDestruct (heq1 with "wfΣi Σcoherency Hlty") as "hv1".
+      iDestruct (heq1 with "wfΣ Σcoherency Hlty") as "hv1".
       rewrite interp_type_unfold /=.
       iDestruct "hv1" as (z1) "%hz1".
       rewrite hz1 in H0.
       case heq2 : (expr_eval Ω e2) => [v2 | ]; rewrite heq2 in H0; last by done.
       apply hi2 in heq2.
-      iDestruct (heq2 with "wfΣi Σcoherency Hlty") as "hv2".
+      iDestruct (heq2 with "wfΣ Σcoherency Hlty") as "hv2".
       rewrite interp_type_unfold /=.
       iDestruct "hv2" as (z2) "%hz2".
       rewrite hz2 in H0.
@@ -96,13 +96,13 @@ Section proofs.
     - inv he.
       case heq1 : (expr_eval Ω e1) => [v1 | ]; rewrite heq1 in H0; last by done.
       apply hi1 in heq1.
-      iDestruct (heq1 with "wfΣi Σcoherency Hlty") as "hv1".
+      iDestruct (heq1 with "wfΣ Σcoherency Hlty") as "hv1".
       rewrite interp_type_unfold /=.
       iDestruct "hv1" as (b1) "%hb1".
       rewrite hb1 in H0.
       case heq2 : (expr_eval Ω e2) => [v2 | ]; rewrite heq2 in H0; last by done.
       apply hi2 in heq2.
-      iDestruct (heq2 with "wfΣi Σcoherency Hlty") as "hv2".
+      iDestruct (heq2 with "wfΣ Σcoherency Hlty") as "hv2".
       rewrite interp_type_unfold /=.
       iDestruct "hv2" as (b2) "%hb2".
       rewrite hb2 in H0.
@@ -112,7 +112,7 @@ Section proofs.
     - inv he.
       case heq : (expr_eval Ω e0) => [v0 | ]; rewrite heq in H0; last by done.
       apply hi in heq.
-      iDestruct (heq with "wfΣi Σcoherency Hlty") as "hv".
+      iDestruct (heq with "wfΣ Σcoherency Hlty") as "hv".
       rewrite interp_type_unfold /=.
       iDestruct "hv" as (b) "%hb".
       rewrite hb in H0.
@@ -137,7 +137,7 @@ Section proofs.
       iSplit; first by iApply "hconstr".
       iSplit; last by iSplit.
       iModIntro; iNext.
-      iClear "wfΣi Σcoherency hmixed hdyn hloc Hv".
+      iClear "wfΣ Σcoherency hmixed hdyn hloc Hv".
       assert (hl0 : length thisdef.(generics) = length σ).
       { apply inherits_using_wf in hin => //.
         destruct hin as (?&?&?&h).
@@ -213,7 +213,7 @@ Section proofs.
     heap_models (<[l:=(rt, <[f:=v]> vs)]> h).
   Proof.
     move => ??????? hheap hfield hwf.
-    iIntros "#wfΣi #Σcoherency hrecv".
+    iIntros "#wfΣ #Σcoherency hrecv".
     iAssert (∃ t' σ' Σt fields (ifields: gmapO string (sem_typeO Θ)),
       ⌜inherits_using t' t σ' ∧ has_fields t' fields ∧ dom fields = dom ifields⌝ ∗
        (□ ▷ ∀ w,
@@ -359,10 +359,10 @@ Section proofs.
     wf_mdef_dyn_ty def.(constraints) orig (gen_targs (length def.(generics))) mdef⌝%I.
   Proof.
     move => wfpdefs ?? hrty heval hceval.
-    iIntros "#hΣi #hΣiΣc [Hh #Hle]".
+    iIntros "#hΣ #hΣΔ [Hh #Hle]".
     inv hceval; simpl in *.
     rewrite heval in H3; simplify_eq.
-    iDestruct (expr_soundness with "hΣi hΣiΣc Hle") as "#He" => //; try (by apply wfpdefs).
+    iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "#He" => //; try (by apply wfpdefs).
     rewrite interp_dynamic_unfold.
     iDestruct "He" as "[H | He]".
     { iDestruct "H" as (z) "%H".
@@ -429,9 +429,9 @@ Section proofs.
     heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗ |=▷^n
         heap_models st'.2 ∗ interp_local_tys Σ Γ' st'.1.
   Proof.
-    move => wfpdefs wflty hΣc .
-    iLöb as "IH" forall (Δ C kd Γ cmd Γ' wflty hΣc).
-    iIntros "%hty" (Σ st st' n hc) "#hΣi #hΣiΣc".
+    move => wfpdefs wflty hΔ .
+    iLöb as "IH" forall (Δ C kd Γ cmd Γ' wflty hΔ).
+    iIntros "%hty" (Σ st st' n hc) "#hΣ #hΣΔ".
     iInduction hty as [ kd Γ |
         kd Γ rty hwf | kd Γ1 Γ2 Γ3 fstc sndc hfst hi1 hsnd hi2 |
         kd Γ lhs e ty he | kd Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
@@ -470,7 +470,7 @@ Section proofs.
       iIntros "[? #Hle]".
       rewrite updN_zero /=.
       iFrame.
-      iDestruct (expr_soundness with "hΣi hΣiΣc Hle") as "#?" => //; try (by apply wfpdefs).
+      iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "#?" => //; try (by apply wfpdefs).
       by iApply interp_local_tys_update.
     - (* IfC *) inv hc
       + iIntros "H". by iApply "IHty".
@@ -540,7 +540,7 @@ Section proofs.
       iClear "IH".
       iIntros "[Hh #Hle]".
       iModIntro. (* keep the later *)
-      iDestruct (expr_soundness with "hΣi hΣiΣc Hle") as "#He" => //; try (by apply wfpdefs).
+      iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "#He" => //; try (by apply wfpdefs).
       rewrite interp_class_unfold //; first last.
       { by apply expr_has_ty_wf in hrecv. }
       { by apply wfpdefs. }
@@ -662,7 +662,7 @@ Section proofs.
           apply list_lookup_fmap_inv in heq as [phi [-> heq]].
           assert (hsub: Δ ⊢ phi <: MixedT) by eauto.
           destruct wfpdefs.
-          iDestruct (subtype_is_inclusion _ hΣc wf_parent wf_mono _ _ _ _ hsub v with "hΣi hΣiΣc hphi") as "hsub".
+          iDestruct (subtype_is_inclusion _ hΔ wf_parent wf_mono _ _ _ _ hsub v with "hΣ hΣΔ hphi") as "hsub".
           + by eauto.
           + by rewrite interp_mixed_unfold.
         }
@@ -697,7 +697,7 @@ Section proofs.
           }
           destruct wfpdefs.
           rewrite -!interp_type_subst.
-          { iApply (subtype_is_inclusion _ hΣc wf_parent wf_mono _ _ _ _ hsub v with "hΣi hΣiΣc") => //.
+          { iApply (subtype_is_inclusion _ hΔ wf_parent wf_mono _ _ _ _ hsub v with "hΣ hΣΔ") => //.
             apply wf_ty_subst => //.
             apply wf_constraints_wf in H1.
             rewrite /wf_cdef_constraints_wf Forall_forall in H1.
@@ -788,7 +788,7 @@ Section proofs.
       rewrite discrete_fun_equivI.
       iSpecialize ("hiF" $! v0).
       iRewrite -"hiF".
-      iDestruct (expr_soundness Δ Σ kd a0 with "hΣi hΣiΣc Hle") as "#Ha0" => //; by apply wfpdefs.
+      iDestruct (expr_soundness Δ Σ kd a0 with "hΣ hΣΔ Hle") as "#Ha0" => //; by apply wfpdefs.
     - (* CallC *) inv hc; simpl.
       assert (wfpdefs0 := wfpdefs).
       destruct wfpdefs0.
@@ -805,9 +805,9 @@ Section proofs.
       rename H14 into heval_ret.
       assert (hwfr : wf_ty (ClassT t targs)) by by apply expr_has_ty_wf in hrecv.
       (* Get inherits relation between dynamic tag and static tag *)
-      iDestruct (expr_soundness Δ Σ _ recv with "hΣi hΣiΣc Hle") as "#Hrecv" => //.
+      iDestruct (expr_soundness Δ Σ _ recv with "hΣ hΣΔ Hle") as "#Hrecv" => //.
       rewrite interp_class_unfold //.
-      iDestruct "Hrecv" as (? t1 def def1 σin Σt fields ifields) "[%Hpure [#hΣt [#hΣtΣ1 [#hf [#hdyn Hl]]]]]".
+      iDestruct "Hrecv" as (? t1 def def1 σin Σt fields ifields) "[%Hpure [#hΣt [#hΣtΔ1 [#hf [#hdyn Hl]]]]]".
       destruct Hpure as ([= <-] & hdef & hdef1 & hlen & ? & hin_t1_t & hfields & hidom).
       iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
       iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
@@ -845,7 +845,7 @@ Section proofs.
         apply hodef0 in homdef0.
         by apply homdef0 in hk.
       }
-      assert (hΣ1 : Forall wf_constraint def1.(constraints)).
+      assert (hΔ1 : Forall wf_constraint def1.(constraints)).
       { by apply wf_constraints_wf in hdef1.  }
       rewrite /subst_mdef /= in heval_body.
       rewrite /subst_mdef /= in heval_ret.
@@ -893,7 +893,7 @@ Section proofs.
       }
       iModIntro; iNext.
       iDestruct (neg_interp_variance with "hf") as "hf2".
-      iSpecialize ("IH" $! _ _ Plain _ _ _ hwf_lty0 hΣ1 hbody0 Σt _ _ _ heval_body with "hΣt hΣtΣ1"); simpl.
+      iSpecialize ("IH" $! _ _ Plain _ _ _ hwf_lty0 hΔ1 hbody0 Σt _ _ _ heval_body with "hΣt hΣtΔ1"); simpl.
       iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
       { iClear "IH"; iSplit.
         - iExists _; iFrame.
@@ -953,7 +953,7 @@ Section proofs.
               by apply homdef in htw.
             }
             move: (hi v _ _ h0 ha) => haty.
-            iDestruct (expr_soundness with "hΣi hΣiΣc Hle") as "he" => //.
+            iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "he" => //.
             assert (hmono: mono (neg_variance <$> def.(generics)) (subst_ty σt_o tw)).
             { apply mono_subst with (neg_variance <$> odef.(generics)) => //.
               + apply wf_methods_mono in hodef.
@@ -1000,7 +1000,7 @@ Section proofs.
               destruct hin_t_o as (? & ? & hF & hL); simplify_eq.
               by rewrite -heq2.
             }
-            iApply (subtype_is_inclusion _ hΣ1 wf_parent wf_mono _ _ _ _ hsub) => //.
+            iApply (subtype_is_inclusion _ hΔ1 wf_parent wf_mono _ _ _ _ hsub) => //.
             by apply wf_ty_subst.
       }
       iRevert "Hstep".
@@ -1048,20 +1048,20 @@ Section proofs.
           destruct hin_t_o as (?&?&hF&?); simplify_eq.
           by rewrite -heq2.
       }
-      iApply (subtype_is_inclusion _ hΣ1 wf_parent wf_mono _ _ _ _ hmret0) => //.
+      iApply (subtype_is_inclusion _ hΔ1 wf_parent wf_mono _ _ _ _ hmret0) => //.
       { apply wf_ty_subst => //.
         apply wf_methods_wf in hodef0.
         apply hodef0 in homdef0.
         by apply homdef0.
       }
-      by iDestruct (expr_soundness with "hΣt hΣtΣ1 Hle2") as "hret0".
+      by iDestruct (expr_soundness with "hΣt hΣtΔ1 Hle2") as "hret0".
     - (* Subtyping *)
       destruct wfpdefs.
       iIntros "H".
       iSpecialize ("IHty" $! wflty with "[//] H").
       iApply updN_mono_I; last done.
       iIntros "[Hh #Hrty]". iFrame.
-      iDestruct (interp_local_tys_is_inclusion with "hΣi hΣiΣc Hrty") as "Hrty'" => //.
+      iDestruct (interp_local_tys_is_inclusion with "hΣ hΣΔ Hrty") as "Hrty'" => //.
       + by apply cmd_has_ty_wf in h.
       + rewrite Forall_forall => i hi v.
         by apply _.
@@ -1272,7 +1272,7 @@ Section proofs.
       iClear "IH".
       iIntros "[Hh #Hle]"; simpl.
       iModIntro. (* keep the later *)
-      iDestruct (expr_soundness with "hΣi hΣiΣc Hle") as "#He" => //; try (by apply wfpdefs).
+      iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "#He" => //; try (by apply wfpdefs).
       rewrite interp_dynamic_unfold.
       iDestruct "He" as "[H | He]".
       { iDestruct "H" as (z) "%H".
@@ -1457,7 +1457,7 @@ Section proofs.
       rename H9 into hmdom.
       rename H13 into heval_body.
       rename H14 into heval_ret.
-      iDestruct (expr_soundness Δ Σ _ recv with "hΣi hΣiΣc Hle") as "#Hl" => //.
+      iDestruct (expr_soundness Δ Σ _ recv with "hΣ hΣΔ Hle") as "#Hl" => //.
       rewrite interp_dynamic_unfold //.
       iDestruct "Hl" as "[H | Hl]".
       { iDestruct "H" as (z) "%Hz".
@@ -1529,7 +1529,7 @@ Section proofs.
       { apply inherits_using_ok in hin0 => //.
         by destruct hin0 as (? & ? & hok); simplify_eq.
       }
-      assert (hΣ0: Forall wf_constraint (constraints def0)).
+      assert (hΔ0: Forall wf_constraint (constraints def0)).
       { by apply wf_constraints_wf in hdef0. }
       assert (hbody0 : cmd_has_ty def0.(constraints) orig Aware
           {|
@@ -1562,7 +1562,7 @@ Section proofs.
       }
       (* iDestruct (neg_interp_variance with "hf0") as "hf2". *)
       iModIntro; iNext.
-      iSpecialize ("IH" $! _ _ Aware _ _ _ hwf_lty0 hΣ0 hbody0 Σt _ _ _ heval_body with "hmixed hconstr"); simpl.
+      iSpecialize ("IH" $! _ _ Aware _ _ _ hwf_lty0 hΔ0 hbody0 Σt _ _ _ heval_body with "hmixed hconstr"); simpl.
       iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
       { iClear "IH"; iSplit.
         - iExists _; iFrame.
@@ -1597,7 +1597,7 @@ Section proofs.
             iExists varg; rewrite hvarg; iSplitR; first done.
             rewrite (map_args_lookup _ _ _ args vargs hmap v) ha /= in hvarg.
             move: (hi v _ ha) => haty.
-            iDestruct (expr_soundness with "hΣi hΣiΣc Hle") as "he" => //.
+            iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "he" => //.
             by rewrite !interp_dynamic_unfold.
       }
       iRevert "Hstep".
