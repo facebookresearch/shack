@@ -206,8 +206,6 @@ Proof.
         by apply gen_targs_wf.
       }
       apply map_Forall_lookup => s ? h.
-      apply lookup_fmap_Some in h as [ty [<- h]].
-      apply wf_ty_subst => /=; first by econstructor.
       apply lookup_singleton_Some in h.
       destruct h as [? <-]; by constructor.
     + rewrite lookup_singleton_Some in h.
@@ -226,7 +224,7 @@ Proof.
         econstructor => //.
         by apply gen_targs_wf.
       }
-      rewrite fmap_empty insert_empty.
+      rewrite insert_empty.
       apply map_Forall_singleton.
       by repeat constructor.
   }
@@ -246,7 +244,6 @@ Proof.
       { rewrite /this_type /=.
         econstructor => //.
       }
-      rewrite fmap_empty.
       by apply map_Forall_empty.
     + rewrite lookup_singleton_Some in h.
       destruct h as [? <-].
@@ -265,7 +262,6 @@ Proof.
       { rewrite /this_type /=.
         by econstructor.
       }
-      rewrite fmap_empty.
       by apply map_Forall_empty.
   }
   apply lookup_singleton_Some in h.

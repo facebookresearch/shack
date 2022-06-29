@@ -451,7 +451,7 @@ Qed.
 Lemma wf_mdef_ty_Main: wf_mdef_ty [] "Main" (gen_targs 0) EntryPoint.
 Proof.
   rewrite /wf_mdef_ty.
-  exists (final_lty {| type_of_this := ("Main", gen_targs 0); ctxt := subst_ty (gen_targs 0) <$> methodargs EntryPoint|}).
+  exists (final_lty {| type_of_this := ("Main", gen_targs 0); ctxt := methodargs EntryPoint|}).
   repeat split.
   - rewrite /final_lty /this_type /=.
     by econstructor.
@@ -466,7 +466,7 @@ Proof.
     rewrite lookup_insert_Some.
     case => [[? <-] | [?]]; first by econstructor.
     rewrite lookup_insert_Some.
-    case => [[? <-] | [?]]; last by rewrite fmap_empty lookup_empty.
+    case => [[? <-] | [?]]; last by rewrite lookup_empty.
     econstructor => //.
     move => ? ?; rewrite list_lookup_singleton_Some.
     case => _ <-.
@@ -1004,7 +1004,6 @@ Proof.
         by apply gen_targs_wf.
       }
       rewrite map_Forall_lookup => x tx /=.
-      rewrite fmap_empty.
       rewrite lookup_insert_Some.
       case => [[? <-]|[?]]; last by rewrite lookup_empty.
       by constructor.
@@ -1032,10 +1031,8 @@ Proof.
         by apply gen_targs_wf.
       }
       rewrite map_Forall_lookup => k t /=.
-      rewrite lookup_fmap_Some.
-      case => [ty [<- ]].
       rewrite lookup_singleton_Some.
-      case => ? <-.
+      case => [? <-].
       by constructor.
     * rewrite lookup_insert_Some.
       case => [[? <-]|[?]]; last by rewrite lookup_empty.
@@ -1056,7 +1053,7 @@ Proof.
       rewrite map_Forall_lookup => k t /=.
       rewrite lookup_insert_Some.
       case => [[? <-]|[?]]; first by constructor.
-      by rewrite fmap_empty lookup_empty.
+      by rewrite lookup_empty.
   }
   rewrite lookup_insert_Some.
   case => [[<- <-]|[?]].
@@ -1074,7 +1071,7 @@ Proof.
       }
       { constructor => //.
         - constructor.
-          by rewrite /= lookup_fmap lookup_insert.
+          by rewrite /= lookup_insert.
         - by constructor.
       }
     * split.
@@ -1082,8 +1079,6 @@ Proof.
         by econstructor.
       }
       rewrite map_Forall_lookup => x tx /=.
-      rewrite lookup_fmap_Some.
-      case => [ty [<-]].
       rewrite lookup_singleton_Some.
       case => [? <-].
       by constructor.
