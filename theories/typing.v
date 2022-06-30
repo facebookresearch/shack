@@ -40,28 +40,6 @@ Section Typing.
     | OkSupportDyn : ok_ty Δ SupportDynT
   .
 
-  Lemma ok_ty_constraint_elim_ G T:
-    ok_ty G T →
-    ∀ Δ Δ', G = Δ ++ Δ' →
-    (∀ i c, Δ' !! i = Some c → Δ ⊢ c.1 <D: c.2) →
-    ok_ty Δ T.
-  Proof.
-    induction 1 as [ | | | | t σ def hσ hi hdef hconstr
-    | | | s t hs hi ht hit | s t hs hi ht hit | | | ] => Δ Δ' heq hΔ; subst; try by constructor.
-    - apply OkClass with def => //.
-      + move => i ty h; by eapply hi.
-      + move => i c h.
-        apply subtype_constraint_elim with Δ'; by eauto.
-    - constructor; by eauto.
-    - constructor; by eauto.
-  Qed.
-
-  Lemma ok_ty_constraint_elim Δ Δ' T:
-    ok_ty (Δ ++ Δ') T →
-    (∀ i c, Δ' !! i = Some c → Δ ⊢ c.1 <D: c.2) →
-    ok_ty Δ T.
-  Proof. intros; by eapply ok_ty_constraint_elim_. Qed.
-
   Lemma ok_ty_weaken Δ t: ok_ty Δ t → ∀ Δ', Δ ⊆ Δ' → ok_ty Δ' t.
   Proof.
     induction 1 as [ | | | | t σ def hσ hi hdef hconstr
@@ -337,40 +315,6 @@ Section Typing.
         Δ ⊢ s <D: t →
         expr_has_ty Δ Γ rigid kd (UpcastE e t) t
   .
-
-  Lemma expr_has_ty_constraint_elim_ G Γ rigid kd e ty:
-    expr_has_ty G Γ rigid kd e ty →
-    ∀ Δ Δ', G = Δ ++ Δ' →
-    (∀ i c, Δ' !! i = Some c → Δ ⊢ c.1 <D: c.2) →
-    expr_has_ty Δ Γ rigid kd e ty.
-  Proof.
-    induction 1 as [ | | | kd op e1 e2 hop h1 hi1 h2 hi2 |
-      kd op e1 e2 hop h1 hi1 h2 hi2 | kd e1 e2 h1 hi1 h2 hi2 | kd e h hi | kd v ty h | |
-      kd e s t h hi hwf hb hok hsub | kd e s t h hi hwf hb hok hsub]
-      => Δ Δ' heq hΔ; subst; try (by constructor).
-    - constructor; by eauto.
-    - constructor; by eauto.
-    - constructor; by eauto.
-    - constructor; by eauto.
-    - eapply ESubTy.
-      + by eapply hi.
-      + done.
-      + done.
-      + by eapply ok_ty_constraint_elim.
-      + by eapply subtype_constraint_elim.
-    - eapply UpcastTy.
-      + by eapply hi.
-      + done.
-      + done.
-      + by eapply ok_ty_constraint_elim.
-      + by eapply subtype_constraint_elim.
-  Qed.
-
-  Lemma expr_has_ty_constraint_elim Δ Δ' Γ rigid kd e ty:
-    expr_has_ty (Δ ++ Δ') Γ rigid kd e ty →
-    (∀ i c, Δ' !! i = Some c → Δ ⊢ c.1 <D: c.2) →
-    expr_has_ty Δ Γ rigid kd e ty.
-  Proof. intros; by eapply expr_has_ty_constraint_elim_. Qed.
 
   Definition wf_lty Γ :=
     wf_ty (this_type Γ) ∧
