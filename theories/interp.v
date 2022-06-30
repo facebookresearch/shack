@@ -1471,7 +1471,7 @@ Section proofs.
 
       □ ▷ Σinterp Σt tdef.(constraints) ∗
 
-      ⌜((λ ty, interp_type ty Σt) <$> σ) ≡ Σ⌝ ∗
+      ((λ ty, interp_type ty Σt) <$> σ ≡ Σ) ∗
 
       ▷ (∀ f vis ty orig, ⌜has_field f t vis ty orig⌝ -∗
           (ifields !! f ≡ Some (interp_car (interp_type ty Σt)))) ∗

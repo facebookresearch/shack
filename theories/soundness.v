@@ -126,7 +126,7 @@ Section proofs.
     - inv he.
       iDestruct "Hlty" as "[Hthis Hv]".
       rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-      iDestruct "Hthis" as (?? thisdef tdef ????) "[%H [#hmixed [#hconstr [%hinst [hdyn hloc]]]]]".
+      iDestruct "Hthis" as (?? thisdef tdef ????) "[%H [#hmixed [#hconstr [#hinst [hdyn hloc]]]]]".
       destruct H as ([= <-] & hthisdef & htdef & hl & ? & hin & hfields & hdom).
       rewrite /this_type interp_class_unfold //=; last first.
       { by apply wflty. }
@@ -147,28 +147,27 @@ Section proofs.
       { rewrite /interp_list !fmap_length in hl.
         by rewrite hl.
       }
-      move : hl0 hl1 hinst.
+      move : hl0 hl1.
       generalize thisdef.(generics); clear.
-      move => l hl0 hl1 hinst.
-      iInduction l as [ | hd tl hi] "IH" forall (σ σthis hl0 hl1 hinst).
+      move => l hl0 hl1.
+      iInduction l as [ | hd tl hi] "IH" forall (σ σthis hl0 hl1) "hinst".
       { by destruct σ; destruct σthis. }
       destruct σ as [ | ty0 σ] => //=.
       destruct σthis as [ | ty1 σthis] => //=.
       case: hl0 => hl0.
       case: hl1 => hl1.
-      rewrite /interp_list !fmap_cons in hinst.
-      apply cons_equiv_eq in hinst.
-      destruct hinst as (x0 & x1 & heq & h0 & h1).
-      case: heq => hhd htl.
-      rewrite -hhd in h0; clear hhd x0.
-      rewrite -htl in h1; clear htl x1.
+      rewrite list_equivI.
       iSplitL.
-      + destruct hd; iIntros (w).
-        * iSplit; iIntros "h"; first by rewrite -h0.
-          by rewrite h0.
-        * iIntros "h"; by rewrite -h0.
-        * iIntros "h"; by rewrite h0.
-      + by iApply "IH".
+      + iSpecialize ("hinst" $! 0).
+        rewrite /= option_equivI.
+        destruct hd; iIntros (w).
+        * iSplit; iIntros "h"; first by iRewrite -"hinst".
+          by iRewrite "hinst".
+        * iIntros "h"; by iRewrite -"hinst".
+        * iIntros "h"; by iRewrite "hinst".
+      + iApply "IH" => //.
+        iModIntro; rewrite /interp_list list_equivI; iIntros (k).
+        by iSpecialize ("hinst" $! (S k)).
     - apply hi in he.
       iApply subtype_is_inclusion => //.
       + by apply expr_has_ty_wf in hS.
@@ -258,7 +257,7 @@ Section proofs.
         + iApply (interp_with_mono with "hf0") => //.
           by rewrite -interp_type_subst.
       - rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-        iDestruct "hrecv" as (l' t' tdef tdef' σ' Σt fields ifields) "[%H [#hmixed [#? [%hinst [hdyn hl]]]]]".
+        iDestruct "hrecv" as (l' t' tdef tdef' σ' Σt fields ifields) "[%H [#hmixed [#? [#hinst [hdyn hl]]]]]".
         destruct H as ([= <-] & htdef & htdef' & hlen & ? & hinherits & hfields & hdom).
         assert (hl1: length σ' = length σt).
         { apply inherits_using_wf in hinherits => //.
@@ -279,7 +278,7 @@ Section proofs.
         iSplitR; last by iSplit.
         iModIntro; iNext; iIntros (w).
         rewrite interp_type_subst //.
-        rewrite -hinst.
+        iRewrite -"hinst".
         by iSplit; iIntros.
     }
     iDestruct "hrecv" as (t' σ' Σt fields ifields) "[%hpure [#hstatic [#hdyn hl]]]".
@@ -491,7 +490,7 @@ Section proofs.
       iDestruct "Hle" as "[Hthis Hle]".
       rewrite /this_type /=.
       rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-      iDestruct "Hthis" as (????????) "[%H [#hmixed [#? [%hinst [#hdyn H◯]]]]]".
+      iDestruct "Hthis" as (????????) "[%H [#hmixed [#? [#hinst [#hdyn H◯]]]]]".
       destruct H as ([= <-] & hdef & hdef1 & hlen & ? & hinherits & hidom & hfields).
       iAssert (⌜t0 = t1⌝ ∗ heap_models h ∗ ▷ interp_type (subst_ty targs fty) Σ v)%I with "[Hh]" as "[%Ht [Hh Hv]]".
       { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
@@ -520,7 +519,8 @@ Section proofs.
           inv wfthis; simplify_eq.
           by rewrite H10.
         }
-        rewrite -hinst -interp_type_subst //.
+        iRewrite -"hinst".
+        rewrite -interp_type_subst //.
         destruct wfpdefs.
         apply has_field_bounded in hf => //.
         destruct hf as (? & ? & ?).
@@ -611,7 +611,7 @@ Section proofs.
       iApply (heap_models_update _ _ _ _ _ _ t σ) => //=.
       + iDestruct "Hle" as "[Hthis Hle]".
         rewrite /= /interp_this_type interp_this_unseal /interp_this_def /=.
-        iDestruct "Hthis" as (l' t1 def def1 σ0 σt fields ifields) "[%H [#hmixed [#? [%hinst [#hdyn #Hl]]]]]".
+        iDestruct "Hthis" as (l' t1 def def1 σ0 σt fields ifields) "[%H [#hmixed [#? [#hinst [#hdyn #Hl]]]]]".
         destruct H as ([= <-] & hdef & hdef1 & hlen & ? & hin & hfields & hidom).
         iExists l, t1, def, def1, σ0, σt, fields, ifields.
         repeat iSplit => //.
@@ -936,7 +936,8 @@ Section proofs.
             iSplit; first done.
             iSplit; first done.
             iSplit; last by iSplit.
-            iPureIntro; rewrite /interp_list.
+            iPureIntro.
+            rewrite /interp_list.
             apply equiv_Forall2.
             rewrite Forall2_lookup => k.
             rewrite !list_lookup_fmap.
