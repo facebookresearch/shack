@@ -35,7 +35,6 @@ Section ProgDef.
     | WfUnion s t : wf_ty s → wf_ty t → wf_ty (UnionT s t)
     | WfInter s t : wf_ty s → wf_ty t → wf_ty (InterT s t)
     | WfGen k: wf_ty (GenT k)
-    | WfEx t : wf_ty (ExT t)
     | WfDynamic : wf_ty DynamicT
     | WfSupportDyn : wf_ty SupportDynT
   .
@@ -73,7 +72,7 @@ Section ProgDef.
   Proof.
     move => hwf.
     induction 1 as [ | | | | t targs def hdef hl h hi | | |
-        s t hs his ht hit | s t hs his ht hit | | | | ] => //=; try (by constructor).
+        s t hs his ht hit | s t hs his ht hit | | | ] => //=; try (by constructor).
     - econstructor; [ done | by rewrite map_length | ].
       move => k ty.
       rewrite list_lookup_fmap.

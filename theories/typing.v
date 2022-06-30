@@ -36,7 +36,6 @@ Section Typing.
     | OkUnion s t: ok_ty Δ s → ok_ty Δ t → ok_ty Δ (UnionT s t)
     | OkInter s t: ok_ty Δ s → ok_ty Δ t → ok_ty Δ (InterT s t)
     | OkGen n: ok_ty Δ (GenT n)
-    | OkEx t: ok_ty Δ (ExT t)
     | OkDynamic : ok_ty Δ DynamicT
     | OkSupportDyn : ok_ty Δ SupportDynT
   .
@@ -48,7 +47,7 @@ Section Typing.
     ok_ty Δ T.
   Proof.
     induction 1 as [ | | | | t σ def hσ hi hdef hconstr
-    | | | s t hs hi ht hit | s t hs hi ht hit | | | | ] => Δ Δ' heq hΔ; subst; try by constructor.
+    | | | s t hs hi ht hit | s t hs hi ht hit | | | ] => Δ Δ' heq hΔ; subst; try by constructor.
     - apply OkClass with def => //.
       + move => i ty h; by eapply hi.
       + move => i c h.
@@ -66,7 +65,7 @@ Section Typing.
   Lemma ok_ty_weaken Δ t: ok_ty Δ t → ∀ Δ', Δ ⊆ Δ' → ok_ty Δ' t.
   Proof.
     induction 1 as [ | | | | t σ def hσ hi hdef hconstr
-    | | | s t hs hi ht hit | s t hs hi ht hit | n | t | | ] => Δ' hincl; try by constructor.
+    | | | s t hs hi ht hit | s t hs hi ht hit | n | | ] => Δ' hincl; try by constructor.
     - apply OkClass with def => //.
       + move => i ty h; by apply hi with i.
       + move => i c h.
@@ -94,7 +93,7 @@ Section Typing.
   Proof.
     move => hwp hcb.
     induction 1 as [ | | | | t σt def hσt hi hdef hconstr
-    | | | s t hs his ht hit | s t hs his ht hit | n | t | | ]
+    | | | s t hs his ht hit | s t hs his ht hit | n | | ]
     => hwf Δ' σ hwfσ hokσ /=; try (constructor; by eauto).
     - apply OkClass with def => //.
       + move => i ty h.
@@ -173,7 +172,7 @@ Section Typing.
     ok_ty Δ' ty.
   Proof.
     induction 1 as [ | | | | t σ def hσ hi hdef hconstr
-    | | | s t hs hi ht hit | s t hs hi ht hit | n | t | | ] => Δ' hΔ; try by constructor.
+    | | | s t hs hi ht hit | s t hs hi ht hit | n | | ] => Δ' hΔ; try by constructor.
     - econstructor => //.
       + move => k ty hk; by eauto.
       + move => k c' hc'.

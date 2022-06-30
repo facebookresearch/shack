@@ -377,7 +377,7 @@ Section proofs.
     { iDestruct "H" as "%H".
       discriminate H.
     }
-    iDestruct "He" as (dyntag dyndef hpure Σdyn) "He".
+    iDestruct "He" as (dyntag Σdyn dyndef hpure) "He".
     destruct hpure as [hdyndef hsupdyn].
     rewrite interp_tag_equiv; last by apply wfpdefs.
     iDestruct "He" as (?? def def0 ????) "[%H [#hmixed [#hconstr [#hf0 [#hdyn H◯]]]]]".
@@ -1514,7 +1514,7 @@ Section proofs.
       { iDestruct "H" as "%H".
         discriminate H.
       }
-      iDestruct "He" as (dyntag dyndef hpure Σdyn) "He".
+      iDestruct "He" as (dyntag Σdyn dyndef hpure) "He".
       destruct hpure as [hdyndef hsupdyn].
       rewrite interp_tag_equiv; last by apply wfpdefs.
       iDestruct "He" as (?? def def0 ????) "[%H [#hmixed [#hconstr [#hf0 [#hdyn H◯]]]]]".
@@ -1591,7 +1591,7 @@ Section proofs.
       { iDestruct "H" as "%H".
         discriminate H.
       }
-      iDestruct "Hl" as (dyntag dyndef hpure Σdyn) "Hl".
+      iDestruct "Hl" as (dyntag Σdyn dyndef hpure) "Hl".
       destruct hpure as [hdyndef hsupdyn].
       rewrite interp_tag_equiv //.
       iDestruct "Hl" as (?? def def0 ????) "[%H [#hmixed [#hconstr [#hf0 [#hdyn H◯]]]]]".
@@ -1699,7 +1699,7 @@ Section proofs.
       { iDestruct "H" as "%Hn".
         discriminate Hn.
       }
-      iDestruct "Hl" as (dyntag dyndef hpure Σdyn) "Hl".
+      iDestruct "Hl" as (dyntag Σdyn dyndef hpure) "Hl".
       destruct hpure as [hdyndef hsupdyn].
       rewrite interp_tag_equiv //.
       iDestruct "Hl" as (?? def def0 ????) "[%Hpure [#hΣt [#hconstr [#hf0 [#hdyn H◯]]]]]".

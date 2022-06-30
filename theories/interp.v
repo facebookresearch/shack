@@ -237,15 +237,12 @@ Section proofs.
      : interp_tag rec Σ C = interp_tag_def rec Σ C :=
      (interp_tag_aux rec Σ C).(seal_eq).
 
-  Definition interp_ex (rec: ty_interpO) C : interp Θ :=
-    Interp (λ (w: value), (∃ Σ, interp_tag rec Σ C w)%I).
-
   Definition interp_nonnull (rec : ty_interpO) : interp Θ :=
     Interp (
       λ (v : value),
       ((interp_int v) ∨
       (interp_bool v) ∨
-      (∃ t, interp_ex rec t v))%I
+      (∃ t Σ, interp_tag rec Σ t v))%I
     ).
 
   Definition interp_mixed (rec: ty_interpO) : interp Θ :=
@@ -256,8 +253,8 @@ Section proofs.
 
   Definition interp_support_dynamic (rec: ty_interpO) : interp Θ :=
     Interp (λ (v: value),
-      (∃ t def, ⌜pdefs !! t = Some def ∧ def.(support_dynamic) = true⌝ ∗
-        interp_ex rec t v))%I.
+      (∃ t Σ def, ⌜pdefs !! t = Some def ∧ def.(support_dynamic) = true⌝ ∗
+        interp_tag rec Σ t v))%I.
 
   Definition interp_dynamic (rec: ty_interpO) : interp Θ :=
     Interp (λ (v: value),
@@ -288,7 +285,6 @@ Section proofs.
       | UnionT A B => interp_union (go Σ A) (go Σ B)
       | InterT A B => interp_inter (go Σ A) (go Σ B)
       | GenT n => interp_generic Σ n
-      | ExT cname => interp_ex rec cname
       | DynamicT => interp_dynamic rec
       | SupportDynT => interp_support_dynamic rec
       end.
@@ -317,8 +313,8 @@ Section proofs.
   Local Instance go_ne (rec: ty_interpO) (ty: lang_ty) :
     NonExpansive (λ Σ, go rec Σ ty).
   Proof.
-    induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i
-    | cname | | ] => //= n x y h.
+    induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i | | ]
+        => //= n x y h.
     - apply interp_tag_ne.
       rewrite Forall_forall in hi.
       apply list_dist_lookup => k.
@@ -379,26 +375,18 @@ Section proofs.
     by repeat f_equiv.
   Qed.
 
-  Global Instance interp_ex_contractive C: Contractive (λ rec, interp_ex rec C).
-  Proof.
-    rewrite /interp_ex => n i1 i2 hdist v.
-    rewrite /interp_fun !interp_car_simpl.
-    do 2 f_equiv.
-    by apply interp_tag_contractive.
-  Qed.
-
   Global Instance interp_nonnull_contractive: Contractive interp_nonnull.
   Proof.
     rewrite /interp_nonnull => n i1 i2 hdist v.
     rewrite /interp_fun !interp_car_simpl.
-    do 4 f_equiv.
-    by apply interp_ex_contractive.
+    do 6 f_equiv.
+    by apply interp_tag_contractive.
   Qed.
 
   Local Instance interp_type_pre_contractive : Contractive interp_type_pre.
   Proof.
     rewrite /interp_type_pre => n rec1 rec2 hdist ty Σ /=.
-    induction ty as [ | | | | C σ hi | | | A B hA hB | A B hA hB | i | C | | ] => /=.
+    induction ty as [ | | | | C σ hi | | | A B hA hB | A B hA hB | i | | ] => /=.
     - done.
     - done.
     - done.
@@ -443,13 +431,12 @@ Section proofs.
     - by solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - by solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - done.
-    - by apply interp_ex_contractive.
     - rewrite /interp_dynamic /interp_support_dynamic => v /=.
-      do 8 f_equiv.
-      by apply interp_ex_contractive.
+      do 10 f_equiv.
+      by apply interp_tag_contractive.
     - rewrite /interp_support_dynamic => v /=.
-      do 5 f_equiv.
-      by apply interp_ex_contractive.
+      do 7 f_equiv.
+      by apply interp_tag_contractive.
   Qed.
 
   (* the interpretation of types can now be
@@ -487,13 +474,9 @@ Section proofs.
       by apply _.
     Qed.
 
-    Lemma interp_ex_unfold t v:
-      interp_type (ExT t) Σ v ⊣⊢ interp_ex interp_type t v.
-    Proof. by rewrite interp_type_unfold /= /interp_ex /=. Qed.
-
     Lemma interp_nonnull_unfold v:
       interp_type NonNullT Σ v ⊣⊢
-      (interp_int v) ∨ (interp_bool v) ∨ (∃ t, interp_ex interp_type t v)%I.
+      (interp_int v) ∨ (interp_bool v) ∨ (∃ t Σ, interp_tag interp_type Σ t v)%I.
     Proof. by rewrite interp_type_unfold /= /interp_nonnull /=. Qed.
 
     Lemma interp_mixed_unfold v:
@@ -742,7 +725,7 @@ Section proofs.
   Proof.
     move => hbounded.
     rewrite !interp_type_unfold; revert v.
-    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | | ] => //= v.
+    induction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | | ] => //= v.
     - rewrite !interp_tag_unseal /interp_tag_def /= /interp_variance.
       do 17 f_equiv.
       { f_equiv; by rewrite !fmap_length. }
@@ -779,8 +762,8 @@ Section proofs.
     interp_type_pre interp_type ty Σ0 ≡
     interp_type_pre interp_type ty (Σ0 ++ Σ1).
   Proof.
-    induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i
-    | cname | | ] => Σ0 Σ1 hb w //=.
+    induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i | | ]
+        => Σ0 Σ1 hb w //=.
     - rewrite !interp_tag_unseal /interp_tag_def /interp_fun !interp_car_simpl.
       do 17 f_equiv.
       { rewrite !fmap_length. 
@@ -997,7 +980,7 @@ Section proofs.
   Proof.
     move => ??.
     iIntros (Σ0 Σ1 hmono hwf) "#h".
-    iInduction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | | ] 
+    iInduction ty as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | | ] 
         "IHty" forall (Σ0 Σ1 vs hmono) "h"; iIntros (v); rewrite !interp_type_unfold //=.
     - by iIntros.
     - rewrite !interp_tag_unseal /interp_tag_def /interp_fun !interp_car_simpl.
@@ -1162,9 +1145,6 @@ Section proofs.
       * iSpecialize ("hf" $! v).
         by iDestruct "hf" as "[? ?]".
       * by iSpecialize ("hf" $! v).
-    - iIntros "hh".
-      iDestruct "hh" as (Σt) "hh".
-      by iExists Σt.
     - by iIntros "hh".
     - by iIntros "hh".
   Qed.
@@ -1359,7 +1339,7 @@ Section proofs.
   Proof.
     iIntros (A v hwf) "#wfΣi h".
     rewrite !interp_type_unfold /=.
-    iInduction A as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | C | | ] 
+    iInduction A as [ | | | | C σC hi | | | A B hA hB | A B hA hB | i | | ] 
         "IHty" forall (v hwf).
     - by repeat iLeft.
     - by iLeft; iRight; iLeft.
@@ -1388,8 +1368,6 @@ Section proofs.
         by rewrite /= /interp_generic hϕ /=.
       + rewrite /= /interp_generic lookup_ge_None_2 /=; last by apply not_lt.
         done.
-    - iLeft; iRight; iRight.
-      by iExists _.
     - rewrite /= /interp_dynamic.
       iDestruct "h" as "[? | h]".
       { by iLeft; iLeft. }
@@ -1423,7 +1401,7 @@ Section proofs.
     □ iForall3 interp_variance Vs (interp_list Σ As) (interp_list Σ Bs).
   Proof.
     { destruct 1 as [ kd A | kd A h | kd A σA B σB adef hpdefs hlen hext
-      | kd A adef hadef hL | kd A def σ0 σ1 hpdefs hwfσ hσ | | | | | | kd A B h
+      | kd A def σ0 σ1 hpdefs hwfσ hσ | | | | | | kd A B h
       | kd A B h | kd A B C h0 h1 | kd A B | kd A B | kd A B C h0 h1
       | | kd A B C h0 h1 | A B hin | kd A adef σA hpdefs hsupdyn | | | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
@@ -1433,18 +1411,6 @@ Section proofs.
         done.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold; by iApply extends_using_is_inclusion.
-      - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
-        simpl.
-        iDestruct "h" as (Σt) "h".
-        iAssert (⌜Σt = []⌝)%I as "%hnil".
-        { rewrite interp_tag_equiv => //.
-          iDestruct "h" as (???????? h) "h".
-          destruct h as (?&?&?&hl&h).
-          simplify_eq.
-          rewrite hL in hl.
-          by apply nil_length_inv in hl.
-        }
-        by rewrite hnil.
       - apply subtype_targs_is_inclusion_aux with (Σ := Σ) in hσ => //; last first.
         { by apply wf_ty_class_inv in hwfA. }
         clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
@@ -1501,8 +1467,8 @@ Section proofs.
       - apply elem_of_list_lookup_1 in hin as [i hin].
         rewrite -!interp_type_unfold /=.
         by iApply ("Σcoherency" $! i (A, B) hin).
-      - iExists A, adef; iSplit; first done.
-        by iExists (go interp_type Σ <$> σA).
+      - iExists A, (go interp_type Σ <$> σA), adef.
+        by iSplit.
       - by iLeft.
       - by iRight; iLeft.
       - by iRight; iRight; iLeft.

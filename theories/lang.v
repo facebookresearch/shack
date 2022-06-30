@@ -49,7 +49,6 @@ Section nested_ind.
     | UnionT (s t: lang_ty)
     | InterT (s t: lang_ty)
     | GenT (n: nat)
-    | ExT (cname: tag) (* Ext C == ∃Ti, ClassT C Ti *)
     | DynamicT
     | SupportDynT
   .
@@ -65,7 +64,6 @@ Section nested_ind.
   Hypothesis case_UnionT :  ∀ s t, P s → P t → P (UnionT s t).
   Hypothesis case_InterT :  ∀ s t, P s → P t → P (InterT s t).
   Hypothesis case_GenT: ∀ n, P (GenT n).
-  Hypothesis case_ExT: ∀ cname, P (ExT cname).
   Hypothesis case_DynamicT : P DynamicT.
   Hypothesis case_SupportDynT : P SupportDynT.
 
@@ -87,7 +85,6 @@ Section nested_ind.
     | UnionT s t => case_UnionT s t (lang_ty_ind s) (lang_ty_ind t)
     | InterT s t => case_InterT s t (lang_ty_ind s) (lang_ty_ind t)
     | GenT n => case_GenT n
-    | ExT cname => case_ExT cname
     | DynamicT => case_DynamicT
     | SupportDynT => case_SupportDynT
     end.
@@ -111,7 +108,6 @@ Inductive bounded (n: nat) : lang_ty → Prop :=
   | MixedIsBounded : bounded n MixedT
   | NullIsBounded : bounded n NullT
   | NonNullIsBounded : bounded n NonNullT
-  | ExIsBounded cname : bounded n (ExT cname)
   | DynamicIsBounded : bounded n DynamicT
   | SupportDynIsBounded : bounded n SupportDynT
 .
@@ -122,7 +118,7 @@ Lemma bounded_ge ty n:
   bounded n ty → ∀ m, m ≥ n → bounded m ty.
 Proof.
   induction ty as [ | | | | t σ hi | | | s t hs ht |
-      s t hs ht | k | t | | ] => h m hge //=.
+      s t hs ht | k | | ] => h m hge //=.
   - constructor.
     inv h.
     rewrite Forall_lookup => i ty hty.
@@ -164,7 +160,7 @@ Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
 Corollary subst_ty_nil ty : subst_ty [] ty = ty.
 Proof.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | n | cname | | ] => //=.
+      s t hs ht | n | | ] => //=.
   - f_equal.
     rewrite Forall_forall in hi.
     pattern targs at 2.
@@ -195,7 +191,7 @@ Lemma subst_ty_subst ty l k:
 Proof.
   move => hbounded.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | n | cname | | ] => //=.
+      s t hs ht | n | | ] => //=.
   - f_equal.
     rewrite -list_fmap_compose.
     rewrite Forall_forall in hi.
@@ -250,7 +246,7 @@ Lemma bounded_subst n ty:
   bounded m (subst_ty targs ty).
 Proof.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | k | cname | | ] => //= hb m σ hlen hσ.
+      s t hs ht | k | | ] => //= hb m σ hlen hσ.
   - constructor.
     rewrite Forall_forall => ty /elem_of_list_fmap hin.
     destruct hin as [ty' [-> hin]].
@@ -720,7 +716,7 @@ Lemma subst_ty_id n ty:
 Proof.
   move => h.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | k | cname | | ] => //=.
+      s t hs ht | k | | ] => //=.
   - f_equal.
     rewrite Forall_forall in hi.
     pattern targs at 2.
