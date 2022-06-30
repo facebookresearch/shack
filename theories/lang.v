@@ -118,6 +118,39 @@ Inductive bounded (n: nat) : lang_ty → Prop :=
 
 Global Hint Constructors bounded : core.
 
+Lemma bounded_ge ty n:
+  bounded n ty → ∀ m, m ≥ n → bounded m ty.
+Proof.
+  induction ty as [ | | | | t σ hi | | | s t hs ht |
+      s t hs ht | k | t | | ] => h m hge //=.
+  - constructor.
+    inv h.
+    rewrite Forall_lookup => i ty hty.
+    rewrite Forall_lookup in hi.
+    apply hi with (m := m) in hty => //.
+    rewrite Forall_lookup in H0.
+    by apply H0 in hty.
+  - inv h.
+    constructor; by eauto.
+  - inv h.
+    constructor; by eauto.
+  - inv h.
+    constructor.
+    by lia.
+Qed.
+
+Lemma bounded_rigid t start len:
+  bounded (start + len) (ClassT t (map GenT (seq start len))).
+Proof.
+  constructor.
+  rewrite Forall_lookup => i ty h.
+  apply list_lookup_fmap_inv in h.
+  destruct h as [k [-> h]].
+  rewrite lookup_seq in h; destruct h as [-> h].
+  constructor.
+  by lia.
+Qed.
+
 (* To be used with `bounded`: Generics must be always bound *)
 Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
   match ty with
@@ -625,6 +658,16 @@ Inductive visibility := Public | Private.
 Definition constraint := (lang_ty * lang_ty)%type.
 
 Definition bounded_constraint n c := bounded n c.1 ∧ bounded n c.2.
+
+Lemma bounded_constraints_ge Δ n m:
+  Forall (bounded_constraint n) Δ → m ≥ n →
+  Forall (bounded_constraint m) Δ.
+Proof.
+  move => /Forall_lookup h hge.
+  rewrite Forall_lookup => i c hc.
+  apply h in hc as [h0 h1].
+  split; by eapply bounded_ge.
+Qed.
 
 Record classDef := {
   classname: tag;

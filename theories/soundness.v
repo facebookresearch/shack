@@ -41,13 +41,13 @@ Section proofs.
     ∃ (iFs : gmapO string (sem_typeO Θ)),
     sh !! ℓ ≡ Some (t, Next iFs) ∗ ▷ heap_models_fields iFs vs.
 
-  Lemma expr_soundness (Δ: list constraint) (Σ: list (interp Θ)) kd e Γ Ω ty val :
+  Lemma expr_soundness (Δ: list constraint) rigid (Σ: list (interp Θ)) kd e Γ Ω ty val :
     map_Forall (λ _, wf_cdef_parent pdefs) pdefs →
     map_Forall (λ _, wf_cdef_mono) pdefs →
     Forall wf_constraint Δ →
     wf_lty Γ →
     expr_eval Ω e = Some val →
-    expr_has_ty Δ Γ kd e ty →
+    expr_has_ty Δ Γ rigid kd e ty →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
     interp_local_tys Σ Γ Ω -∗
@@ -341,11 +341,11 @@ Section proofs.
   Qed.
 
   (* virtual calls using Dynamic all verify cdef_wf_mdef_dyn_ty *)
-  Lemma wf_mdef_dyn_ty_wf Σ Δ C kd st st' Γ lhs recv name args l n:
+  Lemma wf_mdef_dyn_ty_wf Σ Δ C kd st st' rigid Γ lhs recv name args l n:
     wf_cdefs pdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
-    expr_has_ty Δ Γ kd recv DynamicT →
+    expr_has_ty Δ Γ rigid kd recv DynamicT →
     expr_eval st.1 recv = Some (LocV l) →
     cmd_eval C st (CallC lhs recv name args) st' n →
     □ interp_env_as_mixed Σ -∗
@@ -357,7 +357,7 @@ Section proofs.
     inherits_using t orig σ ∧
     pdefs !! orig = Some def ∧
     def.(classmethods) !! name = Some mdef ∧
-    wf_mdef_dyn_ty def.(constraints) orig (gen_targs (length def.(generics))) mdef⌝%I.
+    wf_mdef_dyn_ty def.(constraints) orig (length def.(generics)) (gen_targs (length def.(generics))) mdef⌝%I.
   Proof.
     move => wfpdefs ?? hrty heval hceval.
     iIntros "#hΣ #hΣΔ [Hh #Hle]".
@@ -417,54 +417,60 @@ Section proofs.
     apply hodef in homdef.
     by rewrite /cdef_wf_mdef_dyn_ty H6 in homdef.
   Qed.
-   
-  Lemma cmd_soundness_ Δ C kd Γ cmd Γ' :
+  
+  Lemma cmd_soundness_ Δ C kd rigid Γ cmd Γ' :
     wf_cdefs pdefs →
     wf_lty Γ →
+    bounded_lty rigid Γ →
     Forall wf_constraint Δ →
-    cmd_has_ty Δ C kd Γ cmd Γ' →
+    Forall (bounded_constraint rigid) Δ →
+    cmd_has_ty Δ C kd rigid Γ cmd Γ' →
     ∀ Σ st st' n,
+    length Σ = rigid →
     cmd_eval C st cmd st' n →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
     heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗ |=▷^n
         heap_models st'.2 ∗ interp_local_tys Σ Γ' st'.1.
   Proof.
-    move => wfpdefs wflty hΔ .
-    iLöb as "IH" forall (Δ C kd Γ cmd Γ' wflty hΔ).
-    iIntros "%hty" (Σ st st' n hc) "#hΣ #hΣΔ".
-    iInduction hty as [ kd Γ |
-        kd Γ rty hwf | kd Γ1 Γ2 Γ3 fstc sndc hfst hi1 hsnd hi2 |
-        kd Γ lhs e ty he | kd Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
-        kd Γ lhs t targs name fty hrecv hf |
-        kd Γ lhs recv t targs name fty orig hrecv hf |
-        kd Γ fld rhs fty t σ hrecv hrhs hf |
-        kd Γ recv fld rhs fty orig t σ hrecv hrhs hf |
-        kd Γ lhs t targs args fields hwf hok hf hdom harg |
-        kd Γ lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
-        kd Γ c rty' rty hsub h hi |
-        kd Γ rty v tv t thn els hv hthn hi0 hels hi1 |
-        kd Γ rty v tv thn els hv hthn hi0 hels hi1 |
-        kd Γ rty v tv thn els hv hthn hi0 hels hi1 |
-        kd Γ rty v tv thn els hv hthn hi0 hels hi1 |
-        kd Γ rty v tv thn els hv hthn hi0 hels hi1 |
-        kd Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
-        kd Γ lhs recv name he hnotthis |
-        kd Γ recv fld rhs hrecv hrhs hnotthis |
-        kd Γ lhs recv name args hrecv hi hnotthis
-      ] "IHty" forall (st st' n hc).
+    move => wfpdefs wflty blty hΔ hΔb.
+    iLöb as "IH" forall (Δ C kd rigid Γ cmd Γ' wflty blty hΔ hΔb).
+    iIntros "%hty" (Σ st st' n hrigid hc) "#hΣ #hΣΔ".
+    iInduction hty as [ kd rigid Γ |
+        kd rigid Γ rty hwf |
+        kd rigid Γ1 Γ2 Γ3 fstc sndc hfst hi1 hsnd hi2 |
+        kd rigid Γ lhs e ty he |
+        kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
+        kd rigid Γ lhs t targs name fty hrecv hf |
+        kd rigid Γ lhs recv t targs name fty orig hrecv hf |
+        kd rigid Γ fld rhs fty t σ hrecv hrhs hf |
+        kd rigid Γ recv fld rhs fty orig t σ hrecv hrhs hf |
+        kd rigid Γ lhs t targs args fields hwf hb hok hf hdom harg |
+        kd rigid Γ lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
+        kd rigid Γ c rty' rty hsub hb h hi |
+        kd rigid Γ0 Γ1 v tv t def thn els hv hdef hΓ1 hthn hi0 hels hi1 |
+        kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
+        kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
+        kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
+        kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
+        kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
+        kd rigid Γ lhs recv name he hnotthis |
+        kd rigid Γ recv fld rhs hrecv hrhs hnotthis |
+        kd rigid Γ lhs recv name args hrecv hi hnotthis
+      ] "IHty" forall (Σ st st' n hrigid hc) "hΣ hΣΔ".
     - (* SkipC *) inv hc.
       rewrite updN_zero.
       by iIntros "?".
     - (* Error *)
       by inv hc.
     - (* SeqC *) inv hc. iIntros "H".
-      iSpecialize ("IHty" $! wflty with "[//] H").
+      iSpecialize ("IHty" $! wflty blty hΔb Σ _ _ _ refl_equal with "[//] hΣ hΣΔ H").
       rewrite Nat_iter_add.
       iApply (updN_mono_I with "[] IHty").
-      iApply "IHty1" => //.
       destruct wfpdefs.
-      by apply cmd_has_ty_wf in hfst.
+      iApply "IHty1" => //.
+      + by apply cmd_has_ty_wf in hfst.
+      + by apply cmd_has_ty_bounded in hfst.
     - (* LetC *)
       inv hc.
       iClear "IH".
@@ -727,7 +733,7 @@ Section proofs.
         iSplit; last done.
         iIntros (f vis ty orig hff).
         rewrite /iFs /=.
-        assert (hb: bounded (length targs) ty).
+        assert (hbtargs: bounded (length targs) ty).
         { apply has_field_bounded in hff; try (by apply wfpdefs).
           destruct hff as (?&?&hh); simplify_eq.
           by rewrite H2.
@@ -784,12 +790,12 @@ Section proofs.
       { rewrite (map_args_lookup _ _ _ args vargs H8 f) in hv0.
         by rewrite ha0 in hv0.
       }
-      assert (hty0: expr_has_ty Δ Γ kd a0 (subst_ty targs fty.1.2)) by (by apply harg with f).
+      assert (hty0: expr_has_ty Δ Γ (length Σ) kd a0 (subst_ty targs fty.1.2)) by (by apply harg with f).
       rewrite !lookup_fmap hty /= option_equivI.
       rewrite discrete_fun_equivI.
       iSpecialize ("hiF" $! v0).
       iRewrite -"hiF".
-      iDestruct (expr_soundness Δ Σ kd a0 with "hΣ hΣΔ Hle") as "#Ha0" => //; by apply wfpdefs.
+      iDestruct (expr_soundness Δ (length Σ) Σ kd a0 with "hΣ hΣΔ Hle") as "#Ha0" => //; by apply wfpdefs.
     - (* CallC *) inv hc; simpl.
       assert (wfpdefs0 := wfpdefs).
       destruct wfpdefs0.
@@ -806,7 +812,7 @@ Section proofs.
       rename H14 into heval_ret.
       assert (hwfr : wf_ty (ClassT t targs)) by by apply expr_has_ty_wf in hrecv.
       (* Get inherits relation between dynamic tag and static tag *)
-      iDestruct (expr_soundness Δ Σ _ recv with "hΣ hΣΔ Hle") as "#Hrecv" => //.
+      iDestruct (expr_soundness Δ (length Σ) Σ _ recv with "hΣ hΣΔ Hle") as "#Hrecv" => //.
       rewrite interp_class_unfold //.
       iDestruct "Hrecv" as (? t1 def def1 σin Σt fields ifields) "[%Hpure [#hΣt [#hΣtΔ1 [#hf [#hdyn Hl]]]]]".
       destruct Hpure as ([= <-] & hdef & hdef1 & hlen & ? & hin_t1_t & hfields & hidom).
@@ -836,7 +842,7 @@ Section proofs.
         destruct hin_t1_o0 as (? & ? & ?).
         by simplify_eq.
       }
-      assert (hh: wf_mdef_ty odef0.(constraints) orig0 (gen_targs (length odef0.(generics))) omdef0).
+      assert (hh: wf_mdef_ty odef0.(constraints) orig0 (length odef0.(generics)) (gen_targs (length odef0.(generics))) omdef0).
       { apply wf_mdefs in hodef0.
         by apply hodef0 in homdef0.
       }
@@ -852,10 +858,26 @@ Section proofs.
         apply hodef0 in homdef0.
         by apply homdef0 in hk.
       }
+      assert (hbounded : bounded_lty (length odef0.(generics))
+           {|
+             type_of_this := (orig0, gen_targs (length odef0.(generics)));
+             ctxt := methodargs omdef0
+           |}).
+      { split => /=.
+        - rewrite /this_type /=.
+          constructor.
+          by apply bounded_gen_targs.
+        - rewrite map_Forall_lookup => k tk hk.
+          apply wf_methods_bounded in hodef0.
+          apply hodef0 in homdef0.
+          by apply homdef0 in hk.
+      }
       assert (hΔ1 : Forall wf_constraint def1.(constraints)).
       { by apply wf_constraints_wf in hdef1.  }
       assert (hΔ0 : Forall wf_constraint odef0.(constraints)).
       { by apply wf_constraints_wf in hodef0. }
+      assert (hΔb0 : Forall (bounded_constraint (length odef0.(generics))) odef0.(constraints)).
+      { by apply wf_constraints_bounded in hodef0. }
       apply cmd_eval_subst in heval_body.
       rewrite expr_eval_subst in heval_ret.
       assert (hh: Forall wf_ty σt1_o0 ∧ length odef0.(generics) = length σt1_o0).
@@ -920,7 +942,10 @@ Section proofs.
       }
       destruct hincl0 as [hdom0 [hmargs0 hmret0_]].
       iDestruct (neg_interp_variance with "hf") as "hf2".
-      iSpecialize ("IH" $! _ _ Plain _ _ _ hwf_lty0 hΔ0 hbody (interp_list Σt σt1_o0) _ _ _ heval_body with "hΣt0 hΣtΔ0"); simpl.
+      assert (hl0 : length (interp_list Σt σt1_o0) = length (generics odef0)).
+      { by rewrite /interp_list fmap_length -heq0. }
+      iSpecialize ("IH" $! _ _ Plain _ _ _ _ hwf_lty0 hbounded hΔ0 hΔb0 hbody
+        (interp_list Σt σt1_o0) _ _ _ hl0 heval_body with "hΣt0 hΣtΔ0"); simpl.
       iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
       { iClear "IH"; iSplit.
         - iExists _; iFrame.
@@ -1124,11 +1149,11 @@ Section proofs.
         rewrite -heq0.
         by apply homdef0.
       }
-      by iApply (expr_soundness _ _ _ _ Γ').
+      by iApply (expr_soundness _ _ _ _ _ Γ').
     - (* Subtyping *)
       destruct wfpdefs.
       iIntros "H".
-      iSpecialize ("IHty" $! wflty with "[//] H").
+      iSpecialize ("IHty" $! wflty blty hΔb _ _ _ _ hrigid with "[//] hΣ hΣΔ H").
       iApply updN_mono_I; last done.
       iIntros "[Hh #Hrty]". iFrame.
       iDestruct (interp_local_tys_is_inclusion with "hΣ hΣΔ Hrty") as "Hrty'" => //.
@@ -1141,72 +1166,181 @@ Section proofs.
         by iSplit.
       }
       iIntros "H".
-      assert (hwf: wf_lty (<[v:=InterT tv (ExT t)]> Γ)).
+      pose (rigid := length Σ).
+      pose (tc := ClassT t (map GenT (seq rigid (length def.(generics))))).
+      assert (hwf: wf_lty (<[v:=InterT tv tc]> Γ0)).
       { apply insert_wf_lty => //.
         constructor; first by apply wflty in hv.
-        by constructor.
+        econstructor => //.
+        - by rewrite map_length seq_length.
+        - move => k ty hx.
+          apply list_lookup_fmap_inv in hx.
+          destruct hx as [ty' [ -> h]].
+          by constructor.
       }
-      iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
-      clear H8.
+      assert (hbounded:
+         bounded_lty (length Σ + length (generics def)) (<[v:=InterT tv tc]> Γ0)).
+      { apply insert_bounded_lty.
+        - constructor.
+          + apply bounded_ge with (length Σ); last by lia.
+            by apply blty in hv.
+          + by apply bounded_rigid.
+        - apply bounded_lty_ge with (length Σ); last by lia.
+          by apply blty.
+      }
+      iClear "IH IHty1".
       destruct H7 as (l & hl & t' & fields & hlt & hinherits).
       iDestruct "H" as "[H #Hle]".
       iDestruct "Hle" as "[Hthis Hle]".
       iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
       rewrite Hlev in hl; simplify_eq.
-      iAssert (interp_type MixedT Σ (LocV l)) as "Hmixed".
-      { destruct wfpdefs.
-        assert (hsub : Δ ⊢ tv <: MixedT) by apply SubMixed.
-        iApply subtype_is_inclusion => //.
-        by apply wflty in hv.
-      }
-      rewrite interp_mixed_unfold /=.
-      iDestruct "Hmixed" as "[Hnonnull | Hnull]"; last first.
-      { iDestruct "Hnull" as "%Hnull"; discriminate. }
-      iDestruct "Hnonnull" as "[Hint | Hl]".
-      { iDestruct "Hint" as "%Hint"; by destruct Hint. }
-      iDestruct "Hl" as "[Hbool | Hl]".
-      { iDestruct "Hbool" as "%Hbool"; by destruct Hbool. }
-      iDestruct "Hl" as (exTag exΣ) "Hl".
-      rewrite interp_tag_equiv; last (by apply wfpdefs).
-      iDestruct "Hl" as (k rt def rtdef σ Σt exfields ifields) "[%H [#hmixed [#hΣt [#hinst [#hdyn #Hl]]]]]".
-      destruct H as ([= <-] & hdef & hrtdef & hlexΣ & hlΣt & hinherits' & hfields' & hidom'); simplify_eq.
-      iAssert (⌜t' = rt⌝ ∗ heap_models st.2 ∗ interp_type (ExT rt) Σ (LocV l))%I with "[H]" as "[%heq [Hh #Hv2]]".
-      { iDestruct "H" as (sh) "(H● & %hdom & #Hh)".
+      iAssert (heap_models st.2 ∗
+        ∃ Σex, interp_tag interp_type Σex t (LocV l) ∗
+        ⌜length Σex = length def.(generics)⌝ ∗
+        □ ▷ interp_env_as_mixed Σex
+      )%I with "[H]" as "[Hh #Hv2]".
+      { iAssert (interp_type MixedT Σ (LocV l)) as "Hmixed".
+        { destruct wfpdefs.
+          assert (hsub : Δ ⊢ tv <: MixedT) by apply SubMixed.
+          iApply subtype_is_inclusion => //.
+          by apply wflty in hv.
+        }
+        rewrite interp_mixed_unfold /=.
+        iDestruct "Hmixed" as "[Hnonnull | Hnull]"; last first.
+        { iDestruct "Hnull" as "%Hnull"; discriminate. }
+        iDestruct "Hnonnull" as "[Hint | Hl]".
+        { iDestruct "Hint" as "%Hint"; by destruct Hint. }
+        iDestruct "Hl" as "[Hbool | Hl]".
+        { iDestruct "Hbool" as "%Hbool"; by destruct Hbool. }
+        iDestruct "Hl" as (exTag exΣ) "Hl".
+        rewrite interp_tag_equiv; last (by apply wfpdefs).
+        iDestruct "Hl" as (k rt exdef rtdef σ Σt exfields ifields) "[%H [#hmixed [#hΣt [#hinst [#hdyn #Hl]]]]]".
+        destruct H as ([= <-] & hexdef & hrtdef & hlexΣ & hlΣt & hinherits' & hfields' & hidom'); simplify_eq.
+        iDestruct "H" as (sh) "(H● & %hdom & #Hh)".
         iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
         iDestruct ("Hh" with "[//]") as (iFs) "[H H▷]".
         iRewrite "H" in "HΦ".
         rewrite option_equivI prod_equivI /=.
         iDestruct "HΦ" as "[%Ht HΦ]".
         fold_leibniz; subst.
-        iSplitR; first by iPureIntro.
         iSplitL. { iExists _. iFrame. by iSplit. }
-        rewrite interp_ex_unfold /=.
-        iExists Σt.
-        rewrite interp_tag_equiv //; last by apply wfpdefs.
-        iExists l, rt, rtdef, rtdef, (gen_targs (length rtdef.(generics))), Σt, exfields, ifields.
-        iSplit.
-        { iPureIntro; repeat split => //.
-          by constructor.
+        assert (hh: ∃ σ, inherits_using rt t σ ∧ length σ = length def.(generics)).
+        { move: hdef hinherits.
+          clear => hdef.
+          induction 1 as [ t | s t u hst htu hi ].
+          - exists (gen_targs (length def.(generics))).
+            split; first by constructor.
+            by rewrite length_gen_targs.
+          - destruct (hi hdef) as (σ & h0 & h1).
+            inv hst.
+            exists (subst_ty σB <$> σ); split.
+            + eapply InheritsTrans.
+              * by econstructor.
+              * done.
+            + by rewrite map_length.
         }
-        iSplit => //.
-        iSplit => //.
+        destruct hh as (σin & hσin & heq).
+        assert (hwfσin : Forall wf_ty σin).
+        { destruct wfpdefs.
+          apply inherits_using_wf in hσin => //.
+          destruct hσin as (? & ? & ? & h); simplify_eq.
+          by apply wf_ty_class_inv in h.
+        }
+        iExists (interp_list Σt σin).
         iSplit.
+        { rewrite interp_tag_equiv; last (by apply wfpdefs).
+          iExists l, rt, def, rtdef, σin, Σt, exfields, ifields.
+          iSplit.
+          { iPureIntro; repeat split => //.
+            by rewrite /interp_list map_length heq.
+          }
+          iSplit => //.
+          iSplit => //.
+          iSplit; last by iSplit.
+          iModIntro; iNext.
+          iApply iForall3_interp_reflexive.
+          by rewrite /interp_list map_length heq.
+        }
+        iSplit.
+        { iPureIntro.
+          by rewrite /interp_list fmap_length.
+        }
         { iModIntro; iNext.
-          by iApply iForall3_interp_gen_targs.
+          iIntros (k ϕ hϕ w) "#Hw".
+          apply list_lookup_fmap_inv in hϕ as [ty [-> hty]].
+          iAssert (interp_type MixedT Σt w) as "HH".
+          { iApply (submixed_is_inclusion_aux _ ty) => //.
+            rewrite Forall_lookup in hwfσin.
+            by apply hwfσin in hty.
+          }
+          by rewrite interp_mixed_unfold.
         }
-        by iSplit.
       }
-      subst.
-      iFrame.
-      iSplit => /=; first done.
-      iIntros (w tw).
-      rewrite lookup_insert_Some.
-      iIntros "%Hw".
-      destruct Hw as [[<- <-] | [hne hw]]; last by iApply "Hle".
-      iExists (LocV l); rewrite Hlev; iSplitR; first done.
-      rewrite interp_inter_unfold /=; iSplit; first done.
+      iDestruct "Hv2" as (Σex) "(Hv2 & %heq & #HΣex)".
+      (* We need the extra +1 to get that the existiential Σ
+       * is correctly ⊆ mixed
+       *)
+      rewrite updN_S.
+      iModIntro; iNext.
+      iAssert (interp_env_as_mixed (Σ ++ Σex)) as "hmixed".
+      { iIntros (k ϕ hϕ w) "#hw".
+        rewrite lookup_app in hϕ.
+        destruct (Σ !! k) as [ty0 | ] eqn:h0.
+        + case: hϕ => <-.
+          by iApply "hΣ".
+        + by iApply "HΣex".
+      }
+      iAssert (Σinterp (Σ ++ Σex) Δ) as "hΣ_Δ".
+      { iIntros (k c hc w) "#hw".
+        rewrite Forall_lookup in hΔb.
+        rewrite -!interp_type_app.
+        + by iApply "hΣΔ".
+        + by apply hΔb in hc as [].
+        + by apply hΔb in hc as [].
+      }
+      iAssert (|=▷^n0 heap_models st'.2 ∗ interp_local_tys (Σ ++ Σex) Γ1 st'.1)%I with "[Hh]" as "H".
+      { iApply "IHty".
+        - by iPureIntro.
+        - by iPureIntro.
+        - iPureIntro.
+          apply bounded_constraints_ge with (length Σ); last by lia.
+          done.
+        - by rewrite app_length heq.
+        - by iPureIntro.
+        - by iModIntro.
+        - by iModIntro.
+        - iFrame.
+          iSplit.
+          + rewrite /= -interp_this_type_app; first done.
+            by apply blty.
+          + rewrite /=.
+            iIntros (w tw).
+            rewrite lookup_insert_Some.
+            iIntros "%Hw".
+            destruct Hw as [[<- <-] | [hne hw]].
+            * iExists (LocV l); rewrite Hlev; iSplitR; first done.
+              rewrite interp_inter_unfold; iSplit.
+              { rewrite -interp_type_app; first done.
+                by apply blty in hv.
+              }
+              rewrite (interp_type_rigid Σ Σex); first by rewrite heq.
+              { by destruct wfpdefs. }
+              econstructor => //.
+              { by rewrite map_length seq_length heq. }
+              move => k ty h.
+              apply list_lookup_fmap_inv in h as [? [-> h]].
+              by constructor.
+            * iDestruct ("Hle" $! w tw hw) as (z hz) "#Hz".
+              iExists z; iSplit; first done.
+              rewrite -interp_type_app; first done.
+              by apply blty in hw.
+      }
+      iRevert "H".
+      iApply updN_mono_I.
+      iIntros "[Hm H]"; iFrame.
+      rewrite -interp_local_app; first done.
       destruct wfpdefs.
-      by iApply inherits_is_ex_inclusion.
+      by apply cmd_has_ty_bounded in hels.
     - (* RuntimeCheck Int *) inv hc; last first.
       { iIntros "[Hh H]".
         iApply "IHty1" => //.
@@ -1218,7 +1352,13 @@ Section proofs.
         constructor; first by apply wflty in hv.
         by constructor.
       }
-      iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
+      assert (hbounded: bounded_lty (length Σ) (<[v:=InterT tv IntT]> Γ)).
+      { apply insert_bounded_lty => //.
+        constructor; last by constructor.
+        by apply blty in hv.
+      }
+      iModIntro; iNext.
+      iApply ("IHty" $! hwf hbounded hΔb with "[//]") => //; iClear "IH IHty".
       clear H8.
       destruct H7 as (z & hz).
       iDestruct "H" as "[H #Hle]".
@@ -1246,7 +1386,13 @@ Section proofs.
         constructor; first by apply wflty in hv.
         by constructor.
       }
-      iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
+      assert (hbounded: bounded_lty (length Σ) (<[v:=InterT tv BoolT]> Γ)).
+      { apply insert_bounded_lty => //.
+        constructor; last by constructor.
+        by apply blty in hv.
+      }
+      iModIntro; iNext.
+      iApply ("IHty" $! hwf hbounded hΔb with "[//]") => //; iClear "IH IHty".
       clear H8.
       destruct H7 as (b & hb).
       iDestruct "H" as "[H #Hle]".
@@ -1274,7 +1420,13 @@ Section proofs.
         constructor; first by apply wflty in hv.
         by constructor.
       }
-      iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
+      assert (hbounded: bounded_lty (length Σ) (<[v:=InterT tv NullT]> Γ)).
+      { apply insert_bounded_lty => //.
+        constructor; last by constructor.
+        by apply blty in hv.
+      }
+      iModIntro; iNext.
+      iApply ("IHty" $! hwf hbounded hΔb with "[//]") => //; iClear "IH IHty".
       clear H8.
       simpl in H7.
       iDestruct "H" as "[H #Hle]".
@@ -1301,7 +1453,13 @@ Section proofs.
         constructor; first by apply wflty in hv.
         by constructor.
       }
-      iApply ("IHty" $! hwf with "[//]"); iClear "IH IHty".
+      assert (hbounded: bounded_lty (length Σ) (<[v:=InterT tv NonNullT]> Γ)).
+      { apply insert_bounded_lty => //.
+        constructor; last by constructor.
+        by apply blty in hv.
+      }
+      iModIntro; iNext.
+      iApply ("IHty" $! hwf hbounded hΔb with "[//]") => //; iClear "IH IHty".
       clear H8.
       simpl in H7.
       iDestruct "H" as "[H #Hle]".
@@ -1527,7 +1685,7 @@ Section proofs.
       rename H9 into hmdom.
       rename H13 into heval_body.
       rename H14 into heval_ret.
-      iDestruct (expr_soundness Δ Σ _ recv with "hΣ hΣΔ Hle") as "#Hl" => //.
+      iDestruct (expr_soundness Δ _ Σ _ recv with "hΣ hΣΔ Hle") as "#Hl" => //.
       rewrite interp_dynamic_unfold //.
       iDestruct "Hl" as "[H | Hl]".
       { iDestruct "H" as (z) "%Hz".
@@ -1600,6 +1758,19 @@ Section proofs.
           rewrite lookup_fmap_Some.
           by case => ty [<- ] hk.
       }
+      assert (hbounded : bounded_lty (length odef.(generics))
+           {|
+             type_of_this := (orig, gen_targs (length odef.(generics)));
+             ctxt := to_dyn <$> methodargs omdef
+           |}).
+      { split => /=.
+        - rewrite /this_type /=.
+          constructor.
+          by apply bounded_gen_targs.
+        - rewrite map_Forall_lookup => k tk.
+          rewrite /to_dyn lookup_fmap_Some => [[ty [<- hk]]].
+          by constructor.
+      }
       assert (hok0 : (ok_ty def0.(constraints)) (ClassT orig σ0)).
       { apply inherits_using_ok in hin0 => //.
         by destruct hin0 as (? & ? & hok); simplify_eq.
@@ -1608,6 +1779,8 @@ Section proofs.
       { by apply wf_constraints_wf in hodef. }
       assert (hΔ0: Forall wf_constraint (constraints def0)).
       { by apply wf_constraints_wf in hdef0. }
+      assert (hΔb0 : Forall (bounded_constraint (length odef.(generics))) odef.(constraints)).
+      { by apply wf_constraints_bounded in hodef. }
       iModIntro; iNext.
       iAssert (interp_env_as_mixed (interp_list Σt σ0)) as "hΣt0".
       { iIntros (k ϕi hk v) "#hv".
@@ -1641,7 +1814,10 @@ Section proofs.
         rewrite interp_type_subst; last done.
         by iApply "hh".
       }
-      iSpecialize ("IH" $! _ _ Aware _ _ _ hwf_lty0 hΔo hbody (interp_list Σt σ0) _ _ _ heval_body with "hΣt0 hΣtΔo"); simpl.
+      assert (hl1 : length (interp_list Σt σ0) = length (generics odef)) by
+       (by rewrite /interp_list fmap_length hl0). 
+      iSpecialize ("IH" $! _ _ Aware _ _ _ _ hwf_lty0 hbounded hΔo hΔb0 hbody
+        (interp_list Σt σ0) _ _ _ hl1 heval_body with "hΣt0 hΣtΔo"); simpl.
       iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
       { iClear "IH"; iSplit.
         - iExists _; iFrame.
@@ -1705,7 +1881,7 @@ Section proofs.
       iIntros "[Hmodels Hle2]"; iFrame.
       iApply interp_local_tys_update; first by done.
       rewrite /to_dyn in hret.
-      iDestruct (expr_soundness odef.(constraints) (interp_list Σt σ0) _ _ rty) as "hh" => //.
+      iDestruct (expr_soundness odef.(constraints) _ (interp_list Σt σ0) _ _ rty) as "hh" => //.
       rewrite !interp_dynamic_unfold.
       by iApply "hh".
   Qed.
@@ -1713,13 +1889,15 @@ Section proofs.
   Lemma cmd_soundness Δ C kd Σ Γ cmd Γ' :
     wf_cdefs pdefs →
     wf_lty Γ →
+    bounded_lty (length Σ) Γ →
     Forall wf_constraint Δ →
-    cmd_has_ty Δ C kd Γ cmd Γ' →
+    Forall (bounded_constraint (length Σ)) Δ →
+    cmd_has_ty Δ C kd (length Σ) Γ cmd Γ' →
     ∀ st st' n, cmd_eval C st cmd st' n →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
-    heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗ |=▷^n
-        heap_models st'.2 ∗ interp_local_tys Σ Γ' st'.1.
+    heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗
+    |=▷^n heap_models st'.2 ∗ interp_local_tys Σ Γ' st'.1.
   Proof.
     intros.
     by iApply cmd_soundness_.

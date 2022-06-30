@@ -256,6 +256,7 @@ Proof.
           { by constructor. }
           { by constructor. }
           { by constructor. }
+          { by constructor. }
           by eauto.
       }
       split => /=.
@@ -302,10 +303,12 @@ Proof.
           { by econstructor. }
           { by repeat constructor. }
           { by repeat constructor. }
+          { by repeat constructor. }
           rewrite /to_dyn.
           by eauto.
         * eapply ESubTy.
           { by econstructor. }
+          { by repeat constructor. }
           { by repeat constructor. }
           { by repeat constructor. }
           rewrite /to_dyn.
@@ -330,6 +333,7 @@ Proof.
           by eapply HasField.
         * eapply ESubTy.
           { by econstructor. }
+          { by repeat constructor. }
           { by repeat constructor. }
           { by repeat constructor. }
           rewrite /to_dyn /=.
@@ -357,6 +361,7 @@ Proof.
       { split.
         * by econstructor.
         * eapply ESubTy.
+          { by econstructor. }
           { by econstructor. }
           { by econstructor. }
           { by econstructor. }

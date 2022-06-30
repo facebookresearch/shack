@@ -345,15 +345,19 @@ Definition final_lty lty : local_tys :=
   (<["$init"  := IntT]>
   (<["$robox" := ClassT "ROBox" [IntT]]> lty)))).
 
-Lemma Main_ty lty :
-  cmd_has_ty [] "Main" Plain lty ProgramBody (final_lty lty).
+Lemma Main_ty n lty :
+  bounded_lty n lty →
+  cmd_has_ty [] "Main" Plain n lty ProgramBody (final_lty lty).
 Proof.
+  move => hb.
   rewrite /final_lty /ProgramBody.
   eapply SeqTy.
   { eapply NewTy with (targs := [IntT]).
     + econstructor => //.
       move => k ty; rewrite list_lookup_singleton_Some.
       case => _ <-; by constructor.
+    + constructor.
+      by rewrite Forall_singleton.
     + econstructor => //.
       * move => i ty.
         rewrite list_lookup_singleton_Some => [[? <-]].
@@ -379,6 +383,7 @@ Proof.
   }
   eapply SeqTy.
   { eapply NewTy with (targs := []).
+    + by econstructor.
     + by econstructor.
     + by econstructor.
     + by apply has_fields_IntBoxS.
@@ -422,6 +427,28 @@ Proof.
     constructor.
     do 3 (rewrite lookup_insert_ne //).
     by rewrite lookup_insert.
+  - apply insert_bounded_lty; first done.
+    split => /=.
+    { rewrite /this_type /=.
+      constructor.
+      destruct lty as [[this σ] Γ]; simpl.
+      destruct hb as [hb _].
+      rewrite /this_type /= in hb.
+      by inv hb.
+    }
+    apply map_Forall_insert_2; first done.
+    apply map_Forall_insert_2.
+    { apply bounded_ge with 0; last by lia.
+      constructor.
+      by apply Forall_nil.
+    }
+    apply map_Forall_insert_2; first done.
+    apply map_Forall_insert_2.
+    { apply bounded_ge with 0; last by lia.
+      constructor.
+      by apply Forall_singleton.
+    }
+    by apply hb.
   - split => /=.
     { by rewrite /this_type. }
     move => v ty.
@@ -448,7 +475,7 @@ Proof.
       by rewrite lookup_insert_ne.
 Qed.
 
-Lemma wf_mdef_ty_Main: wf_mdef_ty [] "Main" (gen_targs 0) EntryPoint.
+Lemma wf_mdef_ty_Main: wf_mdef_ty [] "Main" 0 (gen_targs 0) EntryPoint.
 Proof.
   rewrite /wf_mdef_ty.
   exists (final_lty {| type_of_this := ("Main", gen_targs 0); ctxt := methodargs EntryPoint|}).
@@ -471,7 +498,13 @@ Proof.
     move => ? ?; rewrite list_lookup_singleton_Some.
     case => _ <-.
     by constructor.
-  - by apply Main_ty.
+  - apply Main_ty .
+    split.
+    + rewrite /this_type /=.
+      constructor.
+      by apply Forall_nil.
+    + simpl.
+      by apply map_Forall_empty.
   - rewrite /final_lty.
     constructor => //.
     + constructor.
@@ -1348,7 +1381,7 @@ Qed.
  *)
 Theorem int_soundness cmd st lty n:
   cmd_eval "Main" (main_le, main_heap "Main") cmd st n →
-  cmd_has_ty [] "Main" Plain (main_lty "Main") cmd lty →
+  cmd_has_ty [] "Main" Plain 0 (main_lty "Main") cmd lty →
   ∀ v, lty.(ctxt) !! v = Some IntT →
   ∃ z, st.1.(lenv) !! v = Some (IntV z).
 Proof.
@@ -1373,7 +1406,14 @@ Proof.
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
-  iDestruct ((cmd_soundness [] "Main" _ [] _ _ _ wf wfinit wfΔ ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
+  assert (hbounded: bounded_lty 0 (main_lty "Main")).
+  { split; last by apply map_Forall_empty.
+    rewrite /main_lty /this_type /=.
+    constructor.
+    by apply Forall_nil.
+  }
+  assert (hΔb : Forall (bounded_constraint 0) []) by by apply Forall_nil.
+  iDestruct ((cmd_soundness [] "Main" _ [] _ _ _ wf wfinit hbounded wfΔ hΔb ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [Hthis Hl]]".
@@ -1386,7 +1426,7 @@ Qed.
 
 Theorem class_soundness cmd st lty n:
   cmd_eval "Main" (main_le, main_heap "Main") cmd st n →
-  cmd_has_ty [] "Main" Plain (main_lty "Main") cmd lty →
+  cmd_has_ty [] "Main" Plain 0 (main_lty "Main") cmd lty →
   ∀ v T σ, lty.(ctxt) !! v = Some (ClassT T σ) →
   ∃ l Tdyn vs, st.1.(lenv) !! v = Some (LocV l) ∧
           st.2 !! l = Some (Tdyn, vs) ∧
@@ -1413,7 +1453,14 @@ Proof.
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
-  iDestruct ((cmd_soundness [] "Main" _ [] _ _ _ wf wfinit wfΔ ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
+  assert (hbounded: bounded_lty 0 (main_lty "Main")).
+  { split; last by apply map_Forall_empty.
+    rewrite /main_lty /this_type /=.
+    constructor.
+    by apply Forall_nil.
+  }
+  assert (hΔb : Forall (bounded_constraint 0) []) by by apply Forall_nil.
+  iDestruct ((cmd_soundness [] "Main" _ [] _ _ _ wf wfinit hbounded wfΔ hΔb ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [_ Hl]]".
