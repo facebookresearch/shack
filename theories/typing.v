@@ -379,6 +379,78 @@ Section Typing.
     - by apply hb.
   Qed.
 
+  (* For runtime check, we want to introduce fresh new generic types,
+   * and keep their constraints around. To this purpose, we need
+   * to 'lift' constraints deBruijn to match the right indexes.
+   *)
+  Fixpoint lift_ty n (ty: lang_ty) : lang_ty :=
+    match ty with
+    | ClassT t σ => ClassT t (lift_ty n <$> σ)
+    | UnionT s t => UnionT (lift_ty n s) (lift_ty n t)
+    | InterT s t => InterT (lift_ty n s) (lift_ty n t)
+    | GenT k => GenT (k + n)
+    | IntT | BoolT | NothingT | MixedT | NullT |
+      NonNullT | DynamicT | SupportDynT => ty
+    end.
+
+  Lemma lift_ty_wf ty: ∀ n, wf_ty ty → wf_ty (lift_ty n ty).
+  Proof.
+    induction ty as [ | | | | t σ hi | | | s t hs ht |
+        s t hs ht | k | | ] => n h //=.
+    - inv h.
+      econstructor => //.
+      + by rewrite map_length.
+      + move => k ty h.
+        apply list_lookup_fmap_inv in h as [ty' [-> h]].
+        rewrite Forall_lookup in hi.
+        by eauto.
+    - inv h; constructor; by eauto.
+    - inv h; constructor; by eauto.
+  Qed.
+
+  Lemma lift_ty_bounded ty: ∀ n m, bounded m ty → bounded (n + m) (lift_ty n ty).
+  Proof.
+    induction ty as [ | | | | t σ hi | | | s t hs ht |
+        s t hs ht | k | | ] => n m h //=.
+    - inv h.
+      constructor => //.
+      rewrite Forall_lookup => k ty h.
+      apply list_lookup_fmap_inv in h as [ty' [-> h]].
+      rewrite Forall_lookup in hi.
+      rewrite Forall_lookup in H0.
+      by eauto.
+    - inv h; constructor; by eauto.
+    - inv h; constructor; by eauto.
+    - inv h; constructor.
+      by lia.
+  Qed.
+
+  Definition lift_constraint n c := (lift_ty n c.1, lift_ty n c.2).
+
+  Definition lift_constraints n (Δ : list constraint) :=
+    lift_constraint n <$> Δ.
+
+  Lemma lift_constraints_wf n Δ:
+    Forall wf_constraint Δ → Forall wf_constraint (lift_constraints n Δ).
+  Proof.
+    move => /Forall_lookup h.
+    rewrite Forall_lookup => k ty hty.
+    apply list_lookup_fmap_inv in hty as [ty' [-> hty]].
+    apply h in hty as [].
+    split; by apply lift_ty_wf.
+  Qed.
+
+  Lemma lift_constraints_bounded m n Δ:
+    Forall (bounded_constraint m) Δ →
+    Forall (bounded_constraint (n + m)) (lift_constraints n Δ).
+  Proof.
+    move => /Forall_lookup h.
+    rewrite Forall_lookup => k ty hty.
+    apply list_lookup_fmap_inv in hty as [ty' [-> hty]].
+    apply h in hty as [].
+    split; by apply lift_ty_bounded.
+  Qed.
+
   (* continuation-based typing for commands.
    * Δ is the set of constraints S <: T of the current class
    * and C is the tag of the current class (for `private` related checks)
@@ -390,41 +462,41 @@ Section Typing.
    * is where the member is defined, and the member can only be accessed
    * via `This`
    *)
-  Inductive cmd_has_ty (C : tag) Δ : subtype_kind → nat → local_tys → cmd → local_tys → Prop :=
-    | SkipTy: ∀ Γ kd rigid, cmd_has_ty C Δ kd rigid Γ SkipC Γ
-    | ErrorTy: ∀ kd rigid Γ0 Γ1,
+  Inductive cmd_has_ty (C : tag) : list constraint → subtype_kind → nat → local_tys → cmd → local_tys → Prop :=
+    | SkipTy: ∀ Γ Δ kd rigid, cmd_has_ty C Δ kd rigid Γ SkipC Γ
+    | ErrorTy: ∀ Δ kd rigid Γ0 Γ1,
         wf_lty Γ1 → bounded_lty rigid Γ1 → cmd_has_ty C Δ kd rigid Γ0 ErrorC Γ1
-    | SeqTy: ∀ kd rigid Γ1 Γ2 Γ3 fstc sndc,
+    | SeqTy: ∀ Δ kd rigid Γ1 Γ2 Γ3 fstc sndc,
         cmd_has_ty C Δ kd rigid Γ1 fstc Γ2 →
         cmd_has_ty C Δ kd rigid Γ2 sndc Γ3 →
         cmd_has_ty C Δ kd rigid Γ1 (SeqC fstc sndc) Γ3
-    | LetTy: ∀ kd rigid Γ lhs e ty,
+    | LetTy: ∀ Δ kd rigid Γ lhs e ty,
         expr_has_ty Δ Γ rigid kd e ty →
         cmd_has_ty C Δ kd rigid Γ (LetC lhs e) (<[lhs := ty]>Γ)
-    | IfTy: ∀ kd rigid Γ1 Γ2 cond thn els,
+    | IfTy: ∀ Δ kd rigid Γ1 Γ2 cond thn els,
         expr_has_ty Δ Γ1 rigid kd cond BoolT →
         cmd_has_ty C Δ kd rigid Γ1 thn Γ2 →
         cmd_has_ty C Δ kd rigid Γ1 els Γ2 →
         cmd_has_ty C Δ kd rigid Γ1 (IfC cond thn els) Γ2
-    | GetPrivTy: ∀ kd rigid Γ lhs t σ name fty,
+    | GetPrivTy: ∀ Δ kd rigid Γ lhs t σ name fty,
         type_of_this Γ = (t, σ) →
         has_field name t Private fty C →
         cmd_has_ty C Δ kd rigid Γ (GetC lhs ThisE name) (<[lhs := subst_ty σ fty]>Γ)
-    | GetPubTy: ∀ kd rigid Γ lhs recv t σ name fty orig,
+    | GetPubTy: ∀ Δ kd rigid Γ lhs recv t σ name fty orig,
         expr_has_ty Δ Γ rigid kd recv (ClassT t σ) →
         has_field name t Public fty orig →
         cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := subst_ty σ fty]>Γ)
-    | SetPrivTy: ∀ kd rigid Γ fld rhs fty t σ,
+    | SetPrivTy: ∀ Δ kd rigid Γ fld rhs fty t σ,
         type_of_this Γ = (t, σ) →
         has_field fld t Private fty C →
         expr_has_ty Δ Γ rigid kd rhs (subst_ty σ fty) →
         cmd_has_ty C Δ kd rigid Γ (SetC ThisE fld rhs) Γ
-    | SetPubTy: ∀ kd rigid Γ recv fld rhs fty orig t σ,
+    | SetPubTy: ∀ Δ kd rigid Γ recv fld rhs fty orig t σ,
         expr_has_ty Δ Γ rigid kd recv (ClassT t σ) →
         has_field fld t Public fty orig →
         expr_has_ty Δ Γ rigid kd rhs (subst_ty σ fty) →
         cmd_has_ty C Δ kd rigid Γ (SetC recv fld rhs) Γ
-    | NewTy: ∀ kd rigid Γ lhs t targs args fields,
+    | NewTy: ∀ Δ kd rigid Γ lhs t targs args fields,
         wf_ty (ClassT t targs) →
         bounded rigid (ClassT t targs) →
         ok_ty Δ (ClassT t targs) →
@@ -435,7 +507,7 @@ Section Typing.
         args !! f = Some arg →
         expr_has_ty Δ Γ rigid kd arg (subst_ty targs fty.1.2)) →
         cmd_has_ty C Δ kd rigid Γ (NewC lhs t targs args) (<[lhs := ClassT t targs]>Γ)
-    | CallTy: ∀ kd rigid Γ lhs recv t targs name orig mdef args,
+    | CallTy: ∀ Δ kd rigid Γ lhs recv t targs name orig mdef args,
         expr_has_ty Δ Γ rigid kd recv (ClassT t targs) →
         has_method name t orig mdef →
         dom mdef.(methodargs) = dom args →
@@ -444,46 +516,46 @@ Section Typing.
         args !! x = Some arg →
         expr_has_ty Δ Γ rigid kd arg (subst_ty targs ty)) →
         cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := subst_ty targs mdef.(methodrettype)]>Γ)
-    | SubTy: ∀ kd rigid Γ c Γ0 Γ1,
+    | SubTy: ∀ Δ kd rigid Γ c Γ0 Γ1,
         lty_sub Δ kd Γ1 Γ0 →
         bounded_lty rigid Γ0 →
         cmd_has_ty C Δ kd rigid Γ c Γ1 →
         cmd_has_ty C Δ kd rigid Γ c Γ0
-    | TagCheckTy kd rigid Γ0 Γ1 v tv t def thn els:
+    | TagCheckTy Δ kd rigid Γ0 Γ1 v tv t def thn els:
         Γ0.(ctxt) !! v = Some tv →
         pdefs !! t = Some def →
         (∀ k ty, Γ1.(ctxt)!! k = Some ty → bounded rigid ty) →
-        cmd_has_ty C Δ kd (rigid + length def.(generics))
+        cmd_has_ty C (lift_constraints rigid def.(constraints) ++ Δ) kd (rigid + length def.(generics))
           (<[v:=InterT tv (ClassT t (map GenT (seq rigid (length def.(generics)))))]> Γ0) thn Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v (RCTag t) thn els) Γ1
-    | IntCheckTy kd rigid Γ0 Γ1 v tv thn els:
+    | IntCheckTy Δ kd rigid Γ0 Γ1 v tv thn els:
         Γ0.(ctxt) !! v = Some tv →
         cmd_has_ty C Δ kd rigid (<[v:=InterT tv IntT]> Γ0) thn Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCInt thn els) Γ1
-    | BoolCheckTy kd rigid Γ0 Γ1 v tv thn els:
+    | BoolCheckTy Δ kd rigid Γ0 Γ1 v tv thn els:
         Γ0.(ctxt) !! v = Some tv →
         cmd_has_ty C Δ kd rigid (<[v:=InterT tv BoolT]> Γ0) thn Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCBool thn els) Γ1
-    | NullCheckTy kd rigid Γ0 Γ1 v tv thn els:
+    | NullCheckTy Δ kd rigid Γ0 Γ1 v tv thn els:
         Γ0.(ctxt) !! v = Some tv →
         cmd_has_ty C Δ kd rigid (<[v:=InterT tv NullT]> Γ0) thn Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCNull thn els) Γ1
-    | NonNullCheckTy kd rigid Γ0 Γ1 v tv thn els:
+    | NonNullCheckTy Δ kd rigid Γ0 Γ1 v tv thn els:
         Γ0.(ctxt) !! v = Some tv →
         cmd_has_ty C Δ kd rigid (<[v:=InterT tv NonNullT]> Γ0) thn Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCNonNull thn els) Γ1
     (* Dynamic related typing rules *)
-    | DynIfTy: ∀ kd rigid Γ1 Γ2 cond thn els,
+    | DynIfTy: ∀ Δ kd rigid Γ1 Γ2 cond thn els,
         expr_has_ty Δ Γ1 rigid kd cond DynamicT →
         cmd_has_ty C Δ kd rigid Γ1 thn Γ2 →
         cmd_has_ty C Δ kd rigid Γ1 els Γ2 →
         cmd_has_ty C Δ kd rigid Γ1 (IfC cond thn els) Γ2
-    | DynGetTy : ∀ kd rigid Γ lhs recv name,
+    | DynGetTy : ∀ Δ kd rigid Γ lhs recv name,
         expr_has_ty Δ Γ rigid kd recv DynamicT →
         (match recv with
          | ThisE => False
@@ -491,7 +563,7 @@ Section Typing.
          end
         ) →
         cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := DynamicT]>Γ)
-    | DynSetTy : ∀ kd rigid Γ recv fld rhs,
+    | DynSetTy : ∀ Δ kd rigid Γ recv fld rhs,
         expr_has_ty Δ Γ rigid kd recv DynamicT →
         expr_has_ty Δ Γ rigid kd rhs DynamicT →
         (match recv with
@@ -499,7 +571,7 @@ Section Typing.
          | _ => True
          end) →
         cmd_has_ty C Δ kd rigid Γ (SetC recv fld rhs) Γ
-    | DynCallTy: ∀ kd rigid Γ lhs recv name (args: stringmap expr),
+    | DynCallTy: ∀ Δ kd rigid Γ lhs recv name (args: stringmap expr),
         expr_has_ty Δ Γ rigid kd recv DynamicT →
         (∀ x arg, args !! x = Some arg →
           expr_has_ty Δ Γ rigid kd arg DynamicT) →
@@ -520,17 +592,17 @@ Section Typing.
     wf_lty Γ1.
   Proof.
     move => hp hfields hmethods hΔ [hthis hwf].
-    induction 1 as [ | ????? | ??????? h1 hi1 h2 hi2 | ?????? he |
-      ??????? he h1 hi1 h2 hi2 | ???????? he hf | ?????????? he hf |
-      ???????? he hf hr | ?????????? he hf hr | ???????? ht hb hok hf hdom hargs |
-      ??????????? he hm hdom hargs |
-      ?????? hsub hb h hi | ?????????? hin hdef hΓ1 hthn hi0 hels hi1 |
-      ???????? hin hthn hi0 hels hi1 | ???????? hin hthn hi0 hels hi1 |
-      ???????? hin hthn hi0 hels hi1 | ???????? hin hthn hi0 helse hi1 |
-      ??????? hcond hthn hi1 hels hi2 | ?????? he hnotthis |
-      ?????? hrecv hrhs hnotthis | ??????? he hargs hnotthis
+    induction 1 as [ | ?????? | ???????? h1 hi1 h2 hi2 | ??????? he |
+      ???????? he h1 hi1 h2 hi2 | ????????? he hf | ??????????? he hf |
+      ????????? he hf hr | ??????????? he hf hr | ????????? ht hb hok hf hdom hargs |
+      ???????????? he hm hdom hargs |
+      ??????? hsub hb h hi | ??????????? hin hdef hΓ1 hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
+      ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
+      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis
       ] => //=; try (by eauto).
-    - apply hi2.
+    - apply hi2 => //.
       + by apply hi1.
       + by apply hi1.
     - apply insert_wf_lty => //.
@@ -579,17 +651,17 @@ Section Typing.
     bounded_lty rigid Γ1.
   Proof.
     move => hp ?? hfields hmethods hΔ hwf [hthis hb].
-    induction 1 as [ | ????? | ??????? h1 hi1 h2 hi2 | ?????? he |
-      ??????? he h1 hi1 h2 hi2 | ???????? he hf | ?????????? he hf |
-      ???????? he hf hr | ?????????? he hf hr | ???????? ht htb hok hf hdom hargs |
-      ??????????? he hm hdom hargs |
-      ?????? hsub hΓb h hi | ?????????? hin hdef hΓ1 hthn hi0 hels hi1 |
-      ???????? hin hthn hi0 hels hi1 | ???????? hin hthn hi0 hels hi1 |
-      ???????? hin hthn hi0 hels hi1 | ???????? hin hthn hi0 helse hi1 |
-      ??????? hcond hthn hi1 hels hi2 | ?????? he hnotthis |
-      ?????? hrecv hrhs hnotthis | ??????? he hargs hnotthis
+    induction 1 as [ | ?????? | ???????? h1 hi1 h2 hi2 | ??????? he |
+      ???????? he h1 hi1 h2 hi2 | ????????? he hf | ??????????? he hf |
+      ????????? he hf hr | ??????????? he hf hr | ????????? ht htb hok hf hdom hargs |
+      ???????????? he hm hdom hargs |
+      ??????? hsub hΓb h hi | ??????????? hin hdef hΓ1 hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
+      ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
+      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis
       ] => //=; try (by eauto).
-    - apply hi2.
+    - apply hi2 => //.
       + by apply cmd_has_ty_wf in h1.
       + by apply hi1.
       + by apply hi1.

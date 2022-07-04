@@ -436,27 +436,27 @@ Section proofs.
     move => wfpdefs wflty blty hΔ hΔb.
     iLöb as "IH" forall (C Δ kd rigid Γ cmd Γ' wflty blty hΔ hΔb).
     iIntros "%hty" (Σ st st' n hrigid hc) "#hΣ #hΣΔ".
-    iInduction hty as [ kd rigid Γ |
-        kd rigid Γ rty hwf |
-        kd rigid Γ1 Γ2 Γ3 fstc sndc hfst hi1 hsnd hi2 |
-        kd rigid Γ lhs e ty he |
-        kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
-        kd rigid Γ lhs t targs name fty hrecv hf |
-        kd rigid Γ lhs recv t targs name fty orig hrecv hf |
-        kd rigid Γ fld rhs fty t σ hrecv hrhs hf |
-        kd rigid Γ recv fld rhs fty orig t σ hrecv hrhs hf |
-        kd rigid Γ lhs t targs args fields hwf hb hok hf hdom harg |
-        kd rigid Γ lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
-        kd rigid Γ c rty' rty hsub hb h hi |
-        kd rigid Γ0 Γ1 v tv t def thn els hv hdef hΓ1 hthn hi0 hels hi1 |
-        kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
-        kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
-        kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
-        kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
-        kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
-        kd rigid Γ lhs recv name he hnotthis |
-        kd rigid Γ recv fld rhs hrecv hrhs hnotthis |
-        kd rigid Γ lhs recv name args hrecv hi hnotthis
+    iInduction hty as [ Δ kd rigid Γ |
+        Δ kd rigid Γ rty hwf |
+        Δ kd rigid Γ1 Γ2 Γ3 fstc sndc hfst hi1 hsnd hi2 |
+        Δ kd rigid Γ lhs e ty he |
+        Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
+        Δ kd rigid Γ lhs t targs name fty hrecv hf |
+        Δ kd rigid Γ lhs recv t targs name fty orig hrecv hf |
+        Δ kd rigid Γ fld rhs fty t σ hrecv hrhs hf |
+        Δ kd rigid Γ recv fld rhs fty orig t σ hrecv hrhs hf |
+        Δ kd rigid Γ lhs t targs args fields hwf hb hok hf hdom harg |
+        Δ kd rigid Γ lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
+        Δ kd rigid Γ c rty' rty hsub hb h hi |
+        Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hΓ1 hthn hi0 hels hi1 |
+        Δ kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
+        Δ kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
+        Δ kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
+        Δ kd rigid Γ rty v tv thn els hv hthn hi0 hels hi1 |
+        Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
+        Δ kd rigid Γ lhs recv name he hnotthis |
+        Δ kd rigid Γ recv fld rhs hrecv hrhs hnotthis |
+        Δ kd rigid Γ lhs recv name args hrecv hi hnotthis
       ] "IHty" forall (Σ st st' n hrigid hc) "hΣ hΣΔ".
     - (* SkipC *) inv hc.
       rewrite updN_zero.
@@ -464,7 +464,7 @@ Section proofs.
     - (* Error *)
       by inv hc.
     - (* SeqC *) inv hc. iIntros "H".
-      iSpecialize ("IHty" $! wflty blty hΔb Σ _ _ _ refl_equal with "[//] hΣ hΣΔ H").
+      iSpecialize ("IHty" $! wflty blty hΔ hΔb Σ _ _ _ refl_equal with "[//] hΣ hΣΔ H").
       rewrite Nat_iter_add.
       iApply (updN_mono_I with "[] IHty").
       destruct wfpdefs.
@@ -1150,7 +1150,7 @@ Section proofs.
     - (* Subtyping *)
       destruct wfpdefs.
       iIntros "H".
-      iSpecialize ("IHty" $! wflty blty hΔb _ _ _ _ hrigid with "[//] hΣ hΣΔ H").
+      iSpecialize ("IHty" $! wflty blty hΔ hΔb _ _ _ _ hrigid with "[//] hΣ hΣΔ H").
       iApply updN_mono_I; last done.
       iIntros "[Hh #Hrty]". iFrame.
       iDestruct (interp_local_tys_is_inclusion with "hΣ hΣΔ Hrty") as "Hrty'" => //.
@@ -1164,6 +1164,7 @@ Section proofs.
       }
       iIntros "H".
       pose (rigid := length Σ).
+      pose (Δthn := lift_constraints rigid def.(constraints) ++ Δ).
       pose (tc := ClassT t (map GenT (seq rigid (length def.(generics))))).
       assert (hwf: wf_lty (<[v:=InterT tv tc]> Γ0)).
       { apply insert_wf_lty => //.
@@ -1194,7 +1195,8 @@ Section proofs.
       iAssert (heap_models st.2 ∗
         ∃ Σex, interp_tag interp_type Σex t (LocV l) ∗
         ⌜length Σex = length def.(generics)⌝ ∗
-        □ ▷ interp_env_as_mixed Σex
+        □ ▷ interp_env_as_mixed Σex ∗
+        □ ▷ Σinterp Σex def.(constraints)
       )%I with "[H]" as "[Hh #Hv2]".
       { iAssert (interp_type MixedT Σ (LocV l)) as "Hmixed".
         { destruct wfpdefs.
@@ -1262,6 +1264,7 @@ Section proofs.
         { iPureIntro.
           by rewrite /interp_list fmap_length.
         }
+        iSplit.
         { iModIntro; iNext.
           iIntros (k ϕ hϕ w) "#Hw".
           apply list_lookup_fmap_inv in hϕ as [ty [-> hty]].
@@ -1272,8 +1275,33 @@ Section proofs.
           }
           by rewrite interp_mixed_unfold.
         }
+        { iModIntro; iNext.
+          iIntros (k c hc w).
+          destruct  wfpdefs.
+          rewrite -!interp_type_subst; first last.
+          { apply wf_constraints_bounded in hdef.
+            rewrite /wf_cdef_constraints_bounded Forall_lookup -heq in hdef.
+            by apply hdef in hc as [].
+          }
+          { apply wf_constraints_bounded in hdef.
+            rewrite /wf_cdef_constraints_bounded Forall_lookup -heq in hdef.
+            by apply hdef in hc as [].
+          }
+          assert (hh := hσin).
+          apply inherits_using_ok in hh => //.
+          destruct hh as (? & ? & hok); simplify_eq.
+          inv hok; simplify_eq.
+          assert (hc' := hc).
+          apply H3 in hc'.
+          iApply (subtype_is_inclusion with "hmixed hΣt") => //.
+          + by apply wf_constraints_wf in hrtdef.
+          + apply wf_constraints_wf in hdef.
+            rewrite /wf_cdef_constraints_wf Forall_lookup in hdef.
+            apply hdef in hc as [].
+            by apply wf_ty_subst.
+        }
       }
-      iDestruct "Hv2" as (Σex) "(Hv2 & %heq & #HΣex)".
+      iDestruct "Hv2" as (Σex) "(Hv2 & %heq & #Σex_mixed & #Σex_c)".
       (* We need the extra +1 to get that the existiential Σ
        * is correctly ⊆ mixed
        *)
@@ -1285,23 +1313,37 @@ Section proofs.
         destruct (Σ !! k) as [ty0 | ] eqn:h0.
         + case: hϕ => <-.
           by iApply "hΣ".
-        + by iApply "HΣex".
+        + by iApply "Σex_mixed".
       }
-      iAssert (Σinterp (Σ ++ Σex) Δ) as "hΣ_Δ".
+      iAssert (Σinterp (Σ ++ Σex) Δthn) as "hΣ_Δ".
       { iIntros (k c hc w) "#hw".
         rewrite Forall_lookup in hΔb.
-        rewrite -!interp_type_app.
-        + by iApply "hΣΔ".
-        + by apply hΔb in hc as [].
-        + by apply hΔb in hc as [].
+        rewrite /Δthn lookup_app in hc.
+        destruct (lift_constraints rigid def.(constraints) !! k) as [c0 | ] eqn:hc0.
+        + case : hc => <-.
+          apply list_lookup_fmap_inv in hc0 as [c1 [-> hc1]].
+          rewrite !interp_type_lift.
+          by iApply "Σex_c".
+        + rewrite -!interp_type_app.
+          * by iApply "hΣΔ".
+          * by apply hΔb in hc as [].
+          * by apply hΔb in hc as [].
       }
       iAssert (|=▷^n0 heap_models st'.2 ∗ interp_local_tys (Σ ++ Σex) Γ1 st'.1)%I with "[Hh]" as "H".
       { iApply "IHty".
         - by iPureIntro.
         - by iPureIntro.
         - iPureIntro.
-          apply bounded_constraints_ge with (length Σ); last by lia.
-          done.
+          apply Forall_app; split.
+          + apply lift_constraints_wf.
+            by apply wf_constraints_wf in hdef.
+          + assumption.
+        - iPureIntro.
+          apply Forall_app; split.
+          + apply lift_constraints_bounded.
+            by apply wf_constraints_bounded in hdef.
+          + apply bounded_constraints_ge with (length Σ); first done.
+           by lia.
         - by rewrite app_length heq.
         - by iPureIntro.
         - by iModIntro.
@@ -1355,7 +1397,7 @@ Section proofs.
         by apply blty in hv.
       }
       iModIntro; iNext.
-      iApply ("IHty" $! hwf hbounded hΔb with "[//]") => //; iClear "IH IHty".
+      iApply ("IHty" $! hwf hbounded hΔ hΔb with "[//]") => //; iClear "IH IHty".
       clear H8.
       destruct H7 as (z & hz).
       iDestruct "H" as "[H #Hle]".
@@ -1389,7 +1431,7 @@ Section proofs.
         by apply blty in hv.
       }
       iModIntro; iNext.
-      iApply ("IHty" $! hwf hbounded hΔb with "[//]") => //; iClear "IH IHty".
+      iApply ("IHty" $! hwf hbounded hΔ hΔb with "[//]") => //; iClear "IH IHty".
       clear H8.
       destruct H7 as (b & hb).
       iDestruct "H" as "[H #Hle]".
@@ -1423,7 +1465,7 @@ Section proofs.
         by apply blty in hv.
       }
       iModIntro; iNext.
-      iApply ("IHty" $! hwf hbounded hΔb with "[//]") => //; iClear "IH IHty".
+      iApply ("IHty" $! hwf hbounded hΔ hΔb with "[//]") => //; iClear "IH IHty".
       clear H8.
       simpl in H7.
       iDestruct "H" as "[H #Hle]".
@@ -1456,7 +1498,7 @@ Section proofs.
         by apply blty in hv.
       }
       iModIntro; iNext.
-      iApply ("IHty" $! hwf hbounded hΔb with "[//]") => //; iClear "IH IHty".
+      iApply ("IHty" $! hwf hbounded hΔ hΔb with "[//]") => //; iClear "IH IHty".
       clear H8.
       simpl in H7.
       iDestruct "H" as "[H #Hle]".
