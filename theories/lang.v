@@ -530,13 +530,11 @@ Proof.
     by apply H4 in he.
   - inv h.
     constructor.
-    { rewrite Forall_forall => ? hi.
-      apply elem_of_list_lookup_1 in hi as [k hk].
+    { rewrite Forall_lookup => ? hi hk.
       apply list_lookup_fmap_inv in hk as [ty [-> hty]].
       apply bounded_subst with (length σ) => //.
-      rewrite Forall_forall in H1.
-      apply elem_of_list_lookup_2 in hty.
-      by auto.
+      rewrite Forall_lookup in H1.
+      by eauto.
     }
     rewrite map_Forall_lookup => i ?.
     rewrite lookup_fmap_Some => [[e [<- he]]].

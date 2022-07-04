@@ -55,8 +55,7 @@ Section Typing.
   Lemma ok_ty_class_inv Δ t σ: ok_ty Δ (ClassT t σ) → Forall (ok_ty Δ) σ.
   Proof.
     move => h; inv h.
-    apply Forall_forall => x hin.
-    apply elem_of_list_lookup_1 in hin as [i hin].
+    apply Forall_lookup => ? x hin.
     by eauto.
   Qed.
 
@@ -78,15 +77,13 @@ Section Typing.
         apply list_lookup_fmap_inv in h as [ty' [-> h]].
         apply wf_ty_class_inv in hwf.
         apply hi with i => //.
-        rewrite Forall_forall in hwf.
-        apply elem_of_list_lookup_2 in h.
+        rewrite Forall_lookup in hwf.
         by apply hwf in h.
       + move => i c h.
         assert (hdef' := hdef).
         apply hcb in hdef'.
-        rewrite /wf_cdef_constraints_bounded Forall_forall in hdef'.
+        rewrite /wf_cdef_constraints_bounded Forall_lookup in hdef'.
         assert (h' := h).
-        apply elem_of_list_lookup_2 in h.
         apply hdef' in h as [].
         apply subtype_weaken with (subst_constraints σ Δ); last by set_solver.
         rewrite -!subst_ty_subst.
@@ -102,9 +99,9 @@ Section Typing.
       constructor; by eauto.
     - destruct (σ !! n) as [ ty | ] eqn:hty; last by constructor.
       simpl.
-      rewrite Forall_forall in hokσ.
-      apply elem_of_list_lookup_2 in hty.
-      apply ok_ty_weaken with Δ'; first by apply hokσ.
+      rewrite Forall_lookup in hokσ.
+      apply hokσ in hty.
+      apply ok_ty_weaken with Δ'; first by apply hty.
       by set_solver.
   Qed.
 
@@ -180,12 +177,10 @@ Section Typing.
           apply elem_of_list_lookup.
           exists i; by rewrite hc {1}(surjective_pairing c).
         * apply hcb in hpdefs.
-          rewrite /wf_cdef_constraints_bounded Forall_forall in hpdefs.
-          apply elem_of_list_lookup_2 in hc.
+          rewrite /wf_cdef_constraints_bounded Forall_lookup in hpdefs.
           by apply hpdefs in hc as [].
         * apply hcb in hpdefs.
-          rewrite /wf_cdef_constraints_bounded Forall_forall in hpdefs.
-          apply elem_of_list_lookup_2 in hc.
+          rewrite /wf_cdef_constraints_bounded Forall_lookup in hpdefs.
           by apply hpdefs in hc as [].
     - by apply extends_using_ok in hext.
     - destruct hi as (bdef & hB & hokB).
@@ -240,16 +235,14 @@ Section Typing.
           by eauto.
       + assert (hC := H1).
         apply hcb in hC.
-        rewrite /wf_cdef_constraints_bounded Forall_forall in hC.
-        apply elem_of_list_lookup_2 in hc.
+        rewrite /wf_cdef_constraints_bounded Forall_lookup in hC.
         apply hC in hc as [].
         apply inherits_using_wf in h as (? & ? & ? & hwf)=> //.
         inv hwf; simplify_eq.
         by rewrite H9.
       + assert (hC := H1).
         apply hcb in hC.
-        rewrite /wf_cdef_constraints_bounded Forall_forall in hC.
-        apply elem_of_list_lookup_2 in hc.
+        rewrite /wf_cdef_constraints_bounded Forall_lookup in hC.
         apply hC in hc as [].
         apply inherits_using_wf in h as (? & ? & ? & hwf)=> //.
         inv hwf; simplify_eq.

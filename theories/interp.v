@@ -319,13 +319,13 @@ Section proofs.
     induction ty as [ | | | | A σ hi | | | A B hA hB | A B hA hB | i | | ]
         => //= n x y h.
     - apply interp_tag_ne.
-      rewrite Forall_forall in hi.
+      rewrite Forall_lookup in hi.
       apply list_dist_lookup => k.
       rewrite !list_lookup_fmap.
       destruct (σ !! k) as [ ty | ] eqn:hty => //=.
       f_equiv.
-      apply hi => //.
-      by apply elem_of_list_lookup_2 in hty.
+      apply hi with (n := n) in hty.
+      by apply hty.
     - rewrite /interp_union => v.
       rewrite /interp_fun !interp_car_simpl.
       f_equiv.

@@ -282,16 +282,14 @@ Section Subtype.
       + move => i ci ti hci hi hc.
         apply list_lookup_fmap_inv in hi as [ty [-> hi]].
         eapply hicov => //.
-        rewrite Forall_forall in H0.
-        apply H0.
-        by apply elem_of_list_lookup_2 in hi.
+        rewrite Forall_lookup in H0.
+        by apply H0 in hi.
       + move => i ci ti hci hi hc.
         apply list_lookup_fmap_inv in hi as [ty [-> hi]].
         eapply hicontra => //.
-        * rewrite Forall_forall in H0.
+        * rewrite Forall_lookup in H0.
           rewrite map_length.
-          apply H0.
-          by apply elem_of_list_lookup_2 in hi.
+          by apply H0 in hi.
         * by rewrite map_length.
         * move => j vj tj hj htj hcj.
           apply list_lookup_fmap_inv in hj as [vj' [-> hj]].
@@ -434,9 +432,8 @@ Section Subtype.
       inv hwf; simplify_eq; econstructor.
       + exact hpdefs.
       + by rewrite hσ.
-      + rewrite Forall_forall in hwfσ => k ty hty.
-        apply elem_of_list_lookup_2 in hty.
-        by apply hwfσ in hty.
+      + rewrite Forall_lookup in hwfσ => k ty hty.
+        by eauto.
     - inv hwf; by eauto.
     - inv hwf; by eauto.
     - inv hwf; by eauto.
@@ -554,17 +551,6 @@ Section Subtype.
     ∀ k A, Γ1.(ctxt) !! k = Some A → ∃ B, Γ0.(ctxt) !! k = Some B ∧ subtype Δ kd B A.
 
   Notation "Δ ⊢ Γ0 <:< Γ1" := (lty_sub Δ Plain Γ0 Γ1) (Γ0 at next level, at level 70, no associativity).
-
-  Lemma lty_sub_weaken Δ kd Γ0 Γ1: lty_sub Δ kd Γ0 Γ1 →
-    ∀ Δ', Δ ⊆ Δ' → lty_sub Δ' kd Γ0 Γ1.
-  Proof.
-    move => [hthis hctxt] Δ' hincl.
-    split; first done.
-    move => k A hk.
-    apply hctxt in hk as [B [hB hsub]].
-    exists B; split; first assumption.
-    by eapply subtype_weaken.
-  Qed.
 
   Global Instance local_tys_insert : Insert string lang_ty local_tys :=
     λ x ty Γ,

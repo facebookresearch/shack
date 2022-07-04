@@ -707,20 +707,17 @@ Section proofs.
           { iApply (subtype_is_inclusion _ hΔ wf_parent wf_mono _ _ _ _ hsub v with "hΣ hΣΔ") => //.
             apply wf_ty_subst => //.
             apply wf_constraints_wf in H1.
-            rewrite /wf_cdef_constraints_wf Forall_forall in H1.
-            apply elem_of_list_lookup_2 in heq.
+            rewrite /wf_cdef_constraints_wf Forall_lookup in H1.
             apply H1 in heq.
             by apply heq.
           }
           { apply wf_constraints_bounded in H1.
-            rewrite /wf_cdef_constraints_bounded Forall_forall -H2 in H1.
-            apply elem_of_list_lookup_2 in heq.
+            rewrite /wf_cdef_constraints_bounded Forall_lookup -H2 in H1.
             apply H1 in heq.
             by apply heq.
           }
           { apply wf_constraints_bounded in H1.
-            rewrite /wf_cdef_constraints_bounded Forall_forall -H2 in H1.
-            apply elem_of_list_lookup_2 in heq.
+            rewrite /wf_cdef_constraints_bounded Forall_lookup -H2 in H1.
             apply H1 in heq.
             by apply heq.
           }

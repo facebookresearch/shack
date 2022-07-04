@@ -49,8 +49,7 @@ Section ProgDef.
   Proof.
     move => h hl hσ.
     econstructor => //.
-    rewrite Forall_forall in hσ => k ty hk.
-    apply elem_of_list_lookup_2 in hk.
+    rewrite Forall_lookup in hσ => k ty hk.
     by apply hσ in hk.
   Qed.
 
@@ -60,10 +59,8 @@ Section ProgDef.
   Proof.
     move => h.
     inv h.
-    apply Forall_forall => ty hin.
-    apply elem_of_list_lookup_1 in hin.
-    destruct hin as [k hk].
-    by apply H3 in hk.
+    apply Forall_lookup => ? ty hin.
+    by eauto.
   Qed.
 
   Lemma wf_ty_subst σ ty :
@@ -80,8 +77,7 @@ Section ProgDef.
       case => <-.
       by eapply hi.
     - destruct (σ !! k) as [ ty | ] eqn:hty => /=; last by constructor.
-      rewrite Forall_forall in hwf; apply hwf.
-      by apply elem_of_list_lookup_2 in hty.
+      by rewrite Forall_lookup in hwf; apply hwf in hty.
   Qed.
 
   Lemma wf_ty_subst_map σ σ':
@@ -195,9 +191,9 @@ Section ProgDef.
       destruct hext as (adef & hadef & hF0 & hwfB).
       destruct hi as (bdef & hbdef & hF1 & hwfC).
       exists adef; repeat split => //.
-      + rewrite Forall_forall => ty hin.
-        apply elem_of_list_fmap_2 in hin as [ty' [-> hin]].
-        rewrite Forall_forall in hF1; apply hF1 in hin.
+      + rewrite Forall_lookup => ? ty hin.
+        apply list_lookup_fmap_inv in hin as [ty' [-> hin]].
+        rewrite Forall_lookup in hF1; apply hF1 in hin.
         eapply bounded_subst => //.
         inv hwfB; by simplify_eq.
       + inv hwfC.
@@ -307,8 +303,8 @@ Section ProgDef.
         { eapply InheritsTrans => //.
           by econstructor.
         }
-        rewrite subst_tys_id // Forall_forall => ty hty.
-        apply elem_of_list_fmap_2 in hty as [ ty' [ -> hty']].
+        rewrite subst_tys_id // Forall_lookup => ? ty hty.
+        apply list_lookup_fmap_inv in hty as [ty' [-> hty']].
         apply hwf in hadef.
         rewrite /wf_cdef_parent H0 in hadef.
         destruct hadef as (hwfB & hF1).
@@ -316,7 +312,7 @@ Section ProgDef.
         apply bounded_subst with (length (generics def)) => //.
         apply inherits_using_wf in h => //.
         destruct h as (? & ? & hF2 & hwfC); simplify_eq.
-        by rewrite Forall_forall in hF2; apply hF2.
+        rewrite Forall_lookup in hF2; by eauto.
       + inv H1.
         simplify_eq.
         exists t; by right.

@@ -138,20 +138,14 @@ Local Instance PDC : ProgDefContext := { pdefs := {[ "ROBox" := ROBox; "Box" := 
 
 Lemma wfσ : Forall wf_ty σ.
 Proof.
-  apply Forall_forall => x hx.
-  apply elem_of_list_lookup_1 in hx.
-  destruct hx as [n hx].
-  rewrite /σ /= in hx.
+  apply Forall_lookup => x ? hx.
   apply list_lookup_singleton_Some in hx as [-> <-].
   by constructor.
 Qed.
 
 Lemma σbounded : Forall (bounded (length (generics IntBoxS))) σ.
 Proof.
-  apply Forall_forall => x hx.
-  apply elem_of_list_lookup_1 in hx.
-  destruct hx as [n hx].
-  rewrite /σ /= in hx.
+  apply Forall_lookup => x ? hx.
   apply list_lookup_singleton_Some in hx as [-> <-].
   by constructor.
 Qed.
@@ -1400,8 +1394,7 @@ Proof.
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
-  assert (wfΔ : Forall wf_constraint []).
-  { rewrite Forall_forall => ?. by set_solver. }
+  assert (wfΔ : Forall wf_constraint []) by by apply Forall_nil.
   iAssert (interp_env_as_mixed []) as "wfΣ".
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
@@ -1447,8 +1440,7 @@ Proof.
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
-  assert (wfΔ : Forall wf_constraint []).
-  { rewrite Forall_forall => ?. by set_solver. }
+  assert (wfΔ : Forall wf_constraint []) by by apply Forall_nil.
   iAssert (interp_env_as_mixed []) as "wfΣ".
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
