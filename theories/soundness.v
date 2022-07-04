@@ -341,7 +341,7 @@ Section proofs.
   Qed.
 
   (* virtual calls using Dynamic all verify cdef_wf_mdef_dyn_ty *)
-  Lemma wf_mdef_dyn_ty_wf Σ Δ C kd st st' rigid Γ lhs recv name args l n:
+  Lemma wf_mdef_dyn_ty_wf Σ C Δ kd st st' rigid Γ lhs recv name args l n:
     wf_cdefs pdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
@@ -357,7 +357,7 @@ Section proofs.
     inherits_using t orig σ ∧
     pdefs !! orig = Some def ∧
     def.(classmethods) !! name = Some mdef ∧
-    wf_mdef_dyn_ty def.(constraints) orig (length def.(generics)) (gen_targs (length def.(generics))) mdef⌝%I.
+    wf_mdef_dyn_ty orig def.(constraints) (length def.(generics)) (gen_targs (length def.(generics))) mdef⌝%I.
   Proof.
     move => wfpdefs ?? hrty heval hceval.
     iIntros "#hΣ #hΣΔ [Hh #Hle]".
@@ -418,13 +418,13 @@ Section proofs.
     by rewrite /cdef_wf_mdef_dyn_ty H6 in homdef.
   Qed.
   
-  Lemma cmd_soundness_ Δ C kd rigid Γ cmd Γ' :
+  Lemma cmd_soundness_ C Δ kd rigid Γ cmd Γ' :
     wf_cdefs pdefs →
     wf_lty Γ →
     bounded_lty rigid Γ →
     Forall wf_constraint Δ →
     Forall (bounded_constraint rigid) Δ →
-    cmd_has_ty Δ C kd rigid Γ cmd Γ' →
+    cmd_has_ty C Δ kd rigid Γ cmd Γ' →
     ∀ Σ st st' n,
     length Σ = rigid →
     cmd_eval C st cmd st' n →
@@ -434,7 +434,7 @@ Section proofs.
         heap_models st'.2 ∗ interp_local_tys Σ Γ' st'.1.
   Proof.
     move => wfpdefs wflty blty hΔ hΔb.
-    iLöb as "IH" forall (Δ C kd rigid Γ cmd Γ' wflty blty hΔ hΔb).
+    iLöb as "IH" forall (C Δ kd rigid Γ cmd Γ' wflty blty hΔ hΔb).
     iIntros "%hty" (Σ st st' n hrigid hc) "#hΣ #hΣΔ".
     iInduction hty as [ kd rigid Γ |
         kd rigid Γ rty hwf |
@@ -839,7 +839,7 @@ Section proofs.
         destruct hin_t1_o0 as (? & ? & ?).
         by simplify_eq.
       }
-      assert (hh: wf_mdef_ty odef0.(constraints) orig0 (length odef0.(generics)) (gen_targs (length odef0.(generics))) omdef0).
+      assert (hh: wf_mdef_ty orig0 odef0.(constraints) (length odef0.(generics)) (gen_targs (length odef0.(generics))) omdef0).
       { apply wf_mdefs in hodef0.
         by apply hodef0 in homdef0.
       }
@@ -1883,13 +1883,13 @@ Section proofs.
       by iApply "hh".
   Qed.
 
-  Lemma cmd_soundness Δ C kd Σ Γ cmd Γ' :
+  Lemma cmd_soundness C Δ kd Σ Γ cmd Γ' :
     wf_cdefs pdefs →
     wf_lty Γ →
     bounded_lty (length Σ) Γ →
     Forall wf_constraint Δ →
     Forall (bounded_constraint (length Σ)) Δ →
-    cmd_has_ty Δ C kd (length Σ) Γ cmd Γ' →
+    cmd_has_ty C Δ kd (length Σ) Γ cmd Γ' →
     ∀ st st' n, cmd_eval C st cmd st' n →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗

@@ -341,7 +341,7 @@ Definition final_lty lty : local_tys :=
 
 Lemma Main_ty n lty :
   bounded_lty n lty →
-  cmd_has_ty [] "Main" Plain n lty ProgramBody (final_lty lty).
+  cmd_has_ty "Main" [] Plain n lty ProgramBody (final_lty lty).
 Proof.
   move => hb.
   rewrite /final_lty /ProgramBody.
@@ -469,7 +469,7 @@ Proof.
       by rewrite lookup_insert_ne.
 Qed.
 
-Lemma wf_mdef_ty_Main: wf_mdef_ty [] "Main" 0 (gen_targs 0) EntryPoint.
+Lemma wf_mdef_ty_Main: wf_mdef_ty "Main" [] 0 (gen_targs 0) EntryPoint.
 Proof.
   rewrite /wf_mdef_ty.
   exists (final_lty {| type_of_this := ("Main", gen_targs 0); ctxt := methodargs EntryPoint|}).
@@ -1375,7 +1375,7 @@ Qed.
  *)
 Theorem int_soundness cmd st lty n:
   cmd_eval "Main" (main_le, main_heap "Main") cmd st n →
-  cmd_has_ty [] "Main" Plain 0 (main_lty "Main") cmd lty →
+  cmd_has_ty "Main" [] Plain 0 (main_lty "Main") cmd lty →
   ∀ v, lty.(ctxt) !! v = Some IntT →
   ∃ z, st.1.(lenv) !! v = Some (IntV z).
 Proof.
@@ -1406,7 +1406,7 @@ Proof.
     by apply Forall_nil.
   }
   assert (hΔb : Forall (bounded_constraint 0) []) by by apply Forall_nil.
-  iDestruct ((cmd_soundness [] "Main" _ [] _ _ _ wf wfinit hbounded wfΔ hΔb ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
+  iDestruct ((cmd_soundness "Main" [] _ [] _ _ _ wf wfinit hbounded wfΔ hΔb ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [Hthis Hl]]".
@@ -1419,7 +1419,7 @@ Qed.
 
 Theorem class_soundness cmd st lty n:
   cmd_eval "Main" (main_le, main_heap "Main") cmd st n →
-  cmd_has_ty [] "Main" Plain 0 (main_lty "Main") cmd lty →
+  cmd_has_ty "Main" [] Plain 0 (main_lty "Main") cmd lty →
   ∀ v T σ, lty.(ctxt) !! v = Some (ClassT T σ) →
   ∃ l Tdyn vs, st.1.(lenv) !! v = Some (LocV l) ∧
           st.2 !! l = Some (Tdyn, vs) ∧
@@ -1452,7 +1452,7 @@ Proof.
     by apply Forall_nil.
   }
   assert (hΔb : Forall (bounded_constraint 0) []) by by apply Forall_nil.
-  iDestruct ((cmd_soundness [] "Main" _ [] _ _ _ wf wfinit hbounded wfΔ hΔb ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
+  iDestruct ((cmd_soundness "Main" [] _ [] _ _ _ wf wfinit hbounded wfΔ hΔb ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [_ Hl]]".

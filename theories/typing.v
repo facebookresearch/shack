@@ -390,40 +390,40 @@ Section Typing.
    * is where the member is defined, and the member can only be accessed
    * via `This`
    *)
-  Inductive cmd_has_ty Δ (C : tag) : subtype_kind → nat → local_tys → cmd → local_tys → Prop :=
-    | SkipTy: ∀ Γ kd rigid, cmd_has_ty Δ C kd rigid Γ SkipC Γ
+  Inductive cmd_has_ty (C : tag) Δ : subtype_kind → nat → local_tys → cmd → local_tys → Prop :=
+    | SkipTy: ∀ Γ kd rigid, cmd_has_ty C Δ kd rigid Γ SkipC Γ
     | ErrorTy: ∀ kd rigid Γ0 Γ1,
-        wf_lty Γ1 → bounded_lty rigid Γ1 → cmd_has_ty Δ C kd rigid Γ0 ErrorC Γ1
+        wf_lty Γ1 → bounded_lty rigid Γ1 → cmd_has_ty C Δ kd rigid Γ0 ErrorC Γ1
     | SeqTy: ∀ kd rigid Γ1 Γ2 Γ3 fstc sndc,
-        cmd_has_ty Δ C kd rigid Γ1 fstc Γ2 →
-        cmd_has_ty Δ C kd rigid Γ2 sndc Γ3 →
-        cmd_has_ty Δ C kd rigid Γ1 (SeqC fstc sndc) Γ3
+        cmd_has_ty C Δ kd rigid Γ1 fstc Γ2 →
+        cmd_has_ty C Δ kd rigid Γ2 sndc Γ3 →
+        cmd_has_ty C Δ kd rigid Γ1 (SeqC fstc sndc) Γ3
     | LetTy: ∀ kd rigid Γ lhs e ty,
         expr_has_ty Δ Γ rigid kd e ty →
-        cmd_has_ty Δ C kd rigid Γ (LetC lhs e) (<[lhs := ty]>Γ)
+        cmd_has_ty C Δ kd rigid Γ (LetC lhs e) (<[lhs := ty]>Γ)
     | IfTy: ∀ kd rigid Γ1 Γ2 cond thn els,
         expr_has_ty Δ Γ1 rigid kd cond BoolT →
-        cmd_has_ty Δ C kd rigid Γ1 thn Γ2 →
-        cmd_has_ty Δ C kd rigid Γ1 els Γ2 →
-        cmd_has_ty Δ C kd rigid Γ1 (IfC cond thn els) Γ2
+        cmd_has_ty C Δ kd rigid Γ1 thn Γ2 →
+        cmd_has_ty C Δ kd rigid Γ1 els Γ2 →
+        cmd_has_ty C Δ kd rigid Γ1 (IfC cond thn els) Γ2
     | GetPrivTy: ∀ kd rigid Γ lhs t σ name fty,
         type_of_this Γ = (t, σ) →
         has_field name t Private fty C →
-        cmd_has_ty Δ C kd rigid Γ (GetC lhs ThisE name) (<[lhs := subst_ty σ fty]>Γ)
+        cmd_has_ty C Δ kd rigid Γ (GetC lhs ThisE name) (<[lhs := subst_ty σ fty]>Γ)
     | GetPubTy: ∀ kd rigid Γ lhs recv t σ name fty orig,
         expr_has_ty Δ Γ rigid kd recv (ClassT t σ) →
         has_field name t Public fty orig →
-        cmd_has_ty Δ C kd rigid Γ (GetC lhs recv name) (<[lhs := subst_ty σ fty]>Γ)
+        cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := subst_ty σ fty]>Γ)
     | SetPrivTy: ∀ kd rigid Γ fld rhs fty t σ,
         type_of_this Γ = (t, σ) →
         has_field fld t Private fty C →
         expr_has_ty Δ Γ rigid kd rhs (subst_ty σ fty) →
-        cmd_has_ty Δ C kd rigid Γ (SetC ThisE fld rhs) Γ
+        cmd_has_ty C Δ kd rigid Γ (SetC ThisE fld rhs) Γ
     | SetPubTy: ∀ kd rigid Γ recv fld rhs fty orig t σ,
         expr_has_ty Δ Γ rigid kd recv (ClassT t σ) →
         has_field fld t Public fty orig →
         expr_has_ty Δ Γ rigid kd rhs (subst_ty σ fty) →
-        cmd_has_ty Δ C kd rigid Γ (SetC recv fld rhs) Γ
+        cmd_has_ty C Δ kd rigid Γ (SetC recv fld rhs) Γ
     | NewTy: ∀ kd rigid Γ lhs t targs args fields,
         wf_ty (ClassT t targs) →
         bounded rigid (ClassT t targs) →
@@ -434,7 +434,7 @@ Section Typing.
         fields !! f = Some fty →
         args !! f = Some arg →
         expr_has_ty Δ Γ rigid kd arg (subst_ty targs fty.1.2)) →
-        cmd_has_ty Δ C kd rigid Γ (NewC lhs t targs args) (<[lhs := ClassT t targs]>Γ)
+        cmd_has_ty C Δ kd rigid Γ (NewC lhs t targs args) (<[lhs := ClassT t targs]>Γ)
     | CallTy: ∀ kd rigid Γ lhs recv t targs name orig mdef args,
         expr_has_ty Δ Γ rigid kd recv (ClassT t targs) →
         has_method name t orig mdef →
@@ -443,46 +443,46 @@ Section Typing.
         mdef.(methodargs) !! x = Some ty →
         args !! x = Some arg →
         expr_has_ty Δ Γ rigid kd arg (subst_ty targs ty)) →
-        cmd_has_ty Δ C kd rigid Γ (CallC lhs recv name args) (<[lhs := subst_ty targs mdef.(methodrettype)]>Γ)
+        cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := subst_ty targs mdef.(methodrettype)]>Γ)
     | SubTy: ∀ kd rigid Γ c Γ0 Γ1,
         lty_sub Δ kd Γ1 Γ0 →
         bounded_lty rigid Γ0 →
-        cmd_has_ty Δ C kd rigid Γ c Γ1 →
-        cmd_has_ty Δ C kd rigid Γ c Γ0
+        cmd_has_ty C Δ kd rigid Γ c Γ1 →
+        cmd_has_ty C Δ kd rigid Γ c Γ0
     | TagCheckTy kd rigid Γ0 Γ1 v tv t def thn els:
         Γ0.(ctxt) !! v = Some tv →
         pdefs !! t = Some def →
         (∀ k ty, Γ1.(ctxt)!! k = Some ty → bounded rigid ty) →
-        cmd_has_ty Δ C kd (rigid + length def.(generics))
+        cmd_has_ty C Δ kd (rigid + length def.(generics))
           (<[v:=InterT tv (ClassT t (map GenT (seq rigid (length def.(generics)))))]> Γ0) thn Γ1 →
-        cmd_has_ty Δ C kd rigid Γ0 els Γ1 →
-        cmd_has_ty Δ C kd rigid Γ0 (RuntimeCheckC v (RCTag t) thn els) Γ1
+        cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
+        cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v (RCTag t) thn els) Γ1
     | IntCheckTy kd rigid Γ0 Γ1 v tv thn els:
         Γ0.(ctxt) !! v = Some tv →
-        cmd_has_ty Δ C kd rigid (<[v:=InterT tv IntT]> Γ0) thn Γ1 →
-        cmd_has_ty Δ C kd rigid Γ0 els Γ1 →
-        cmd_has_ty Δ C kd rigid Γ0 (RuntimeCheckC v RCInt thn els) Γ1
+        cmd_has_ty C Δ kd rigid (<[v:=InterT tv IntT]> Γ0) thn Γ1 →
+        cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
+        cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCInt thn els) Γ1
     | BoolCheckTy kd rigid Γ0 Γ1 v tv thn els:
         Γ0.(ctxt) !! v = Some tv →
-        cmd_has_ty Δ C kd rigid (<[v:=InterT tv BoolT]> Γ0) thn Γ1 →
-        cmd_has_ty Δ C kd rigid Γ0 els Γ1 →
-        cmd_has_ty Δ C kd rigid Γ0 (RuntimeCheckC v RCBool thn els) Γ1
+        cmd_has_ty C Δ kd rigid (<[v:=InterT tv BoolT]> Γ0) thn Γ1 →
+        cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
+        cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCBool thn els) Γ1
     | NullCheckTy kd rigid Γ0 Γ1 v tv thn els:
         Γ0.(ctxt) !! v = Some tv →
-        cmd_has_ty Δ C kd rigid (<[v:=InterT tv NullT]> Γ0) thn Γ1 →
-        cmd_has_ty Δ C kd rigid Γ0 els Γ1 →
-        cmd_has_ty Δ C kd rigid Γ0 (RuntimeCheckC v RCNull thn els) Γ1
+        cmd_has_ty C Δ kd rigid (<[v:=InterT tv NullT]> Γ0) thn Γ1 →
+        cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
+        cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCNull thn els) Γ1
     | NonNullCheckTy kd rigid Γ0 Γ1 v tv thn els:
         Γ0.(ctxt) !! v = Some tv →
-        cmd_has_ty Δ C kd rigid (<[v:=InterT tv NonNullT]> Γ0) thn Γ1 →
-        cmd_has_ty Δ C kd rigid Γ0 els Γ1 →
-        cmd_has_ty Δ C kd rigid Γ0 (RuntimeCheckC v RCNonNull thn els) Γ1
+        cmd_has_ty C Δ kd rigid (<[v:=InterT tv NonNullT]> Γ0) thn Γ1 →
+        cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
+        cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCNonNull thn els) Γ1
     (* Dynamic related typing rules *)
     | DynIfTy: ∀ kd rigid Γ1 Γ2 cond thn els,
         expr_has_ty Δ Γ1 rigid kd cond DynamicT →
-        cmd_has_ty Δ C kd rigid Γ1 thn Γ2 →
-        cmd_has_ty Δ C kd rigid Γ1 els Γ2 →
-        cmd_has_ty Δ C kd rigid Γ1 (IfC cond thn els) Γ2
+        cmd_has_ty C Δ kd rigid Γ1 thn Γ2 →
+        cmd_has_ty C Δ kd rigid Γ1 els Γ2 →
+        cmd_has_ty C Δ kd rigid Γ1 (IfC cond thn els) Γ2
     | DynGetTy : ∀ kd rigid Γ lhs recv name,
         expr_has_ty Δ Γ rigid kd recv DynamicT →
         (match recv with
@@ -490,7 +490,7 @@ Section Typing.
          | _ => True
          end
         ) →
-        cmd_has_ty Δ C kd rigid Γ (GetC lhs recv name) (<[lhs := DynamicT]>Γ)
+        cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := DynamicT]>Γ)
     | DynSetTy : ∀ kd rigid Γ recv fld rhs,
         expr_has_ty Δ Γ rigid kd recv DynamicT →
         expr_has_ty Δ Γ rigid kd rhs DynamicT →
@@ -498,7 +498,7 @@ Section Typing.
          | ThisE => False
          | _ => True
          end) →
-        cmd_has_ty Δ C kd rigid Γ (SetC recv fld rhs) Γ
+        cmd_has_ty C Δ kd rigid Γ (SetC recv fld rhs) Γ
     | DynCallTy: ∀ kd rigid Γ lhs recv name (args: stringmap expr),
         expr_has_ty Δ Γ rigid kd recv DynamicT →
         (∀ x arg, args !! x = Some arg →
@@ -507,16 +507,16 @@ Section Typing.
          | ThisE => False
          | _ => True
          end) →
-        cmd_has_ty Δ C kd rigid Γ (CallC lhs recv name args) (<[lhs := DynamicT]>Γ)
+        cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := DynamicT]>Γ)
   .
 
-  Lemma cmd_has_ty_wf Δ C kd rigid Γ0 cmd Γ1:
+  Lemma cmd_has_ty_wf C Δ kd rigid Γ0 cmd Γ1:
     map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _ : string, wf_cdef_methods_wf) pdefs →
     Forall wf_constraint Δ →
     wf_lty Γ0 →
-    cmd_has_ty Δ C kd rigid Γ0 cmd Γ1 →
+    cmd_has_ty C Δ kd rigid Γ0 cmd Γ1 →
     wf_lty Γ1.
   Proof.
     move => hp hfields hmethods hΔ [hthis hwf].
@@ -566,7 +566,7 @@ Section Typing.
     - by apply insert_wf_lty.
   Qed.
 
-  Lemma cmd_has_ty_bounded Δ C kd rigid Γ0 cmd Γ1:
+  Lemma cmd_has_ty_bounded C Δ kd rigid Γ0 cmd Γ1:
     map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _ : string, wf_cdef_methods_wf) pdefs →
@@ -575,7 +575,7 @@ Section Typing.
     Forall wf_constraint Δ →
     wf_lty Γ0 →
     bounded_lty rigid Γ0 →
-    cmd_has_ty Δ C kd rigid Γ0 cmd Γ1 →
+    cmd_has_ty C Δ kd rigid Γ0 cmd Γ1 →
     bounded_lty rigid Γ1.
   Proof.
     move => hp ?? hfields hmethods hΔ hwf [hthis hb].
@@ -646,10 +646,10 @@ Section Typing.
    * method bodies must be well-formed under a generic substitution mapping
    * Ti -> Ti.
    *)
-  Definition wf_mdef_ty Δ tag rigid σ mdef :=
+  Definition wf_mdef_ty tag Δ rigid σ mdef :=
     ∃ Γ',
     wf_lty Γ' ∧
-    cmd_has_ty Δ tag Plain rigid
+    cmd_has_ty tag Δ Plain rigid
       {| type_of_this := (tag, σ); ctxt := mdef.(methodargs) |}
       mdef.(methodbody) Γ' ∧
     expr_has_ty Δ Γ' rigid Plain mdef.(methodret) mdef.(methodrettype)
@@ -658,16 +658,16 @@ Section Typing.
   Definition cdef_wf_mdef_ty cname cdef :=
     let n := length cdef.(generics) in
     let σ := gen_targs n in
-    map_Forall (λ _mname mdef, wf_mdef_ty cdef.(constraints) cname n σ mdef) cdef.(classmethods)
+    map_Forall (λ _mname mdef, wf_mdef_ty cname cdef.(constraints) n σ mdef) cdef.(classmethods)
   .
 
   (* Checks related to support dynamic *)
   Definition to_dyn (ty: lang_ty) : lang_ty := DynamicT.
 
-  Definition wf_mdef_dyn_ty Δ tag rigid σ mdef :=
+  Definition wf_mdef_dyn_ty tag Δ rigid σ mdef :=
     ∃ Γ',
     wf_lty Γ' ∧
-    cmd_has_ty Δ tag Aware rigid
+    cmd_has_ty tag Δ Aware rigid
       {| type_of_this := (tag, σ); ctxt := to_dyn <$> mdef.(methodargs) |}
       mdef.(methodbody) Γ' ∧
     expr_has_ty Δ Γ' rigid Aware mdef.(methodret) (to_dyn mdef.(methodrettype))
@@ -685,7 +685,7 @@ Section Typing.
     let σ := gen_targs n in 
     map_Forall (λ _ mdef,
       if mdef.(method_support_dynamic) then
-        wf_mdef_dyn_ty cdef.(constraints) cname n σ mdef
+        wf_mdef_dyn_ty cname cdef.(constraints) n σ mdef
       else True) cdef.(classmethods)
   .
 
