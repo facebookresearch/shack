@@ -251,17 +251,20 @@ Section proofs.
   Definition interp_generic (Σ : list (interp Θ)) (tv: nat) : interp Θ :=
     default interp_nothing (Σ !! tv).
 
-  Definition interp_support_dynamic (rec: ty_interpO) : interp Θ :=
+  Definition interp_sdt (rec: ty_interpO) : interp Θ :=
     Interp (λ (v: value),
       (∃ t Σ def, ⌜pdefs !! t = Some def ∧ def.(support_dynamic) = true⌝ ∗
         interp_tag rec Σ t v))%I.
 
-  Definition interp_dynamic (rec: ty_interpO) : interp Θ :=
+  Definition interp_support_dynamic (rec: ty_interpO) : interp Θ :=
     Interp (λ (v: value),
       interp_int v ∨
       interp_bool v ∨
       interp_null v ∨
-      interp_support_dynamic rec v)%I.
+      interp_sdt rec v)%I.
+
+  Definition interp_dynamic (rec: ty_interpO) : interp Θ :=
+    interp_support_dynamic rec.
 
   (* we use a blend of Coq/Iris recursion, the
      Coq recursion lets us handle simple structural
@@ -431,11 +434,11 @@ Section proofs.
     - by solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - by solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - done.
-    - rewrite /interp_dynamic /interp_support_dynamic => v /=.
+    - rewrite /interp_dynamic /interp_support_dynamic /interp_sdt => v /=.
       do 10 f_equiv.
       by apply interp_tag_contractive.
-    - rewrite /interp_support_dynamic => v /=.
-      do 7 f_equiv.
+    - rewrite /interp_support_dynamic /interp_sdt => v /=.
+      do 10 f_equiv.
       by apply interp_tag_contractive.
   Qed.
 
@@ -512,7 +515,7 @@ Section proofs.
 
     Lemma interp_dynamic_unfold v:
       interp_type DynamicT Σ v ⊣⊢
-      interp_dynamic interp_type v.
+      interp_support_dynamic interp_type v.
     Proof.  by rewrite interp_type_unfold. Qed.
   End Unfold.
 
@@ -1378,7 +1381,13 @@ Section proofs.
       iLeft; iRight; iRight.
       iDestruct "h" as (t def h Σt) "hh".
       by iExists _, _.
-    - iDestruct "h" as (t def h Σt) "hh".
+    - iDestruct "h" as "[hz | h]".
+      { iLeft; by iLeft. }
+      iDestruct "h" as "[hb | h]".
+      { iLeft; iRight; by iLeft. }
+      iDestruct "h" as "[hn | h]".
+      { by iRight. }
+      iDestruct "h" as (t def h Σt) "hh".
       iLeft; iRight; iRight.
       by iExists _, _.
   Qed.
@@ -1467,18 +1476,18 @@ Section proofs.
       - apply elem_of_list_lookup_1 in hin as [i hin].
         rewrite -!interp_type_unfold /=.
         by iApply ("Σcoherency" $! i (A, B) hin).
-      - iExists A, (go interp_type Σ <$> σA), adef.
-        by iSplit.
+      - iRight; iRight; iRight.
+        iExists A, (go interp_type Σ <$> σA), adef; by iSplit.
       - by iLeft.
       - by iRight; iLeft.
       - by iRight; iRight; iLeft.
-      - by iRight; iRight; iRight.
+      - done.
       - iDestruct "h" as "[h | h]"; first by iLeft.
         iRight.
         iDestruct "h" as "[h | h]"; first by iLeft.
         iRight.
         iDestruct "h" as "[h | h]"; first by iLeft.
-        by iRight.
+        iRight; iRight; iRight; by iRight.
     }
     move => hwfA hwfB.
     destruct 1 as [ | ?????? h0 h1 h | ?????? h0 h | ?????? h0 h]; iIntros "#wfΣi #Σcoherency".
@@ -1627,7 +1636,7 @@ Section proofs.
     interp_local_tys Σ Γ0 le -∗
     interp_local_tys Σ Γ1 le.
   Proof.
-    move => hlty hpers hsub; iIntros "#wfΣi #? [#Hthis Hle]".
+    move => hlty hpers hsub; iIntros "#wfΣ #? [#Hthis Hle]".
     destruct hsub as [hthis hsub].
     assert (hthis2: type_of_this Γ0 = type_of_this Γ1).
     { rewrite /this_type in hthis.
