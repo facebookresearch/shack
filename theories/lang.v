@@ -49,7 +49,6 @@ Section nested_ind.
     | UnionT (s t: lang_ty)
     | InterT (s t: lang_ty)
     | GenT (n: nat)
-    | ExT (cname: tag) (* Ext C == ∃Ti, ClassT C Ti *)
     | DynamicT
     | SupportDynT
   .
@@ -65,7 +64,6 @@ Section nested_ind.
   Hypothesis case_UnionT :  ∀ s t, P s → P t → P (UnionT s t).
   Hypothesis case_InterT :  ∀ s t, P s → P t → P (InterT s t).
   Hypothesis case_GenT: ∀ n, P (GenT n).
-  Hypothesis case_ExT: ∀ cname, P (ExT cname).
   Hypothesis case_DynamicT : P DynamicT.
   Hypothesis case_SupportDynT : P SupportDynT.
 
@@ -87,7 +85,6 @@ Section nested_ind.
     | UnionT s t => case_UnionT s t (lang_ty_ind s) (lang_ty_ind t)
     | InterT s t => case_InterT s t (lang_ty_ind s) (lang_ty_ind t)
     | GenT n => case_GenT n
-    | ExT cname => case_ExT cname
     | DynamicT => case_DynamicT
     | SupportDynT => case_SupportDynT
     end.
@@ -111,12 +108,44 @@ Inductive bounded (n: nat) : lang_ty → Prop :=
   | MixedIsBounded : bounded n MixedT
   | NullIsBounded : bounded n NullT
   | NonNullIsBounded : bounded n NonNullT
-  | ExIsBounded cname : bounded n (ExT cname)
   | DynamicIsBounded : bounded n DynamicT
   | SupportDynIsBounded : bounded n SupportDynT
 .
 
 Global Hint Constructors bounded : core.
+
+Lemma bounded_ge ty n:
+  bounded n ty → ∀ m, m ≥ n → bounded m ty.
+Proof.
+  induction ty as [ | | | | t σ hi | | | s t hs ht |
+      s t hs ht | k | | ] => h m hge //=.
+  - constructor.
+    inv h.
+    rewrite Forall_lookup => i ty hty.
+    rewrite Forall_lookup in hi.
+    apply hi with (m := m) in hty => //.
+    rewrite Forall_lookup in H0.
+    by apply H0 in hty.
+  - inv h.
+    constructor; by eauto.
+  - inv h.
+    constructor; by eauto.
+  - inv h.
+    constructor.
+    by lia.
+Qed.
+
+Lemma bounded_rigid t start len:
+  bounded (start + len) (ClassT t (map GenT (seq start len))).
+Proof.
+  constructor.
+  rewrite Forall_lookup => i ty h.
+  apply list_lookup_fmap_inv in h.
+  destruct h as [k [-> h]].
+  rewrite lookup_seq in h; destruct h as [-> h].
+  constructor.
+  by lia.
+Qed.
 
 (* To be used with `bounded`: Generics must be always bound *)
 Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
@@ -131,7 +160,7 @@ Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
 Corollary subst_ty_nil ty : subst_ty [] ty = ty.
 Proof.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | n | cname | | ] => //=.
+      s t hs ht | n | | ] => //=.
   - f_equal.
     rewrite Forall_forall in hi.
     pattern targs at 2.
@@ -162,7 +191,7 @@ Lemma subst_ty_subst ty l k:
 Proof.
   move => hbounded.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | n | cname | | ] => //=.
+      s t hs ht | n | | ] => //=.
   - f_equal.
     rewrite -list_fmap_compose.
     rewrite Forall_forall in hi.
@@ -217,7 +246,7 @@ Lemma bounded_subst n ty:
   bounded m (subst_ty targs ty).
 Proof.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | k | cname | | ] => //= hb m σ hlen hσ.
+      s t hs ht | k | | ] => //= hb m σ hlen hσ.
   - constructor.
     rewrite Forall_forall => ty /elem_of_list_fmap hin.
     destruct hin as [ty' [-> hin]].
@@ -501,13 +530,11 @@ Proof.
     by apply H4 in he.
   - inv h.
     constructor.
-    { rewrite Forall_forall => ? hi.
-      apply elem_of_list_lookup_1 in hi as [k hk].
+    { rewrite Forall_lookup => ? hi hk.
       apply list_lookup_fmap_inv in hk as [ty [-> hty]].
       apply bounded_subst with (length σ) => //.
-      rewrite Forall_forall in H1.
-      apply elem_of_list_lookup_2 in hty.
-      by auto.
+      rewrite Forall_lookup in H1.
+      by eauto.
     }
     rewrite map_Forall_lookup => i ?.
     rewrite lookup_fmap_Some => [[e [<- he]]].
@@ -626,6 +653,16 @@ Definition constraint := (lang_ty * lang_ty)%type.
 
 Definition bounded_constraint n c := bounded n c.1 ∧ bounded n c.2.
 
+Lemma bounded_constraints_ge Δ n m:
+  Forall (bounded_constraint n) Δ → m ≥ n →
+  Forall (bounded_constraint m) Δ.
+Proof.
+  move => /Forall_lookup h hge.
+  rewrite Forall_lookup => i c hc.
+  apply h in hc as [h0 h1].
+  split; by eapply bounded_ge.
+Qed.
+
 Record classDef := {
   classname: tag;
   (* variance of the generics *)
@@ -677,7 +714,7 @@ Lemma subst_ty_id n ty:
 Proof.
   move => h.
   induction ty as [ | | | | cname targs hi | | | s t hs ht |
-      s t hs ht | k | cname | | ] => //=.
+      s t hs ht | k | | ] => //=.
   - f_equal.
     rewrite Forall_forall in hi.
     pattern targs at 2.

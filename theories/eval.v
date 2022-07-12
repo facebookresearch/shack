@@ -254,7 +254,7 @@ Section Evaluation.
     | RuntimeCheck1Ev C n st1 st2 v rc thn els:
         rc_match st1 v rc →
         cmd_eval C st1 thn st2 n →
-        cmd_eval C st1 (RuntimeCheckC v rc thn els) st2 n
+        cmd_eval C st1 (RuntimeCheckC v rc thn els) st2 (S n)
     | RuntimeCheck2Ev C n st1 st2 v rc thn els:
         ¬rc_match st1 v rc →
         cmd_eval C st1 els st2 n →

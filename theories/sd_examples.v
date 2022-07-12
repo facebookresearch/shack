@@ -15,7 +15,7 @@ From shack Require Import lang progdef subtype typing eval heap modality interp 
 Definition like (T: lang_ty) : lang_ty := UnionT T DynamicT.
 
 (*
-class SDBox<T as Dynamic> {
+class SDBox<T as SupportDynT> {
   public function __construct(private ~T $x) {}
   public function get() : ~T {return $this->x;}
   public function set(~T $y) : void {$this->x = $y;}
@@ -43,14 +43,14 @@ Definition SDBox := {|
   classname := "SDBox";
   superclass := None;
   generics := [Invariant];
-  constraints := [(GenT 0, DynamicT)];
+  constraints := [(GenT 0, SupportDynT)];
   classfields := {["$data" := (Private, like (GenT 0))]};
   classmethods := {["set" := FunSet; "get" := Get]};
   support_dynamic := true;
 |}.
 
 (* Test functions:
-   <<SD>>
+   <<SDT>>
    function test0() : int {
      return 2;
    }
@@ -256,6 +256,7 @@ Proof.
           { by constructor. }
           { by constructor. }
           { by constructor. }
+          { by constructor. }
           by eauto.
       }
       split => /=.
@@ -302,10 +303,12 @@ Proof.
           { by econstructor. }
           { by repeat constructor. }
           { by repeat constructor. }
+          { by repeat constructor. }
           rewrite /to_dyn.
           by eauto.
         * eapply ESubTy.
           { by econstructor. }
+          { by repeat constructor. }
           { by repeat constructor. }
           { by repeat constructor. }
           rewrite /to_dyn.
@@ -332,9 +335,12 @@ Proof.
           { by econstructor. }
           { by repeat constructor. }
           { by repeat constructor. }
+          { by repeat constructor. }
           rewrite /to_dyn /=.
           eapply SubUnionLower; last done.
-          eapply SubConstraint; by set_solver.
+          apply SubTrans with SupportDynT.
+          { eapply SubConstraint; by set_solver. }
+          by constructor.
       }
       split => /=.
       { rewrite /this_type /=.
@@ -357,6 +363,7 @@ Proof.
       { split.
         * by econstructor.
         * eapply ESubTy.
+          { by econstructor. }
           { by econstructor. }
           { by econstructor. }
           { by econstructor. }

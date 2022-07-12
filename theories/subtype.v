@@ -26,10 +26,6 @@ Section Subtype.
         length σA = length adef.(generics) →
         extends_using A B σB →
         subtype Δ kd (ClassT A σA) (ClassT B (subst_ty σA <$> σB))
-    | SubEx0: ∀ kd A adef,
-        pdefs !! A = Some adef →
-        length adef.(generics) = 0 →
-        subtype Δ kd (ExT A) (ClassT A [])
     | SubVariance: ∀ kd A adef σ0 σ1,
         pdefs !! A = Some adef →
         Forall wf_ty σ1 →
@@ -93,7 +89,7 @@ Section Subtype.
      subtype_targs Δ kd vs lhs rhs → ∀ Δ', Δ ⊆ Δ' → subtype_targs Δ' kd vs lhs rhs.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
-      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
+      | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
       | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn | | | | | ] => Δ' hΔ; try by econstructor.
       + econstructor; [ done | done | ].
@@ -125,7 +121,7 @@ Section Subtype.
     subtype_targs Δ kd vs lhs rhs.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
-      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd |  kd A targs
+      | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd |  kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
       | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn | | | | | ]
       => Δ Δ' heq hΔ; subst; try by econstructor.
@@ -164,7 +160,7 @@ Section Subtype.
     subtype_targs Δ' kd vs lhs rhs.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
-      | kd A adef hadef hL | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
+      | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
       | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn | | | | | ] => Δ' hΔ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
@@ -200,7 +196,6 @@ Section Subtype.
     | MonoInter s t : mono vs s → mono vs t → mono vs (InterT s t)
     | MonoVInvGen n: vs !! n = Some Invariant → mono vs (GenT n)
     | MonoVCoGen n: vs !! n = Some Covariant → mono vs (GenT n)
-    | MonoEx cname: mono vs (ExT cname)
     | MonoClass cname cdef targs:
         pdefs !! cname = Some cdef →
         (∀ i wi ti, cdef.(generics) !! i = Some wi →
@@ -258,7 +253,7 @@ Section Subtype.
   Proof.
     induction 1 as [ | | | | | | vs s t hs his ht hit
       | vs s t hs his ht hit | vs n hinv | vs n hco
-      | vs cname | vs cname cdef targs hpdefs hcov hicov hcontra hicontra | | ]
+      | vs cname cdef targs hpdefs hcov hicov hcontra hicontra | | ]
       => hb ws σ hlen h0 h1 //=; try by constructor.
     - inv hb.
       constructor.
@@ -287,16 +282,14 @@ Section Subtype.
       + move => i ci ti hci hi hc.
         apply list_lookup_fmap_inv in hi as [ty [-> hi]].
         eapply hicov => //.
-        rewrite Forall_forall in H0.
-        apply H0.
-        by apply elem_of_list_lookup_2 in hi.
+        rewrite Forall_lookup in H0.
+        by apply H0 in hi.
       + move => i ci ti hci hi hc.
         apply list_lookup_fmap_inv in hi as [ty [-> hi]].
         eapply hicontra => //.
-        * rewrite Forall_forall in H0.
+        * rewrite Forall_lookup in H0.
           rewrite map_length.
-          apply H0.
-          by apply elem_of_list_lookup_2 in hi.
+          by apply H0 in hi.
         * by rewrite map_length.
         * move => j vj tj hj htj hcj.
           apply list_lookup_fmap_inv in hj as [vj' [-> hj]].
@@ -417,7 +410,7 @@ Section Subtype.
   Proof.
     move => hp hΔ hwf.
     induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
-      | kd A adef hadef hL | kd A adef σ0 σ1 hpdefs hwfσ hσ | | | | | kd A args | kd s t h
+      | kd A adef σ0 σ1 hpdefs hwfσ hσ | | | | | kd A args | kd s t h
       | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
       | kd s t u hst hist htu hitu | kd s t hin | kd A adef σA hpdefs hsupdyn | | | | | ]
       => //=; try (by constructor).
@@ -435,14 +428,12 @@ Section Subtype.
         case => <-.
         apply wf_ty_subst; first by apply wf_ty_class_inv in hwf.
         by eauto.
-    - econstructor; by eauto.
     - apply length_subtype_targs_v1 in hσ.
       inv hwf; simplify_eq; econstructor.
       + exact hpdefs.
       + by rewrite hσ.
-      + rewrite Forall_forall in hwfσ => k ty hty.
-        apply elem_of_list_lookup_2 in hty.
-        by apply hwfσ in hty.
+      + rewrite Forall_lookup in hwfσ => k ty hty.
+        by eauto.
     - inv hwf; by eauto.
     - inv hwf; by eauto.
     - inv hwf; by eauto.
@@ -470,7 +461,7 @@ Section Subtype.
   Proof.
     - move => hp.
       destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
-      | kd A adef hadef hL | kd A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | | kd A args
+      | kd A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | | kd A args
       | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
       | kd s t u hst htu | kd s t hin | kd A adef σA hpdefs hsupdyn | | | | | ]
       => σ hσ => /=; try (by constructor).
@@ -483,7 +474,6 @@ Section Subtype.
           destruct hext as (? & hadef & hF & hwfB).
           inv hwfB; simplify_eq.
           by rewrite hA.
-      + eapply SubEx0 => //.
       + eapply SubVariance.
         * exact hpdefs.
         * rewrite Forall_forall => ty /elem_of_list_fmap [ty' [-> hin]].
@@ -561,17 +551,6 @@ Section Subtype.
     ∀ k A, Γ1.(ctxt) !! k = Some A → ∃ B, Γ0.(ctxt) !! k = Some B ∧ subtype Δ kd B A.
 
   Notation "Δ ⊢ Γ0 <:< Γ1" := (lty_sub Δ Plain Γ0 Γ1) (Γ0 at next level, at level 70, no associativity).
-
-  Lemma lty_sub_weaken Δ kd Γ0 Γ1: lty_sub Δ kd Γ0 Γ1 →
-    ∀ Δ', Δ ⊆ Δ' → lty_sub Δ' kd Γ0 Γ1.
-  Proof.
-    move => [hthis hctxt] Δ' hincl.
-    split; first done.
-    move => k A hk.
-    apply hctxt in hk as [B [hB hsub]].
-    exists B; split; first assumption.
-    by eapply subtype_weaken.
-  Qed.
 
   Global Instance local_tys_insert : Insert string lang_ty local_tys :=
     λ x ty Γ,
