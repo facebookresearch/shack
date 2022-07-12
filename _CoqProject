@@ -27,3 +27,4 @@ theories/soundness/dyn_call.v
 theories/soundness.v
 theories/examples.v
 theories/sd_examples.v
+theories/rtc_examples.v
