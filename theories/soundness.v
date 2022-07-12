@@ -131,7 +131,7 @@ Section proofs.
         Δ kd rigid Γ lhs t targs args fields hwf hb hok hf hdom harg |
         Δ kd rigid Γ lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
         Δ kd rigid Γ c Γ0 Γ1 hsub hb h hi |
-        Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hΓ1 hthn hi0 hels hi1 |
+        Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hthn hi0 hels hi1 |
         Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
         Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
         Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |

@@ -145,12 +145,6 @@ Proof.
     - eapply TagCheckTy.
       + by rewrite /= lookup_insert_ne.
       + done.
-      + move => k ty /= h.
-        apply lookup_insert_Some in h as [[? <-] | [? h]].
-        { constructor.
-          by apply Forall_singleton.
-        }
-        by apply lookup_singleton_Some in h as [? <-].
       + rewrite /=.
         eapply SeqTy.
         { eapply GetPubTy with (t := "C") (σ := [GenT 0]); last first.

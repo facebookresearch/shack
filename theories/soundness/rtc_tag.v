@@ -32,8 +32,6 @@ Section proofs.
     Forall (bounded_constraint rigid) Δ →
     ctxt Γ0 !! v = Some tv →
     pdefs !! t = Some def →
-    (∀ (k : string) (ty : lang_ty),
-        ctxt Γ1 !! k = Some ty → bounded rigid ty) →
     cmd_has_ty C (lift_constraints rigid (constraints def) ++ Δ) kd
          (rigid + length (generics def))
          (<[v:=InterT tv
@@ -81,7 +79,7 @@ Section proofs.
      heap_models st.2 ∗ interp_local_tys Σ Γ0 st.1 -∗
      |=▷^n heap_models st'.2 ∗ interp_local_tys Σ Γ1 st'.1.
   Proof.
-    move => wfpdefs wflty blty ? hΔb hv hdef hΓ1 hthn hels Σ st st' n hrigid hc.
+    move => wfpdefs wflty blty ? hΔb hv hdef hthn hels Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ #Hthn #Hels".
     inv hc; last first.
     { iIntros "[Hh H]".
