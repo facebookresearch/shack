@@ -53,11 +53,11 @@ Section Subtype.
         pdefs !! A = Some adef →
         adef.(support_dynamic) = true →
         subtype Δ kd (ClassT A σA) SupportDynT
-    | SubIntDyn: subtype Δ Aware IntT DynamicT
-    | SubBoolDyn: subtype Δ Aware BoolT DynamicT
-    | SubNullDyn: subtype Δ Aware NullT DynamicT
+    | SubIntDyn kd: subtype Δ kd IntT SupportDynT
+    | SubBoolDyn kd: subtype Δ kd BoolT SupportDynT
+    | SubNullDyn kd: subtype Δ kd NullT SupportDynT
     | SubSupDyn: subtype Δ Aware SupportDynT DynamicT
-    | SubDynPrim kd : subtype Δ kd DynamicT (UnionT IntT (UnionT BoolT (UnionT NullT SupportDynT)))
+    | SubDynPrim kd : subtype Δ kd DynamicT SupportDynT
   with subtype_targs (Δ: list constraint) : subtype_kind → list variance → list lang_ty → list lang_ty → Prop :=
     | subtype_targs_nil kd: subtype_targs Δ kd [] [] []
     | subtype_targs_invariant: ∀ kd ty0 ty1 vs ty0s ty1s,
@@ -450,7 +450,6 @@ Section Subtype.
     - by eauto.
     - rewrite Forall_forall in hΔ.
       by apply hΔ in hin as [].
-    - by repeat constructor.
   Qed.
 
   Definition subst_constraint σ c := (subst_ty σ c.1, subst_ty σ c.2).
