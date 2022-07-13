@@ -1526,12 +1526,7 @@ Section proofs.
       - by iRight; iLeft.
       - by iRight; iRight; iLeft.
       - done.
-      - iDestruct "h" as "[h | h]"; first by iLeft.
-        iRight.
-        iDestruct "h" as "[h | h]"; first by iLeft.
-        iRight.
-        iDestruct "h" as "[h | h]"; first by iLeft.
-        iRight; iRight; iRight; by iRight.
+      - done.
     }
     move => hwfA hwfB.
     destruct 1 as [ | ?????? h0 h1 h | ?????? h0 h | ?????? h0 h]; iIntros "#wfΣi #Σcoherency".
