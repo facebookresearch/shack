@@ -745,6 +745,7 @@ Section Typing.
   (* Checks related to support dynamic *)
   Definition to_dyn (ty: lang_ty) : lang_ty := DynamicT.
 
+  (* TODO UDPATE METHOD DYN *)
   Definition wf_mdef_dyn_ty tag Δ rigid σ mdef :=
     ∃ Γ',
     wf_lty Γ' ∧
@@ -770,6 +771,126 @@ Section Typing.
       else True) cdef.(classmethods)
   .
 
+  Definition wf_cdef_extends_dyn_targs def pdef σp :=
+    let σ := gen_targs (length def.(generics)) in
+    ∀ k c, (Δsdt def.(generics) σ) !! k = Some c →
+    def.(constraints) ++ Δsdt pdef.(generics) σp ⊢ c.1 <D: c.2
+    .
+
+  Definition wf_cdef_extends_dyn def :=
+    match def.(superclass) with
+    | None => True
+    | Some (parent, σ) =>
+        ∃ pdef, pdefs !! parent = Some pdef ∧
+        wf_cdef_extends_dyn_targs def pdef σ
+    end.
+
+  Lemma extends_using_extends_dyn A B σ:
+    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _, wf_cdef_extends_dyn) pdefs →
+    extends_using A B σ →
+    ∃ adef bdef,
+      pdefs !! A = Some adef ∧
+      pdefs !! B = Some bdef ∧
+      wf_cdef_extends_dyn_targs adef bdef σ.
+  Proof.
+    move => ? hwf hext.
+    assert (hext0 := hext).
+    apply extends_using_wf in hext0 => //.
+    destruct hext0 as (adef & hadef & ? & hwfb).
+    inv hwfb.
+    destruct hext as [A' B' adef' σ hadef' hsuper]; simplify_eq.
+    exists adef'; exists def; repeat split => //.
+    apply hwf in hadef'.
+    rewrite /wf_cdef_extends_dyn hsuper in hadef'.
+    destruct hadef' as (? & ? & ?); by simplify_eq.
+  Qed.
+
+  Lemma inherits_using_extends_dyn A B σ:
+    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent_ok) pdefs →
+    map_Forall (λ _, wf_cdef_extends_dyn) pdefs →
+    inherits_using A B σ →
+    ∃ adef bdef,
+      pdefs !! A = Some adef ∧
+      pdefs !! B = Some bdef ∧
+      wf_cdef_extends_dyn_targs adef bdef σ.
+  Proof.
+    move => ? hok hwf.
+    induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
+    - exists adef, adef; repeat split => //.
+      move => k [??] heq.
+      eapply subtype_weaken.
+      + apply SubConstraint.
+        by apply elem_of_list_lookup_2 with k.
+      + by set_solver.
+    - by apply extends_using_extends_dyn in hext.
+    - destruct hi as (bdef & cdef & hbdef & hcdef & h1).
+      assert (hσ : Forall wf_ty σ ∧ length bdef.(generics) = length σ).
+      { apply extends_using_wf in hext => //.
+        destruct hext as (? & ? & ? & hh); simplify_eq.
+        split; first by apply wf_ty_class_inv in hh.
+        inv hh; by simplify_eq.
+      }
+      destruct hσ as [hσ hl].
+      assert (hext0 := hext).
+      apply extends_using_extends_dyn in hext0 as (adef & bdef' & hadef & hbdef' & h0) => //.
+      simplify_eq.
+      exists adef, cdef; repeat split => //.
+      move => k c heq.
+      rewrite /wf_cdef_extends_dyn_targs in h0, h1.
+      apply h0 in heq.
+      eapply subtype_constraint_trans; first by eapply heq.
+      clear k c heq.
+      move => k c heq.
+      rewrite lookup_app in heq.
+      destruct (adef.(constraints) !! k) as [[??] | ] eqn:hc0.
+      { rewrite hc0 in heq.
+        case : heq => <-.
+        eapply subtype_weaken.
+        - apply SubConstraint.
+          apply elem_of_list_lookup_2 with k.
+          by apply hc0.
+        - by set_solver.
+      }
+      rewrite hc0 in heq.
+      pose (k' := k - length adef.(generics)).
+      replace (Δsdt bdef.(generics) σ) with
+              (subst_constraints σ (Δsdt bdef.(generics) (gen_targs (length bdef.(generics)))))
+              in heq;last first.
+      { by rewrite Δsdt_subst_ty subst_ty_gen_targs. }
+      apply list_lookup_fmap_inv in heq as [c1 [-> hc1]].
+      simpl.
+      apply subtype_constraint_trans with
+        ((subst_constraints σ bdef.(constraints)) ++ Δsdt cdef.(generics) (subst_ty σ <$> σC));
+        last first.
+      { move => i c hc.
+        rewrite lookup_app in hc.
+        destruct (subst_constraints σ bdef.(constraints) !! i) as [cc0 | ] eqn:hcc0.
+        - case: hc => <-.
+          apply subtype_weaken with adef.(constraints); last by set_solver.
+          apply extends_using_ok in hext => //.
+          apply list_lookup_fmap_inv in hcc0 as [? [-> hcc]].
+          rewrite /subst_constraint /=.
+          destruct hext as (? & ? & hhok); simplify_eq.
+          inv hhok; simplify_eq.
+          by eauto.
+        - eapply subtype_weaken.
+          + apply SubConstraint.
+            eapply elem_of_list_lookup_2.
+            destruct c; by apply hc.
+          + by set_solver.
+      }
+      replace (subst_constraints σ bdef.(constraints) ++ Δsdt cdef.(generics) (subst_ty σ <$> σC)) with
+              (subst_constraints σ (bdef.(constraints) ++ Δsdt cdef.(generics) σC)); last first.
+      { rewrite /subst_constraints fmap_app.
+        f_equal.
+        by rewrite -Δsdt_subst_ty.
+      }
+      apply subtype_subst => //.
+      by apply h1 in hc1.
+  Qed.
+
   Definition wf_field_dyn_wf Δ (vfty: ((visibility * lang_ty) * tag)) :=
     match vfty.1 with
     | (Private, _) => True
@@ -778,9 +899,12 @@ Section Typing.
     end.
 
   Definition wf_cdef_fields_dyn_wf cname cdef :=
+    let n := length cdef.(generics) in
+    let σ := gen_targs n in
+    let Δ := cdef.(constraints) ++ Δsdt cdef.(generics) σ in
     if cdef.(support_dynamic) then
     ∀ fields, has_fields cname fields →
-    map_Forall (λ _fname vfty, wf_field_dyn_wf cdef.(constraints) vfty) fields
+    map_Forall (λ _fname vfty, wf_field_dyn_wf Δ vfty) fields
     else True.
 
   Definition wf_cdef_dyn_parent cdef :=
@@ -841,6 +965,7 @@ Section Typing.
    *)
   Record wf_cdefs (prog: stringmap classDef) := {
     wf_extends_wf : wf_no_cycle prog;
+    wf_extends_dyn : map_Forall (λ _, wf_cdef_extends_dyn) prog;
     wf_parent : map_Forall (λ _cname, wf_cdef_parent prog) prog;
     wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) prog;
     wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) prog;

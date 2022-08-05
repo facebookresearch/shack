@@ -253,8 +253,10 @@ Section proofs.
 
   Definition interp_sdt (rec: ty_interpO) : interp Θ :=
     Interp (λ (v: value),
-      (∃ t Σ def, ⌜pdefs !! t = Some def ∧ def.(support_dynamic) = true⌝ ∗
-        interp_tag rec Σ t v))%I.
+      (∃ A Σa adef, ⌜pdefs !! A = Some adef ∧ adef.(support_dynamic) = true⌝ ∗
+      □ ▷ (∀ i var, ⌜adef.(generics) !! i = Some var⌝ →
+        ∃ ϕ, Σa !! i ≡ Some ϕ ∧ interp_variance var ϕ (rec DynamicT [])) ∗
+      interp_tag rec Σa A v))%I.
 
   Definition interp_support_dynamic (rec: ty_interpO) : interp Θ :=
     Interp (λ (v: value),
@@ -435,11 +437,13 @@ Section proofs.
     - by solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - done.
     - rewrite /interp_dynamic /interp_support_dynamic /interp_sdt => v /=.
-      do 10 f_equiv.
-      by apply interp_tag_contractive.
+      do 11 f_equiv; last by apply interp_tag_contractive.
+      rewrite /interp_variance.
+      f_equiv; f_contractive; by repeat f_equiv.
     - rewrite /interp_support_dynamic /interp_sdt => v /=.
-      do 10 f_equiv.
-      by apply interp_tag_contractive.
+      do 11 f_equiv; last by apply interp_tag_contractive.
+      rewrite /interp_variance.
+      f_equiv; f_contractive; by repeat f_equiv.
   Qed.
 
   (* the interpretation of types can now be
@@ -453,6 +457,19 @@ Section proofs.
   Definition Σinterp (Σ: list (interp Θ)) (Δ : list constraint) :=
     (∀ i c, ⌜Δ !! i = Some c⌝ →
     ∀ v, interp_type c.1 Σ v -∗ interp_type c.2 Σ v)%I.
+
+  Lemma Σinterp_app Σ Δ0 Δ1:
+    Σinterp Σ Δ0 -∗ Σinterp Σ Δ1 -∗ Σinterp Σ (Δ0 ++ Δ1).
+  Proof.
+    iIntros "h0 h1".
+    iIntros (i c hc v) "#h".
+    rewrite lookup_app in hc.
+    destruct (Δ0 !! i) as [i0 | ] eqn:h0.
+    - rewrite h0 in hc; case : hc => <-.
+      by iApply "h0".
+    - rewrite h0 in hc.
+      by iApply "h1".
+  Qed.
 
   Definition interp_list (Σ: list (interp Θ)) (σ: list lang_ty) :=
     (λ ty, interp_type ty Σ) <$> σ.
@@ -667,6 +684,31 @@ Section proofs.
           iIntros "hh".
           by iApply "h".
       + by iApply ("HI" $! k).
+  Qed.
+
+  Definition interp_sdt_alt : interp Θ :=
+    Interp (λ (v: value),
+      (∃ A Σa adef, ⌜pdefs !! A = Some adef ∧ adef.(support_dynamic) = true⌝ ∗
+      □ ▷ (∀ i var, ⌜adef.(generics) !! i = Some var⌝ →
+        ∃ ϕ, Σa !! i ≡ Some ϕ ∧ interp_variance var ϕ (interp_dynamic interp_type)) ∗
+      interp_tag_alt Σa A v))%I.
+
+  Lemma interp_sdt_equiv v:
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    interp_sdt interp_type v ⊣⊢
+    interp_sdt_alt v.
+  Proof.
+    move => hwp.
+    rewrite /interp_sdt /interp_sdt_alt /interp_variance /=.
+    do 8 f_equiv.
+    - do 11 f_equiv.
+      + do 3 f_equiv.
+        by rewrite interp_dynamic_unfold.
+      + do 3 f_equiv.
+        by rewrite interp_dynamic_unfold.
+      + do 3 f_equiv.
+        by rewrite interp_dynamic_unfold.
+    - by rewrite interp_tag_equiv.
   Qed.
 
   Lemma interp_tag_equivI (Σ0 Σ1: list (interp Θ)):
@@ -1423,7 +1465,7 @@ Section proofs.
       iDestruct "h" as "[? | h]".
       { by iRight. }
       iLeft; iRight; iRight.
-      iDestruct "h" as (t def h Σt) "hh".
+      iDestruct "h" as (t Σt def h) "[? ?]".
       by iExists _, _.
     - iDestruct "h" as "[hz | h]".
       { iLeft; by iLeft. }
@@ -1431,8 +1473,8 @@ Section proofs.
       { iLeft; iRight; by iLeft. }
       iDestruct "h" as "[hn | h]".
       { by iRight. }
-      iDestruct "h" as (t def h Σt) "hh".
       iLeft; iRight; iRight.
+      iDestruct "h" as (t Σt def h) "[? ?]".
       by iExists _, _.
   Qed.
 
@@ -1456,7 +1498,8 @@ Section proofs.
     { destruct 1 as [ kd A | kd A h | kd A σA B σB adef hpdefs hlen hext
       | kd A def σ0 σ1 hpdefs hwfσ hσ | | | | | | kd A B h
       | kd A B h | kd A B C h0 h1 | kd A B | kd A B | kd A B C h0 h1
-      | | kd A B C h0 h1 | kd A B hin | kd A adef σA hpdefs hsupdyn | | | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
+      | | kd A B C h0 h1 | kd A B hin | kd A adef σA hpdefs hsupdyn hf
+      | | | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold.
         by iApply submixed_is_inclusion_aux.
@@ -1521,7 +1564,66 @@ Section proofs.
         rewrite -!interp_type_unfold /=.
         by iApply ("Σcoherency" $! i (A, B) hin).
       - iRight; iRight; iRight.
-        iExists A, (go interp_type Σ <$> σA), adef; by iSplit.
+        iExists A, (go interp_type Σ <$> σA), adef; iSplit; first done.
+        iSplit; last done.
+        iModIntro; iNext; iIntros (i var hvar).
+        destruct (σA !! i) as [tyA | ] eqn:htyA; last first.
+        { apply lookup_ge_None_1 in htyA.
+          apply lookup_lt_Some in hvar.
+          inv hwfA; simplify_eq.
+          by lia.
+        }
+        iExists (interp_type tyA Σ); iSplit.
+        { iPureIntro.
+          rewrite list_lookup_fmap htyA /=.
+          f_equiv => w.
+          by rewrite interp_type_unfold.
+        }
+        move : (Δsdt_lookup adef.(generics) var σA i tyA hvar htyA) => hvari.
+        destruct var; iIntros (w) => /=.
+        + case : hvari => j [hj0 hj1].
+          iAssert (interp_type_pre interp_type tyA Σ w -∗ interp_type_pre interp_type DynamicT Σ w)%I as "Hsub0".
+          { assert (hs0: subtype Δ kd tyA DynamicT).
+            { by apply (hf j). }
+            iApply subtype_is_inclusion_aux => //.
+            apply wf_ty_class_inv in hwfA.
+            rewrite Forall_lookup in hwfA.
+            by apply hwfA in htyA.
+          }
+          iAssert (interp_type_pre interp_type DynamicT Σ w -∗ interp_type_pre interp_type tyA Σ w)%I as "Hsub1".
+          { assert (hs1: subtype Δ kd DynamicT tyA).
+            { by apply (hf (S j)). }
+            by iApply subtype_is_inclusion_aux.
+          }
+          rewrite !interp_dynamic_unfold.
+          iSplit; iIntros "#h".
+          * iApply "Hsub0".
+            by rewrite /= interp_type_unfold.
+          * rewrite /= interp_type_unfold.
+            by iApply "Hsub1".
+        + case : hvari => j hj.
+          iAssert (interp_type_pre interp_type tyA Σ w -∗ interp_type_pre interp_type DynamicT Σ w)%I as "Hsub0".
+          { assert (hs0: subtype Δ kd tyA DynamicT).
+            { by apply (hf j). }
+            iApply subtype_is_inclusion_aux => //.
+            apply wf_ty_class_inv in hwfA.
+            rewrite Forall_lookup in hwfA.
+            by apply hwfA in htyA.
+          }
+          rewrite !interp_dynamic_unfold.
+          iIntros "#h".
+          iApply "Hsub0".
+          by rewrite /= interp_type_unfold.
+        + case : hvari => j hj.
+          iAssert (interp_type_pre interp_type DynamicT Σ w -∗ interp_type_pre interp_type tyA Σ w)%I as "Hsub1".
+          { assert (hs1: subtype Δ kd DynamicT tyA).
+            { by apply (hf j). }
+            by iApply subtype_is_inclusion_aux.
+          }
+          rewrite !interp_dynamic_unfold.
+          iIntros "#h".
+          rewrite /= interp_type_unfold.
+          by iApply "Hsub1".
       - by iLeft.
       - by iRight; iLeft.
       - by iRight; iRight; iLeft.

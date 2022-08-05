@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
-From stdpp Require Import base strings gmap stringmap fin_maps.
+From stdpp Require Import base strings gmap stringmap fin_maps list.
 (* Not using iris but importing their ssreflect dependencies *)
 From iris.proofmode Require Import tactics.
 From shack Require Import lang progdef.
@@ -14,6 +14,132 @@ Section Subtype.
   Context `{PDC: ProgDefContext}.
 
   Inductive subtype_kind := Aware | Plain.
+
+  Definition Δsdt (vars: list variance) σ : list constraint :=
+    let l := zip_with
+      (λ var ty, match var with
+                  | Covariant => [(ty, DynamicT)]
+                  | Contravariant => [(DynamicT, ty)]
+                  | Invariant => [(ty, DynamicT); (DynamicT, ty)]
+                  end) vars σ in
+    concat l.
+
+  Lemma Δsdt_wf vars σ : Forall wf_ty σ → Forall wf_constraint (Δsdt vars σ).
+  Proof.
+    move/Forall_lookup => h.
+    apply Forall_concat.
+    apply Forall_lookup => i ?.
+    rewrite lookup_zip_with_Some => [[var] [ty [-> [hvar hty]]]].
+    apply h in hty.
+    by destruct var; by repeat constructor.
+  Qed.
+
+  (* Lemma Δsdt_wf σ : Forall wf_ty σ → Forall wf_constraint (Δsdt σ). *)
+  (* Proof. *)
+  (*   move/Forall_lookup => h. *)
+  (*   apply Forall_lookup => i ? heq. *)
+  (*   apply list_lookup_fmap_inv in heq as [c [-> hc]]. *)
+  (*   split; last done. *)
+  (*   by apply h in hc. *)
+  (* Qed. *)
+
+  Lemma Δsdt_subst_ty vars: ∀ (σ0 σ: list lang_ty),
+    subst_constraints σ (Δsdt vars σ0) = Δsdt vars (subst_ty σ <$> σ0).
+  Proof.
+    elim : vars => [ | hd tl hi] σ0 σ //=.
+    case : σ0 => [ | ty0 σ0] //=.
+    rewrite /subst_constraints /Δsdt /=.
+    case : hd => /=.
+    - f_equal.
+      f_equal.
+      by apply hi.
+    - f_equal.
+      f_equal.
+      by apply hi.
+    - f_equal.
+      f_equal.
+      by apply hi.
+  Qed.
+
+  (* Lemma Δsdt_subst_ty (σ0 σ: list lang_ty): *)
+  (*   subst_constraints σ (Δsdt σ0) = Δsdt (subst_ty σ <$> σ0). *)
+  (* Proof. *)
+  (*   apply list_eq => k. *)
+  (*   rewrite /subst_constraints /Δsdt !list_lookup_fmap. *)
+  (*   by destruct (σ0 !! k). *)
+  (* Qed. *)
+
+  Lemma Δsdt_lookup vars:
+    ∀ var σ k ty, vars !! k = Some var → σ !! k = Some ty →
+    match var with
+    | Invariant =>
+        ∃ i, (Δsdt vars σ) !! i = Some (ty, DynamicT) ∧
+             (Δsdt vars σ) !! (S i) = Some (DynamicT, ty)
+    | Covariant => 
+        ∃ i, (Δsdt vars σ) !! i = Some (ty, DynamicT)
+    | Contravariant => 
+        ∃ i, (Δsdt vars σ) !! i = Some (DynamicT, ty)
+    end.
+  Proof.
+    elim: vars => [ | hd tl hi] var σ k ty h0 h1 //=.
+    case : σ h1 => [ | ty0 σ] h1 //=.
+    case : k h0 h1 => [ | k] /= h0 h1.
+    - case : h0 => <-.
+      case : h1 => <-.
+      case : hd; by exists 0.
+    - move : {hi} (hi var σ k ty h0 h1) => h.
+      case: var h0 h1 h => h0 h1. 
+      + case => i [hi0 hi1].
+        case: hd.
+        * by exists (S (S i)).
+        * by exists (S i).
+        * by exists (S i).
+      + case => i hi.
+        case: hd.
+        * by exists (S (S i)).
+        * by exists (S i).
+        * by exists (S i).
+      + case => i hi.
+        case: hd.
+        * by exists (S (S i)).
+        * by exists (S i).
+        * by exists (S i).
+  Qed.
+
+  Lemma Δsdt_lookup_Some vars: ∀ σ k c,
+    (Δsdt vars σ) !! k = Some c →
+    ∃ i var ty, vars !! i = Some var ∧ σ !! i = Some ty ∧
+    match var with
+    | Invariant => c = (ty, DynamicT) ∨ c = (DynamicT, ty)
+    | Covariant => c = (ty, DynamicT)
+    | Contravariant => c = (DynamicT, ty)
+    end.
+  Proof.
+    elim : vars => [ | hd tl hi] σ k c heq //=.
+    case : σ heq => [ | ty σ] heq //=.
+    case : k heq => [ | k] //=.
+    - rewrite /Δsdt /= => heq.
+      exists 0, hd, ty; repeat split => //.
+      case : hd heq => /=.
+      + case => <-; by left.
+      + by case => <-.
+      + by case => <-.
+    - rewrite /Δsdt /= => heq.
+      case : hd heq => /=.
+      + case : k => [ | k] /=.
+        * case => <-.
+          exists 0, Invariant, ty.
+          by firstorder.
+        * move => h.
+          apply hi in h as (i & var & ty' & hv & ht & h).
+          by exists (S i), var, ty'.
+      + move => h.
+        apply hi in h as (i & var & ty' & hv & ht & h).
+        by exists (S i), var, ty'.
+      + move => h.
+        apply hi in h as (i & var & ty' & hv & ht & h).
+        by exists (S i), var, ty'.
+  Qed.
 
   (* Type well-formdness is mostly introduced to be able to define
    * subtyping rule correctly, like unions.
@@ -48,6 +174,7 @@ Section Subtype.
     | SubClassDyn: ∀ kd A adef σA,
         pdefs !! A = Some adef →
         adef.(support_dynamic) = true →
+        (∀ k s t, (Δsdt adef.(generics) σA) !! k = Some (s, t) → subtype Δ kd s t) →
         subtype Δ kd (ClassT A σA) SupportDynT
     | SubIntDyn kd: subtype Δ kd IntT SupportDynT
     | SubBoolDyn kd: subtype Δ kd BoolT SupportDynT
@@ -91,7 +218,8 @@ Section Subtype.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn | | | | | ] => Δ' hΔ; try by econstructor.
+      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hf
+      | | | | | ] => Δ' hΔ; try by econstructor.
       + econstructor; [ done | done | ].
         by eapply subtype_targs_weaken.
       + econstructor; by eapply subtype_weaken.
@@ -99,6 +227,9 @@ Section Subtype.
       + econstructor; by eapply subtype_weaken.
       + apply SubConstraint.
         by set_solver.
+      + eapply SubClassDyn => // k s t hst.
+        eapply subtype_weaken; last done.
+        by eapply hf.
     - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Δ' hΔ.
       + by constructor.
       + econstructor; [ by eapply subtype_weaken | by eapply subtype_weaken | ].
@@ -123,7 +254,8 @@ Section Subtype.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd |  kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
-      | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn | | | | | ]
+      | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hf
+      | | | | | ]
       => Δ Δ' heq hΔ; subst; try by econstructor.
       + econstructor; [done | done | ].
         by eapply subtype_targs_constraint_elim_.
@@ -134,6 +266,8 @@ Section Subtype.
         { by apply SubConstraint. }
         apply elem_of_list_lookup_1 in hin as [i hin].
         by apply hΔ in hin.
+      + eapply SubClassDyn => // k s t hst.
+        eapply subtype_constraint_elim_; by eauto.
     - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Δ Δ' heq hΔ; subst.
       + by constructor.
       + econstructor; [ by eapply subtype_constraint_elim_ | by eapply subtype_constraint_elim_ | ].
@@ -162,7 +296,8 @@ Section Subtype.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn | | | | | ] => Δ' hΔ; try by econstructor.
+      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hf
+      | | | | | ] => Δ' hΔ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
         eapply subtype_targs_constraint_trans.
         * by apply hσ.
@@ -172,6 +307,8 @@ Section Subtype.
       + apply SubTrans with t; by eapply subtype_constraint_trans.
       + apply elem_of_list_lookup in hin as [i hin].
         by apply hΔ in hin.
+      + eapply SubClassDyn => // k s t hst.
+        eapply subtype_constraint_trans; by eauto.
     - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Δ' hΔ.
       + by constructor.
       + econstructor; [ by eapply subtype_constraint_trans | by eapply subtype_constraint_trans | ].
@@ -412,7 +549,8 @@ Section Subtype.
     induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
       | kd A adef σ0 σ1 hpdefs hwfσ hσ | | | | | kd A args | kd s t h
       | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
-      | kd s t u hst hist htu hitu | kd s t hin | kd A adef σA hpdefs hsupdyn | | | | | ]
+      | kd s t u hst hist htu hitu | kd s t hin | kd A adef σA hpdefs hsupdyn hf hi
+      | | | | | ]
       => //=; try (by constructor).
     - inv hext; simplify_eq.
       rewrite /map_Forall_lookup in hp.
@@ -443,10 +581,6 @@ Section Subtype.
       by apply hΔ in hin as [].
   Qed.
 
-  Definition subst_constraint σ c := (subst_ty σ c.1, subst_ty σ c.2).
-  Definition subst_constraints σ (cs: list constraint) :=
-    subst_constraint σ <$> cs.
-
   Lemma subtype_subst Δ kd A B:
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     subtype Δ kd A B → ∀ σ,
@@ -462,7 +596,8 @@ Section Subtype.
       destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
       | kd A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | | kd A args
       | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
-      | kd s t u hst htu | kd s t hin | kd A adef σA hpdefs hsupdyn | | | | | ]
+      | kd s t u hst htu | kd s t hin | kd A adef σA hpdefs hsupdyn hf
+      | | | | | ]
       => σ hσ => /=; try (by constructor).
       + constructor.
         by apply wf_ty_subst.
@@ -490,7 +625,11 @@ Section Subtype.
         apply elem_of_list_lookup_1 in hin as [i hin].
         apply elem_of_list_lookup; exists i.
         by rewrite /subst_constraints list_lookup_fmap hin.
-      + by eapply SubClassDyn => //k ? hin.
+      + eapply SubClassDyn => // k s t hst.
+        rewrite -Δsdt_subst_ty in hst.
+        apply list_lookup_fmap_inv in hst as [[] [[= -> ->] h]].
+        eapply subtype_subst; [done | | done].
+        by apply hf with k.
     - move => hp.
       destruct 1 as [ | ?????? h0 h1 h | ?????? h0 h | ?????? h0 h] => σ hσ /=.
       + by constructor.
@@ -701,6 +840,65 @@ Section Subtype.
       right.
       exists σ''.
       by repeat split => //.
+  Qed.
+
+  (*
+     Cov:
+     T_0 <: T_1 /\ Delta_C[T_0/T] /\ Delta_C[T_1/C] /\ Delta^SDT_C[T_1/T]
+     => Delta^SDT_C[T_0/T]
+     contra 
+  T_0 <: T_1 /\ Delta_C[T_0/T] /\ Delta_C[T_1/C] /\ Delta^SDT_C[T_0/T]
+    => Delta^SDT_C[T_1/T]
+   *)
+  Definition Δentails kd (Δ0 Δ1: list constraint) :=
+    ∀ i c, Δ1 !! i = Some c → subtype Δ0 kd c.1 c.2.
+
+  Lemma Δsdt_variance Δ kd vars σ0 σ1:
+    subtype_targs Δ kd vars σ0 σ1 →
+    Δentails kd (Δ ++ Δsdt vars σ1) (Δsdt vars σ0).
+  Proof.
+    induction 1 as [ kd | kd ty0 ty1 vs ty0s ty1s h0 h1 h hi | kd ty0 ty1 vs ty0s ty1s h0 h hi
+    | kd ty0 ty1 vs ty0s ty1s h0 h hi] => i c //=.
+    - case : i => [ | [ | i]] /= heq.
+      + case : heq => <- /=.
+        apply SubTrans with ty1.
+        * apply subtype_weaken with Δ => //.
+          by set_solver.
+        * apply SubConstraint.
+          apply elem_of_app; right.
+          by apply elem_of_list_lookup_2 with 0.
+      + case : heq => <- /=.
+        apply SubTrans with ty1.
+        * apply SubConstraint.
+          apply elem_of_app; right.
+          by apply elem_of_list_lookup_2 with 1.
+        * apply subtype_weaken with Δ => //.
+          by set_solver.
+      + apply hi in heq.
+        apply subtype_weaken with (Δ ++ Δsdt vs ty1s) => //.
+        by set_solver.
+    - case : i => [ | i] /= heq.
+      + case : heq => <- /=.
+        apply SubTrans with ty1.
+        * apply subtype_weaken with Δ => //.
+          by set_solver.
+        * apply SubConstraint.
+          apply elem_of_app; right.
+          by apply elem_of_list_lookup_2 with 0.
+      + apply hi in heq.
+        apply subtype_weaken with (Δ ++ Δsdt vs ty1s) => //.
+        by set_solver.
+    - case : i => [ | i] /= heq.
+      + case : heq => <- /=.
+        apply SubTrans with ty1.
+        * apply SubConstraint.
+          apply elem_of_app; right.
+          by apply elem_of_list_lookup_2 with 0.
+        * apply subtype_weaken with Δ => //.
+          by set_solver.
+      + apply hi in heq.
+        apply subtype_weaken with (Δ ++ Δsdt vs ty1s) => //.
+        by set_solver.
   Qed.
 End Subtype.
 

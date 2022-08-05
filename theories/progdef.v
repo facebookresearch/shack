@@ -113,6 +113,10 @@ Section ProgDef.
   Definition wf_cdef_constraints_bounded cdef :=
     Forall (bounded_constraint (length cdef.(generics))) cdef.(constraints).
 
+  Definition subst_constraint σ c := (subst_ty σ c.1, subst_ty σ c.2).
+  Definition subst_constraints σ (cs: list constraint) :=
+    subst_constraint σ <$> cs.
+
   (* A class definition 'parent' information is valid if the parent type is:
    * - well-formed (tag exists, class is fully applied)
    * - bounded by the current class (must only mention generics of the current class)
