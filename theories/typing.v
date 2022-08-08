@@ -12,14 +12,14 @@ From shack Require Import lang progdef subtype.
 Section Typing.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
-
-  Hypothesis Δsdt_wf: ∀ A vars σ, Forall wf_ty σ → Forall wf_constraint (Δsdt A vars σ).
-  Hypothesis Δsdt_subst_ty: ∀ A vars σ0 σ,
-    subst_constraints σ (Δsdt A vars σ0) = Δsdt A vars (subst_ty σ <$> σ0).
+  (* assume some SDT constraints *)
+  Context `{SDTCC: SDTClassConstraints}.
+  (* assume the good properties of SDT constraints *)
+  Context `{SDTCP: SDTClassSpec}.
 
   (* Helping the inference with this notation that hides pdefs *)
-  Local Notation "Δ ⊢ s <: t" := (@subtype _ Δ Plain s t) (at level 70, s at next level, no associativity).
-  Local Notation "Δ ⊢ s <D: t" := (@subtype _ Δ Aware s t) (at level 70, s at next level, no associativity).
+  Local Notation "Δ ⊢ s <: t" := (@subtype _ _ Δ Plain s t) (at level 70, s at next level, no associativity).
+  Local Notation "Δ ⊢ s <D: t" := (@subtype _ _ Δ Aware s t) (at level 70, s at next level, no associativity).
 
   (* At class + substitution is `ok` w.r.t. to a set of constraints `Δ` if
    * - all the types in the substitution are ok
@@ -381,78 +381,6 @@ Section Typing.
       => //=; subst; try (by constructor).
     - by apply hb in h.
     - by apply hb.
-  Qed.
-
-  (* For runtime check, we want to introduce fresh new generic types,
-   * and keep their constraints around. To this purpose, we need
-   * to 'lift' constraints deBruijn to match the right indexes.
-   *)
-  Fixpoint lift_ty n (ty: lang_ty) : lang_ty :=
-    match ty with
-    | ClassT t σ => ClassT t (lift_ty n <$> σ)
-    | UnionT s t => UnionT (lift_ty n s) (lift_ty n t)
-    | InterT s t => InterT (lift_ty n s) (lift_ty n t)
-    | GenT k => GenT (k + n)
-    | IntT | BoolT | NothingT | MixedT | NullT |
-      NonNullT | DynamicT | SupportDynT => ty
-    end.
-
-  Lemma lift_ty_wf ty: ∀ n, wf_ty ty → wf_ty (lift_ty n ty).
-  Proof.
-    induction ty as [ | | | | t σ hi | | | s t hs ht |
-        s t hs ht | k | | ] => n h //=.
-    - inv h.
-      econstructor => //.
-      + by rewrite map_length.
-      + move => k ty h.
-        apply list_lookup_fmap_inv in h as [ty' [-> h]].
-        rewrite Forall_lookup in hi.
-        by eauto.
-    - inv h; constructor; by eauto.
-    - inv h; constructor; by eauto.
-  Qed.
-
-  Lemma lift_ty_bounded ty: ∀ n m, bounded m ty → bounded (n + m) (lift_ty n ty).
-  Proof.
-    induction ty as [ | | | | t σ hi | | | s t hs ht |
-        s t hs ht | k | | ] => n m h //=.
-    - inv h.
-      constructor => //.
-      rewrite Forall_lookup => k ty h.
-      apply list_lookup_fmap_inv in h as [ty' [-> h]].
-      rewrite Forall_lookup in hi.
-      rewrite Forall_lookup in H0.
-      by eauto.
-    - inv h; constructor; by eauto.
-    - inv h; constructor; by eauto.
-    - inv h; constructor.
-      by lia.
-  Qed.
-
-  Definition lift_constraint n c := (lift_ty n c.1, lift_ty n c.2).
-
-  Definition lift_constraints n (Δ : list constraint) :=
-    lift_constraint n <$> Δ.
-
-  Lemma lift_constraints_wf n Δ:
-    Forall wf_constraint Δ → Forall wf_constraint (lift_constraints n Δ).
-  Proof.
-    move => /Forall_lookup h.
-    rewrite Forall_lookup => k ty hty.
-    apply list_lookup_fmap_inv in hty as [ty' [-> hty]].
-    apply h in hty as [].
-    split; by apply lift_ty_wf.
-  Qed.
-
-  Lemma lift_constraints_bounded m n Δ:
-    Forall (bounded_constraint m) Δ →
-    Forall (bounded_constraint (n + m)) (lift_constraints n Δ).
-  Proof.
-    move => /Forall_lookup h.
-    rewrite Forall_lookup => k ty hty.
-    apply list_lookup_fmap_inv in hty as [ty' [-> hty]].
-    apply h in hty as [].
-    split; by apply lift_ty_bounded.
   Qed.
 
   (* continuation-based typing for commands.
@@ -824,7 +752,7 @@ Section Typing.
     induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
     - exists adef, adef; repeat split => //.
       move => k [??] heq.
-      eapply subtype_weaken; [done | done | | ].
+      eapply subtype_weaken.
       + apply SubConstraint.
         by apply elem_of_list_lookup_2 with k.
       + by set_solver.
@@ -851,7 +779,7 @@ Section Typing.
       destruct (adef.(constraints) !! k) as [[??] | ] eqn:hc0.
       { rewrite hc0 in heq.
         case : heq => <-.
-        eapply subtype_weaken; [ done | done | | ].
+        eapply subtype_weaken.
         - apply SubConstraint.
           apply elem_of_list_lookup_2 with k.
           by apply hc0.
@@ -871,14 +799,14 @@ Section Typing.
         rewrite lookup_app in hc.
         destruct (subst_constraints σ bdef.(constraints) !! i) as [cc0 | ] eqn:hcc0.
         - case: hc => <-.
-          apply subtype_weaken with adef.(constraints); [done | done | | by set_solver].
+          apply subtype_weaken with adef.(constraints); last by set_solver.
           apply extends_using_ok in hext => //.
           apply list_lookup_fmap_inv in hcc0 as [? [-> hcc]].
           rewrite /subst_constraint /=.
           destruct hext as (? & ? & hhok); simplify_eq.
           inv hhok; simplify_eq.
           by eauto.
-        - eapply subtype_weaken; [ done | done | | ].
+        - eapply subtype_weaken.
           + apply SubConstraint.
             eapply elem_of_list_lookup_2.
             destruct c; by apply hc.

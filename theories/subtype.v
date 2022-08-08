@@ -9,14 +9,16 @@ From stdpp Require Import base strings gmap stringmap fin_maps list.
 From iris.proofmode Require Import tactics.
 From shack Require Import lang progdef.
 
+(* Abstract definition of the SDT constraints at the class level *)
+Class SDTClassConstraints := {
+  Δsdt : tag → list variance → list lang_ty → list constraint;
+}.
+
 Section Subtype.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
-
-  Parameter Δsdt : tag → list variance → list lang_ty → list constraint.
-  Hypothesis Δsdt_wf: ∀ A vars σ, Forall wf_ty σ → Forall wf_constraint (Δsdt A vars σ).
-  Hypothesis Δsdt_subst_ty: ∀ A vars σ0 σ,
-    subst_constraints σ (Δsdt A vars σ0) = Δsdt A vars (subst_ty σ <$> σ0).
+  (* assume some SDT constraints *)
+  Context `{SDTCC: SDTClassConstraints}.
 
   Inductive subtype_kind := Aware | Plain.
 
@@ -76,6 +78,36 @@ Section Subtype.
         subtype_targs Δ kd vs ty0s ty1s →
         subtype_targs Δ kd (Contravariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
   .
+
+  Definition Δentails kd (Δ0 Δ1: list constraint) :=
+    ∀ i c, Δ1 !! i = Some c → subtype Δ0 kd c.1 c.2.
+
+  (* Properties of Δsdt *)
+  Class SDTClassSpec := {
+    (* Δsdt preserves the wf_ty of σ *)
+    Δsdt_wf: ∀ A vars σ, Forall wf_ty σ → Forall wf_constraint (Δsdt A vars σ);
+    (* Δsdt commutes with subst_ty *)
+    Δsdt_subst_ty: ∀ A vars σ0 σ,
+      subst_constraints σ (Δsdt A vars σ0) = Δsdt A vars (subst_ty σ <$> σ0);
+    (* Δsdt preserves the bounded of σ *)
+    Δsdt_bounded: ∀ A vars σ n,
+      Forall (bounded n) σ → Forall (bounded_constraint n) (Δsdt A vars σ);
+    (* Δsdt commutes with σ *)
+    Δsdt_lift: ∀ n A vars σ,
+      lift_constraints n (Δsdt A vars σ) = Δsdt A vars (lift_ty n <$> σ);
+    (* Δsdt is compatible with the variance of a class *)
+    Δsdt_variance: ∀ Δ kd A vars σ0 σ1,
+      subtype_targs Δ kd vars σ0 σ1 → Δentails kd (Δ ++ Δsdt A vars σ1) (Δsdt A vars σ0);
+  }.
+End Subtype.
+
+Section SubtypeFacts.
+  (* assume a given set of class definitions *)
+  Context `{PDC: ProgDefContext}.
+  (* assume some SDT constraints *)
+  Context `{SDTCC: SDTClassConstraints}.
+  (* assume the good properties of SDT constraints *)
+  Context `{SDTCP: SDTClassSpec}.
 
   Corollary length_subtype_targs_v1 Δ kd: ∀ vs ty0s ty1s,
     subtype_targs Δ kd vs ty0s ty1s → length vs = length ty1s.
@@ -720,10 +752,7 @@ Section Subtype.
       exists σ''.
       by repeat split => //.
   Qed.
-
-  Definition Δentails kd (Δ0 Δ1: list constraint) :=
-    ∀ i c, Δ1 !! i = Some c → subtype Δ0 kd c.1 c.2.
-End Subtype.
+End SubtypeFacts.
 
 (* Hints and notations are local to the section. Re-exporting them *)
 Global Hint Constructors subtype : core.

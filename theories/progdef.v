@@ -715,6 +715,79 @@ Section ProgDef.
         destruct (hi _ _ _ H0 hBO) as (odef & mdefo & mdefB & ? & ? & ? & ->).
         by exists odef, mdefo, (subst_mdef σB mdefo).
   Qed.
+
+  (* For runtime check, we want to introduce fresh new generic types,
+   * and keep their constraints around. To this purpose, we need
+   * to 'lift' constraints deBruijn to match the right indexes.
+   *)
+  Fixpoint lift_ty n (ty: lang_ty) : lang_ty :=
+    match ty with
+    | ClassT t σ => ClassT t (lift_ty n <$> σ)
+    | UnionT s t => UnionT (lift_ty n s) (lift_ty n t)
+    | InterT s t => InterT (lift_ty n s) (lift_ty n t)
+    | GenT k => GenT (k + n)
+    | IntT | BoolT | NothingT | MixedT | NullT |
+      NonNullT | DynamicT | SupportDynT => ty
+    end.
+
+  Lemma lift_ty_wf ty: ∀ n, wf_ty ty → wf_ty (lift_ty n ty).
+  Proof.
+    induction ty as [ | | | | t σ hi | | | s t hs ht |
+        s t hs ht | k | | ] => n h //=.
+    - inv h.
+      econstructor => //.
+      + by rewrite map_length.
+      + move => k ty h.
+        apply list_lookup_fmap_inv in h as [ty' [-> h]].
+        rewrite Forall_lookup in hi.
+        by eauto.
+    - inv h; constructor; by eauto.
+    - inv h; constructor; by eauto.
+  Qed.
+
+  Lemma lift_ty_bounded ty: ∀ n m, bounded m ty → bounded (n + m) (lift_ty n ty).
+  Proof.
+    induction ty as [ | | | | t σ hi | | | s t hs ht |
+        s t hs ht | k | | ] => n m h //=.
+    - inv h.
+      constructor => //.
+      rewrite Forall_lookup => k ty h.
+      apply list_lookup_fmap_inv in h as [ty' [-> h]].
+      rewrite Forall_lookup in hi.
+      rewrite Forall_lookup in H0.
+      by eauto.
+    - inv h; constructor; by eauto.
+    - inv h; constructor; by eauto.
+    - inv h; constructor.
+      by lia.
+  Qed.
+
+  Definition lift_constraint n c := (lift_ty n c.1, lift_ty n c.2).
+
+  Definition lift_constraints n (Δ : list constraint) :=
+    lift_constraint n <$> Δ.
+
+  Lemma lift_constraints_wf n Δ:
+    Forall wf_constraint Δ → Forall wf_constraint (lift_constraints n Δ).
+  Proof.
+    move => /Forall_lookup h.
+    rewrite Forall_lookup => k ty hty.
+    apply list_lookup_fmap_inv in hty as [ty' [-> hty]].
+    apply h in hty as [].
+    split; by apply lift_ty_wf.
+  Qed.
+
+  Lemma lift_constraints_bounded m n Δ:
+    Forall (bounded_constraint m) Δ →
+    Forall (bounded_constraint (n + m)) (lift_constraints n Δ).
+  Proof.
+    move => /Forall_lookup h.
+    rewrite Forall_lookup => k ty hty.
+    apply list_lookup_fmap_inv in hty as [ty' [-> hty]].
+    apply h in hty as [].
+    split; by apply lift_ty_bounded.
+  Qed.
+
 End ProgDef.
 
 (* Hints and notations are local to the section. Re-exporting them *)

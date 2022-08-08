@@ -16,13 +16,17 @@ From shack.soundness Require Import expr defs.
 Section proofs.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
+  (* assume some SDT constraints *)
+  Context `{SDTCC: SDTClassConstraints}.
+  (* assume the good properties of SDT constraints *)
+  Context `{SDTCP: SDTClassSpec}.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
 
   (* Helping the inference with this notation that hides pdefs *)
-  Local Notation "Δ ⊢ s <: t" := (@subtype _ Δ Plain s t) (at level 70, s at next level, no associativity).
-  Local Notation "Δ ⊢ s <D: t" := (@subtype _ Δ Aware s t) (at level 70, s at next level, no associativity).
+  Local Notation "Δ ⊢ s <: t" := (@subtype _ _ Δ Plain s t) (at level 70, s at next level, no associativity).
+  Local Notation "Δ ⊢ s <D: t" := (@subtype _ _ Δ Aware s t) (at level 70, s at next level, no associativity).
 
   Lemma rtc_tag_soundness C Δ kd rigid Γ0 Γ1 v tv t def thn els:
     wf_cdefs pdefs →

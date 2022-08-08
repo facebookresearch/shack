@@ -16,6 +16,10 @@ From shack.soundness Require Import expr defs.
 Section proofs.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
+  (* assume some SDT constraints *)
+  Context `{SDTCC: SDTClassConstraints}.
+  (* assume the good properties of SDT constraints *)
+  Context `{SDTCP: SDTClassSpec}.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.

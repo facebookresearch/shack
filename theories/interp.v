@@ -129,6 +129,10 @@ Arguments interpO : clear implicits.
 Section proofs.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
+  (* assume some SDT constraints *)
+  Context `{SDTCC: SDTClassConstraints}.
+  (* assume the good properties of SDT constraints *)
+  Context `{SDTCP: SDTClassSpec}.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
@@ -257,7 +261,12 @@ Section proofs.
   Definition interp_sdt (rec: ty_interpO) : interp Θ :=
     Interp (λ (v: value),
       (∃ A Σa adef, ⌜pdefs !! A = Some adef ∧ adef.(support_dynamic) = true⌝ ∗
-      □ ▷ (∀ i c, ⌜Δsdt_ A adef !! i = Some c⌝ → ∀ w, rec c.1 Σa w -∗ rec c.2 Σa w) ∗
+      (* Σa |= Δsdt A *)
+      □ ▷ (∀ i c, ⌜Δsdt_ A adef !! i = Some c⌝ →
+        ∀ w, rec c.1 Σa w -∗ rec c.2 Σa w) ∗
+      (* Σa included in [| mixed |] *)
+      □ ▷ (∀ i (ϕi: interp Θ),  ⌜Σa !! i = Some ϕi⌝ →
+        ∀ v,  ϕi v -∗ rec MixedT [] v) ∗
       interp_tag rec Σa A v))%I.
 
   Definition interp_support_dynamic (rec: ty_interpO) : interp Θ :=
@@ -439,11 +448,15 @@ Section proofs.
     - by solve_proper_core ltac:(fun _ => first [done | f_contractive | f_equiv]).
     - done.
     - rewrite /interp_dynamic /interp_support_dynamic /interp_sdt => v /=.
-      do 11 f_equiv; last by apply interp_tag_contractive.
-      f_equiv; f_contractive; by repeat f_equiv.
-    - rewrite /interp_support_dynamic /interp_sdt => v /=.
-      do 11 f_equiv; last by apply interp_tag_contractive.
-      f_equiv; f_contractive; by repeat f_equiv.
+      do 11 f_equiv.
+      { f_equiv; f_contractive; by repeat f_equiv. }
+      f_equiv; last by apply interp_tag_contractive.
+      { f_equiv; f_contractive; by repeat f_equiv. }
+    - rewrite /interp_dynamic /interp_support_dynamic /interp_sdt => v /=.
+      do 11 f_equiv.
+      { f_equiv; f_contractive; by repeat f_equiv. }
+      f_equiv; last by apply interp_tag_contractive.
+      { f_equiv; f_contractive; by repeat f_equiv. }
   Qed.
 
   (* the interpretation of types can now be
@@ -691,6 +704,7 @@ Section proofs.
     Interp (λ (v: value),
       (∃ A Σa adef, ⌜pdefs !! A = Some adef ∧ adef.(support_dynamic) = true⌝ ∗
       □ ▷ (Σinterp Σa (Δsdt_ A adef)) ∗
+      □ ▷ (interp_env_as_mixed Σa) ∗
       interp_tag_alt Σa A v))%I.
 
   Lemma interp_sdt_equiv v:
@@ -701,8 +715,18 @@ Section proofs.
     move => hwp.
     rewrite /interp_sdt /interp_sdt_alt /interp_variance /=.
     do 8 f_equiv.
-    - by repeat f_equiv.
-    - by rewrite interp_tag_equiv.
+    { by repeat f_equiv. }
+    f_equiv; last by rewrite interp_tag_equiv.
+    do 2 f_equiv.
+    iSplit.
+    - iIntros "hmixed".
+      iIntros (i phi hi w) "#hphi".
+      rewrite -(interp_type_unfold [] MixedT w).
+      by iApply "hmixed".
+    - iIntros "hmixed".
+      iIntros (i phi hi w) "#hphi".
+      rewrite interp_type_unfold.
+      by iApply "hmixed".
   Qed.
 
   Lemma interp_tag_equivI (Σ0 Σ1: list (interp Θ)):
@@ -1385,13 +1409,6 @@ Section proofs.
       by apply wf_ty_class_inv in hwfA.
   Qed.
 
-  Hypothesis Δsdt_wf: ∀ A vars σ, Forall wf_ty σ → Forall wf_constraint (Δsdt A vars σ).
-  Hypothesis Δsdt_subst_ty: ∀ A vars σ0 σ,
-    subst_constraints σ (Δsdt A vars σ0) = Δsdt A vars (subst_ty σ <$> σ0).
-  Hypothesis Δsdt_bounded: ∀ A vars σ n,
-    Forall (bounded n) σ →
-    Forall (bounded_constraint n) (Δsdt A vars σ).
-
   Section Inclusion.
     Hypothesis Δ: list constraint.
     Hypothesis wfΣc: Forall wf_constraint Δ.
@@ -1482,7 +1499,7 @@ Section proofs.
       iDestruct "h" as "[? | h]".
       { by iRight. }
       iLeft; iRight; iRight.
-      iDestruct "h" as (t Σt def h) "[? ?]".
+      iDestruct "h" as (t Σt def h) "(? & ? & ?)".
       by iExists _, _.
     - iDestruct "h" as "[hz | h]".
       { iLeft; by iLeft. }
@@ -1491,7 +1508,7 @@ Section proofs.
       iDestruct "h" as "[hn | h]".
       { by iRight. }
       iLeft; iRight; iRight.
-      iDestruct "h" as (t Σt def h) "[? ?]".
+      iDestruct "h" as (t Σt def h) "(? & ? & ?)".
       by iExists _, _.
   Qed.
 
@@ -1584,41 +1601,50 @@ Section proofs.
         assert (hl : length σA = length adef.(generics)).
         { inv hwfA; by simplify_eq. }
         iExists A, (interp_list Σ σA), adef; iSplit; first done.
-        iSplit; last first.
-        { assert (heq: interp_list Σ σA ≡ go interp_type Σ <$> σA).
-          { rewrite /interp_list.
-            apply list_fmap_equiv_ext_elem_of => ty hty w.
-            by rewrite interp_type_unfold.
-          }
-          by rewrite (interp_tag_equivI _ _ heq).
-        }
-        iModIntro; iNext; iIntros (i c hc w) "#h".
-        assert (hc': Δsdt A adef.(generics) σA !! i = Some (subst_constraint σA c)).
-        { rewrite -{1}(subst_ty_gen_targs (length adef.(generics)) σA) //.
+        iSplit; first last.
+        + iSplit.
+          * iModIntro; iNext; iIntros (i phi hi w) "#hphi".
+            apply list_lookup_fmap_inv in hi as [ty [-> hi]].
+            assert (hwf: wf_ty ty).
+            { inv hwfA.
+              by eauto.
+            }
+            rewrite (interp_type_unfold [] MixedT w).
+            rewrite -(interp_type_unfold Σ MixedT w).
+            by iApply (submixed_is_inclusion_aux Σ).
+          * assert (heq: interp_list Σ σA ≡ go interp_type Σ <$> σA).
+            { rewrite /interp_list.
+              apply list_fmap_equiv_ext_elem_of => ty hty w.
+              by rewrite interp_type_unfold.
+            }
+            by rewrite (interp_tag_equivI _ _ heq).
+        + iModIntro; iNext; iIntros (i c hc w) "#h".
+          assert (hc': Δsdt A adef.(generics) σA !! i = Some (subst_constraint σA c)).
+          { rewrite -{1}(subst_ty_gen_targs (length adef.(generics)) σA) //.
           by rewrite -Δsdt_subst_ty list_lookup_fmap hc.
-        }
-        apply hf in hc'.
-        assert (hwfc: wf_constraint c).
-        { assert (hh: Forall wf_ty (gen_targs (length adef.(generics)))).
-          { apply Forall_lookup => k ty; by apply gen_targs_wf. }
-          apply Δsdt_wf with (A := A) (vars := adef.(generics)) in hh.
-          rewrite Forall_lookup in hh.
-          by apply hh in hc.
-        }
-        destruct hwfc as [].
-        assert (hbc : bounded_constraint (length σA) c).
-        { rewrite hl.
-          move : (bounded_gen_targs (length adef.(generics))) => h.
-          apply Δsdt_bounded with (A := A) (vars := adef.(generics)) in h.
-          rewrite Forall_lookup in h.
-          by apply h in hc.
-        }
-        destruct hbc as [].
-        rewrite -!interp_type_subst //.
-        rewrite !interp_type_unfold.
-        iApply subtype_is_inclusion_aux => //.
-        apply wf_ty_class_inv in hwfA.
-        by apply wf_ty_subst.
+          }
+          apply hf in hc'.
+          assert (hwfc: wf_constraint c).
+          { assert (hh: Forall wf_ty (gen_targs (length adef.(generics)))).
+            { apply Forall_lookup => k ty; by apply gen_targs_wf. }
+            apply Δsdt_wf with (A := A) (vars := adef.(generics)) in hh.
+            rewrite Forall_lookup in hh.
+            by apply hh in hc.
+          }
+          destruct hwfc as [].
+          assert (hbc : bounded_constraint (length σA) c).
+          { rewrite hl.
+            move : (bounded_gen_targs (length adef.(generics))) => h.
+            apply Δsdt_bounded with (A := A) (vars := adef.(generics)) in h.
+            rewrite Forall_lookup in h.
+            by apply h in hc.
+          }
+          destruct hbc as [].
+          rewrite -!interp_type_subst //.
+          rewrite !interp_type_unfold.
+          iApply subtype_is_inclusion_aux => //.
+          apply wf_ty_class_inv in hwfA.
+          by apply wf_ty_subst.
       - by iLeft.
       - by iRight; iLeft.
       - by iRight; iRight; iLeft.
@@ -1958,13 +1984,6 @@ Section proofs.
             split; f_equal; by lia.
     }
   Qed.
-
-  Hypothesis Δsdt_lift: ∀ n A vars σ,
-    lift_constraints n (Δsdt A vars σ) = Δsdt A vars (lift_ty n <$> σ).
-
-  Hypothesis Δsdt_variance: ∀ Δ kd A vars σ0 σ1,
-    subtype_targs Δ kd vars σ0 σ1 →
-    Δentails kd (Δ ++ Δsdt A vars σ1) (Δsdt A vars σ0).
 
   Lemma Δsdt_variance_interp: ∀ (Σ0 Σ1: list (interp Θ)) A adef,
     map_Forall (λ _ : string, wf_cdef_mono) pdefs →
