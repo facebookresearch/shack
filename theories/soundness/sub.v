@@ -20,6 +20,13 @@ Section proofs.
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
 
+  Hypothesis Δsdt_wf: ∀ A vars σ, Forall wf_ty σ → Forall wf_constraint (Δsdt A vars σ).
+  Hypothesis Δsdt_subst_ty: ∀ A vars σ0 σ,
+    subst_constraints σ (Δsdt A vars σ0) = Δsdt A vars (subst_ty σ <$> σ0).
+  Hypothesis Δsdt_bounded: ∀ A vars σ n,
+    Forall (bounded n) σ →
+    Forall (bounded_constraint n) (Δsdt A vars σ).
+
   Lemma sub_soundness C Δ kd Γ rigid Γ0 Γ1 c:
     wf_cdefs pdefs →
     wf_lty Γ →
