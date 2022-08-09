@@ -267,6 +267,9 @@ Section proofs.
       (* Σa included in [| mixed |] *)
       □ ▷ (∀ i (ϕi: interp Θ),  ⌜Σa !! i = Some ϕi⌝ →
         ∀ v,  ϕi v -∗ rec MixedT [] v) ∗
+      (* Σa |= Δa *)
+      □ ▷ (∀ i c, ⌜adef.(constraints) !! i = Some c⌝ →
+           ∀ v, rec c.1 Σa v -∗ rec c.2 Σa v) ∗
       interp_tag rec Σa A v))%I.
 
   Definition interp_support_dynamic (rec: ty_interpO) : interp Θ :=
@@ -450,10 +453,14 @@ Section proofs.
     - rewrite /interp_dynamic /interp_support_dynamic /interp_sdt => v /=.
       do 11 f_equiv.
       { f_equiv; f_contractive; by repeat f_equiv. }
+      f_equiv.
+      { f_equiv; f_contractive; by repeat f_equiv. }
       f_equiv; last by apply interp_tag_contractive.
       { f_equiv; f_contractive; by repeat f_equiv. }
     - rewrite /interp_dynamic /interp_support_dynamic /interp_sdt => v /=.
       do 11 f_equiv.
+      { f_equiv; f_contractive; by repeat f_equiv. }
+      f_equiv.
       { f_equiv; f_contractive; by repeat f_equiv. }
       f_equiv; last by apply interp_tag_contractive.
       { f_equiv; f_contractive; by repeat f_equiv. }
@@ -705,6 +712,7 @@ Section proofs.
       (∃ A Σa adef, ⌜pdefs !! A = Some adef ∧ adef.(support_dynamic) = true⌝ ∗
       □ ▷ (Σinterp Σa (Δsdt_ A adef)) ∗
       □ ▷ (interp_env_as_mixed Σa) ∗
+      □ ▷ (Σinterp Σa adef.(constraints)) ∗
       interp_tag_alt Σa A v))%I.
 
   Lemma interp_sdt_equiv v:
@@ -1414,6 +1422,8 @@ Section proofs.
     Hypothesis wfΣc: Forall wf_constraint Δ.
     Hypothesis wf_parent : map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs.
     Hypothesis wf_mono : map_Forall (λ _ : string, wf_cdef_mono) pdefs.
+    Hypothesis wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs.
+    Hypothesis wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) pdefs.
 
   (* Extracting subproofs for clarity *)
   Lemma subvariance_is_inclusion_aux Σ:
@@ -1499,7 +1509,7 @@ Section proofs.
       iDestruct "h" as "[? | h]".
       { by iRight. }
       iLeft; iRight; iRight.
-      iDestruct "h" as (t Σt def h) "(? & ? & ?)".
+      iDestruct "h" as (t Σt def h) "(? & ? & ? & ?)".
       by iExists _, _.
     - iDestruct "h" as "[hz | h]".
       { iLeft; by iLeft. }
@@ -1508,7 +1518,7 @@ Section proofs.
       iDestruct "h" as "[hn | h]".
       { by iRight. }
       iLeft; iRight; iRight.
-      iDestruct "h" as (t Σt def h) "(? & ? & ?)".
+      iDestruct "h" as (t Σt def h) "(? & ? & ? & ?)".
       by iExists _, _.
   Qed.
 
@@ -1529,11 +1539,11 @@ Section proofs.
     □ Σinterp Σ Δ -∗
     □ iForall3 interp_variance Vs (interp_list Σ As) (interp_list Σ Bs).
   Proof.
-    { destruct 1 as [ kd A | kd A h | kd A σA B σB adef hpdefs hlen hext
-      | kd A def σ0 σ1 hpdefs hwfσ hσ | | | | | | kd A B h
+    { destruct 1 as [ kd A | kd A h | kd A σA B σB adef hadef hlen hext
+      | kd A def σ0 σ1 hadef hwfσ hσ | | | | | | kd A B h
       | kd A B h | kd A B C h0 h1 | kd A B | kd A B | kd A B C h0 h1
-      | | kd A B C h0 h1 | kd A B hin | kd A adef σA hpdefs hsupdyn hf
-      | | | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency h".
+      | | kd A B C h0 h1 | kd A B hin | kd A adef σA hadef hsupdyn _ hf0 hf1
+      | | | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency #h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold.
         by iApply submixed_is_inclusion_aux.
@@ -1602,7 +1612,7 @@ Section proofs.
         { inv hwfA; by simplify_eq. }
         iExists A, (interp_list Σ σA), adef; iSplit; first done.
         iSplit; first last.
-        + iSplit.
+        + iSplit; last iSplit.
           * iModIntro; iNext; iIntros (i phi hi w) "#hphi".
             apply list_lookup_fmap_inv in hi as [ty [-> hi]].
             assert (hwf: wf_ty ty).
@@ -1612,18 +1622,36 @@ Section proofs.
             rewrite (interp_type_unfold [] MixedT w).
             rewrite -(interp_type_unfold Σ MixedT w).
             by iApply (submixed_is_inclusion_aux Σ).
+          * iModIntro; iNext; iIntros (i [s t] hc w) "#h1".
+            assert (hwf: wf_ty (subst_ty σA s)).
+            { apply wf_ty_subst => //; first by apply wf_ty_class_inv in hwfA.
+              apply wf_constraints_wf in hadef.
+              rewrite /wf_cdef_constraints_wf Forall_lookup in hadef.
+              by apply hadef in hc as [].
+            }
+            assert (hb: bounded_constraint (length σA) (s, t)).
+            { apply wf_constraints_bounded in hadef.
+              rewrite /wf_cdef_constraints_bounded Forall_lookup in hadef.
+              apply hadef in hc.
+              by rewrite hl.
+            }
+            destruct hb as [].
+            apply hf1 in hc; simpl in *.
+            rewrite -!interp_type_subst //.
+            rewrite !interp_type_unfold.
+            by iApply subtype_is_inclusion_aux.
           * assert (heq: interp_list Σ σA ≡ go interp_type Σ <$> σA).
             { rewrite /interp_list.
               apply list_fmap_equiv_ext_elem_of => ty hty w.
               by rewrite interp_type_unfold.
             }
             by rewrite (interp_tag_equivI _ _ heq).
-        + iModIntro; iNext; iIntros (i c hc w) "#h".
+        + iModIntro; iNext; iIntros (i c hc w) "#h1".
           assert (hc': Δsdt A adef.(generics) σA !! i = Some (subst_constraint σA c)).
           { rewrite -{1}(subst_ty_gen_targs (length adef.(generics)) σA) //.
-          by rewrite -Δsdt_subst_ty list_lookup_fmap hc.
+            by rewrite -Δsdt_subst_ty list_lookup_fmap hc.
           }
-          apply hf in hc'.
+          apply hf0 in hc'.
           assert (hwfc: wf_constraint c).
           { assert (hh: Forall wf_ty (gen_targs (length adef.(generics)))).
             { apply Forall_lookup => k ty; by apply gen_targs_wf. }
@@ -1819,27 +1847,21 @@ Section proofs.
 
   Fixpoint helper_fun n k (vars : list variance) :=
     match vars with
-    | [] => ([], [])
+    | [] => []
     | hd :: tl =>
-        let: (σ0, Δ01) := helper_fun n (S k) tl in
-        let σ0 := (GenT k) :: σ0 in
-        let Δ01 :=
+        let Δ01 := helper_fun n (S k) tl in
         match hd with
         | Invariant => (GenT k, GenT (k + n)) :: (GenT (k + n), GenT k) :: Δ01
         | Covariant => (GenT k, GenT (k + n)) :: Δ01
         | Contravariant => (GenT (k + n), GenT k) :: Δ01
         end
-        in
-        (σ0, Δ01)
     end.
 
   Lemma helper_spec n : ∀ vars k,
-    let: (σ0, Δ01) := helper_fun n k vars in
-    Forall wf_ty σ0 ∧
+    let Δ01 := helper_fun n k vars in
+    let σ0 := lift_ty k <$> gen_targs (length vars) in
     Forall wf_constraint Δ01 ∧
-    length σ0 = length vars ∧
     subtype_targs Δ01 Aware vars σ0 (lift_ty n <$> σ0) ∧
-    (∀ i ty, σ0 !! i = Some ty → ty = GenT (k + i)) ∧
     (∀ i v,
       vars !! i = Some v →
       ∃ j, match v with
@@ -1860,34 +1882,41 @@ Section proofs.
         end).
   Proof.
     elim => [| v vars hi] k //=.
-    move : {hi} (hi (S k)).
-    case helper_fun => [σ0 Δ01].
-    case => hwf [hwfΔ [hl0 [hσ [h0 hi]]]].
-    simpl.
-    split; first by constructor.
+    move : {hi} (hi (S k)) => /=.
+    pose (Δ01 := helper_fun n (S k) vars).
+    case => hwf [hσ hi].
     split.
     { destruct v; by repeat constructor. }
-    split; first by rewrite /= hl0.
     split.
-    { destruct v.
+    {
+      assert (heq:
+            list_fmap lang_ty lang_ty (lift_ty k) (map GenT (seq 1 (length vars)))
+            =
+            lift_ty (S k) <$> gen_targs (length vars)).
+      { apply list_eq => i.
+        rewrite !list_lookup_fmap.
+        destruct (decide (i < length vars)) as [hlt | hge].
+        - rewrite !lookup_seq_lt //=.
+          f_equal; f_equal; by lia.
+        - rewrite !lookup_seq_ge //; by lia.
+      }
+      destruct v.
       - constructor.
         + apply SubConstraint; by constructor.
         + apply SubConstraint; by repeat constructor.
-        + apply subtype_targs_weaken with Δ01 => //.
+        + rewrite heq.
+          apply subtype_targs_weaken with Δ01 => //.
           by set_solver.
       - constructor.
         + apply SubConstraint; by constructor.
-        + apply subtype_targs_weaken with Δ01 => //.
+        + rewrite heq.
+          apply subtype_targs_weaken with Δ01 => //.
           by set_solver.
       - constructor.
         + apply SubConstraint; by repeat constructor.
-        + apply subtype_targs_weaken with Δ01 => //.
+        + rewrite heq.
+          apply subtype_targs_weaken with Δ01 => //.
           by set_solver.
-    }
-    split.
-    { move => [ | i] ty //=.
-      + case => <-; f_equal; by lia.
-      + move/h0 => ->; f_equal; by lia.
     }
     split.
     {
@@ -1988,47 +2017,46 @@ Section proofs.
   Lemma Δsdt_variance_interp: ∀ (Σ0 Σ1: list (interp Θ)) A adef,
     map_Forall (λ _ : string, wf_cdef_mono) pdefs →
     map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_constraints_bounded) pdefs →
+    map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →
     pdefs !! A = Some adef →
     □ interp_env_as_mixed Σ0 -∗
     □ interp_env_as_mixed Σ1 -∗
     □ iForall3 interp_variance adef.(generics) Σ0 Σ1 -∗
+    □ Σinterp Σ0 adef.(constraints) -∗
+    □ Σinterp Σ1 adef.(constraints) -∗
     □ Σinterp Σ1 (Δsdt_ A adef) -∗
     □ Σinterp Σ0 (Δsdt_ A adef).
   Proof.
-    (* Helper to generate the right context *)
-    move => Σ0 Σ1 A adef hwfp hwfm hadef.
+    move => Σ0 Σ1 A adef hwfp hwfm hwfbc hwfc hadef.
     (* assume T0s and T1s such that for all i
      * T0i <:vi:> T1i
      *)
     pose (n := length adef.(generics)).
-    move : (helper_spec n adef.(generics) 0).
-    case helper_fun => [σ0 Δ01].
+    pose (σ0 := gen_targs (length adef.(generics))).
     pose (σ1 := lift_ty (length adef.(generics)) <$> σ0).
-    case => hwf [hwfΔ01 [hl0 [hσ [h0 [h0_Δ01 h1_Δ01]]]]].
+    move : (helper_spec n adef.(generics) 0) => /=.
+    pose (Δ01 := helper_fun n 0 adef.(generics)).
+    assert (hwf: Forall wf_ty σ0).
+    { apply Forall_lookup; by apply gen_targs_wf. }
+    assert (hl0 : length σ0 = length adef.(generics)).
+    { by rewrite length_gen_targs. }
+    case => hwfΔ01 [hσ [h0_Δ01 h1_Δ01]].
+    rewrite !lift_tys_O in hσ.
     assert (hl1 : length σ1 = length adef.(generics)).
     { by rewrite /σ1 fmap_length. }
-    (* TODO: add ΔC[T0] and ΔC[T1] *)
-    pose (Δ := Δ01 ++ subst_constraints σ1 (Δsdt_ A adef)).
+    pose (Δ := Δ01 ++ subst_constraints σ0 adef.(constraints) ++
+              subst_constraints σ1 adef.(constraints) ++ subst_constraints σ1 (Δsdt_ A adef)).
     assert (hsub: Δentails Aware Δ (subst_constraints σ0 (Δsdt_ A adef))).
     { rewrite /Δ /Δsdt_ !Δsdt_subst_ty !subst_ty_gen_targs //.
       by apply Δsdt_variance.
     }
-    assert (hσ0 : σ0 = gen_targs (length adef.(generics))).
-    { apply list_eq => k.
-      destruct (σ0 !! k) as [ty0 | ] eqn:hty0.
-      - rewrite (h0 _ _ hty0) lookup_gen_targs_lt //.
-        apply lookup_lt_Some in hty0.
-        by rewrite -hl0.
-      - rewrite lookup_gen_targs_ge //.
-        apply lookup_ge_None_1 in hty0.
-        by rewrite -hl0.
-    }
-    iIntros "#hmixed0 #hmixed1 #hForall #h1".
+    iIntros "#hmixed0 #hmixed1 #hForall #hΣ0 #hΣ1 #h1".
     iDestruct (iForall3_length with "hForall") as "[%hlΣ0 %hlΣ1]".
     iAssert (Σinterp (Σ0 ++ Σ1) Δ) with "[h1]" as "hΣΔ".
     { rewrite /Δ.
       iApply Σinterp_app.
-      - iIntros (i [U V] heq v) "#h"; simpl.
+      { iIntros (i [U V] heq v) "#h"; simpl.
         case: {h1_Δ01} (h1_Δ01 i U V heq) => j [w [hw hUV]].
         assert (hjb: bounded (length Σ0) (GenT j)).
         { constructor.
@@ -2069,15 +2097,33 @@ Section proofs.
           iApply interp_with_mono => //.
           apply MonoVCoGen.
           by rewrite list_lookup_fmap hw.
-      - rewrite /Δsdt_ Δsdt_subst_ty subst_ty_gen_targs //.
-        replace (Δsdt A adef.(generics) σ1) with
-          (lift_constraints (length adef.(generics))
-             (Δsdt A (generics adef) (gen_targs (length (generics adef)))));
-          last first.
-        { rewrite /σ1 Δsdt_lift.
-          f_equal; by f_equal.
+      }
+      iApply Σinterp_app.
+      { rewrite subst_constraints_gen_targs; last by (by apply hwfbc in hadef).
+        iIntros (i c hc w) "#h".
+        assert (hb: bounded_constraint (length Σ0) c).
+        { apply hwfbc in hadef.
+          rewrite /wf_cdef_constraints_bounded Forall_lookup in hadef.
+          apply hadef in hc.
+          by rewrite -hlΣ0.
         }
+        destruct hb as [].
+        rewrite -!interp_type_app //.
+        by iApply "hΣ0".
+      }
+      iApply Σinterp_app.
+      { rewrite lift_subst_constraints; last by apply hwfbc in hadef.
         by rewrite hlΣ0 Σinterp_lift.
+      }
+      rewrite /Δsdt_ Δsdt_subst_ty subst_ty_gen_targs //.
+      replace (Δsdt A adef.(generics) σ1) with
+              (lift_constraints (length adef.(generics))
+                 (Δsdt A (generics adef) (gen_targs (length (generics adef)))));
+              last first.
+      { rewrite /σ1 Δsdt_lift.
+        f_equal; by f_equal.
+      }
+     by rewrite hlΣ0 Σinterp_lift.
     }
     iModIntro; iIntros (i c hc v) "#h".
     assert (hc0: subst_constraints σ0 (Δsdt_ A adef) !! i = Some (subst_constraint σ0 c)).
@@ -2099,6 +2145,15 @@ Section proofs.
     rewrite /subst_constraint /= in hc0.
     assert (wfΣc: Forall wf_constraint Δ).
     { apply Forall_app; split; first done.
+      apply Forall_app; split.
+      { rewrite subst_constraints_gen_targs; last by apply hwfbc in hadef.
+        by apply hwfc in hadef.
+      }
+      apply Forall_app; split.
+      { rewrite lift_subst_constraints; last by apply hwfbc in hadef.
+        apply lift_constraints_wf.
+        by apply hwfc in hadef.
+      }
       assert (hwf1: Forall wf_ty σ1).
       { rewrite /σ1.
         apply Forall_fmap.
@@ -2106,7 +2161,6 @@ Section proofs.
         apply lift_ty_wf.
         rewrite Forall_lookup in hwf; by apply hwf in hty.
       }
-      (* TODO: extract wf_constraint + subst + forall *)
       apply Forall_lookup => k ck hck.
       apply list_lookup_fmap_inv in hck as [ck0 [-> hck]].
       rewrite Forall_lookup in hwfΔ.
@@ -2116,15 +2170,15 @@ Section proofs.
     iAssert (interp_type (subst_ty σ0 c.1) (Σ0 ++ Σ1) v -∗
              interp_type (subst_ty σ0 c.2) (Σ0 ++ Σ1) v)%I as "hsub2".
     { iIntros "hh".
-      assert (hwfc: wf_constraint c).
+      assert (hwfcc: wf_constraint c).
       { rewrite Forall_lookup in hwfΔ.
         by apply hwfΔ in hc.
       }
       assert (hwf2: wf_ty (subst_ty σ0 c.1)).
       { apply wf_ty_subst => //.
-        by destruct hwfc.
+        by destruct hwfcc.
       }
-      by iApply (subtype_is_inclusion _ wfΣc hwfm hwfp Aware (Σ0 ++ Σ1) _ _ hc0).
+      by iApply (subtype_is_inclusion _ wfΣc hwfm hwfp hwfc hwfbc Aware (Σ0 ++ Σ1) _ _ hc0).
     }
     assert (hbc: bounded_constraint (length (adef.(generics))) c).
     { move : (bounded_gen_targs (length adef.(generics))) => h.
@@ -2133,7 +2187,7 @@ Section proofs.
       by apply h in hc.
     }
     destruct hbc as [].
-    rewrite !hσ0 !subst_ty_id //.
+    rewrite !subst_ty_id //.
     rewrite (interp_type_app c.2 Σ0 Σ1); last by rewrite -hlΣ0.
     rewrite (interp_type_app c.1 Σ0 Σ1); last by rewrite -hlΣ0.
     by iApply "hsub2".

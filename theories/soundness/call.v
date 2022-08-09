@@ -91,7 +91,7 @@ Section proofs.
     rewrite option_equivI prod_equivI /=.
     iDestruct "HΦ" as "[%Ht HΦ]".
     fold_leibniz; subst.
-    destruct (has_method_ordered _ _ _ _ _ _ _ _ wf_extends_wf wf_override wf_parent wf_methods_bounded hin_t1_t hhasm0 hhasm)
+    destruct (has_method_ordered _ _ _ _ _ _ _ _ wf_extends_wf wf_override wf_parent wf_constraints_bounded wf_methods_bounded hin_t1_t hhasm0 hhasm)
     as (odef0 & odef & σt1_o0 & σt_o & omdef0 & omdef & hodef0 & hodef & homdef0 & homdef & hin_t1_o0
     & hin_t_o & -> & -> & hincl0 & _).
     assert (hwf0: wf_ty (ClassT orig0 (gen_targs (length odef0.(generics))))).
@@ -342,7 +342,7 @@ Section proofs.
           iAssert (
           interp_type (subst_ty σin (subst_ty σt_o tw)) Σt varg-∗
           interp_type (subst_ty σt1_o0 ty) Σt varg)%I as "hh" .
-          { iApply (subtype_is_inclusion _ hΔ1 wf_parent wf_mono _ _ _ _ hsub) => //.
+          { iApply (subtype_is_inclusion _ hΔ1 wf_parent wf_mono wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub) => //.
             by apply wf_ty_subst.
           }
           rewrite -interp_type_subst; last first.
@@ -405,7 +405,7 @@ Section proofs.
       apply subtype_weaken with (Δ := subst_constraints σt1_o0 odef0.(constraints)) => //.
       by set_solver.
     }
-    iApply (subtype_is_inclusion _ hΔ1 wf_parent wf_mono _ _ _ _ hmret0) => //.
+    iApply (subtype_is_inclusion _ hΔ1 wf_parent wf_mono wf_constraints_wf wf_constraints_bounded _ _ _ _ hmret0) => //.
     { apply wf_ty_subst => //.
       apply wf_methods_wf in hodef0.
       apply hodef0 in homdef0.

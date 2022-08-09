@@ -55,7 +55,11 @@ Section Subtype.
     | SubClassDyn: ∀ kd A adef σA,
         pdefs !! A = Some adef →
         adef.(support_dynamic) = true →
+        wf_ty (ClassT A σA) →
+        (* Δ => Δsdt,A[σA] *)
         (∀ k s t, (Δsdt A adef.(generics) σA) !! k = Some (s, t) → subtype Δ kd s t) →
+        (* Δ => ΔA[σA] *)
+        (∀ k s t, adef.(constraints) !! k = Some (s, t) → subtype Δ kd (subst_ty σA s) (subst_ty σA t)) →
         subtype Δ kd (ClassT A σA) SupportDynT
     | SubIntDyn kd: subtype Δ kd IntT SupportDynT
     | SubBoolDyn kd: subtype Δ kd BoolT SupportDynT
@@ -96,8 +100,11 @@ Section Subtype.
     Δsdt_lift: ∀ n A vars σ,
       lift_constraints n (Δsdt A vars σ) = Δsdt A vars (lift_ty n <$> σ);
     (* Δsdt is compatible with the variance of a class *)
-    Δsdt_variance: ∀ Δ kd A vars σ0 σ1,
-      subtype_targs Δ kd vars σ0 σ1 → Δentails kd (Δ ++ Δsdt A vars σ1) (Δsdt A vars σ0);
+    Δsdt_variance: ∀ Δ kd A adef vars σ0 σ1,
+      pdefs !! A = Some adef →
+      subtype_targs Δ kd vars σ0 σ1 →
+      Δentails kd (Δ ++ (subst_constraints σ0 adef.(constraints)) ++
+                  (subst_constraints σ1 adef.(constraints)) ++ Δsdt A vars σ1) (Δsdt A vars σ0);
   }.
 End Subtype.
 
@@ -129,7 +136,7 @@ Section SubtypeFacts.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hf
+      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hwfA hf0 hf1
       | | | | | ] => Δ' hΔ; try by econstructor.
       + econstructor; [ done | done | ].
         by eapply subtype_targs_weaken.
@@ -139,8 +146,10 @@ Section SubtypeFacts.
       + apply SubConstraint.
         by set_solver.
       + eapply SubClassDyn => // k s t hst.
-        eapply subtype_weaken; last done.
-        by eapply hf.
+        * eapply subtype_weaken; last done.
+          by eapply hf0.
+        * eapply subtype_weaken; last done.
+          by eapply hf1.
     - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Δ' hΔ.
       + by constructor.
       + econstructor; [ by eapply subtype_weaken | by eapply subtype_weaken | ].
@@ -165,7 +174,7 @@ Section SubtypeFacts.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd |  kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
-      | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hf
+      | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hwfA hf0 hf1
       | | | | | ]
       => Δ Δ' heq hΔ; subst; try by econstructor.
       + econstructor; [done | done | ].
@@ -178,7 +187,8 @@ Section SubtypeFacts.
         apply elem_of_list_lookup_1 in hin as [i hin].
         by apply hΔ in hin.
       + eapply SubClassDyn => // k s t hst.
-        eapply subtype_constraint_elim_; by eauto.
+        * eapply subtype_constraint_elim_; by eauto.
+        * eapply subtype_constraint_elim_; by eauto.
     - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Δ Δ' heq hΔ; subst.
       + by constructor.
       + econstructor; [ by eapply subtype_constraint_elim_ | by eapply subtype_constraint_elim_ | ].
@@ -207,7 +217,7 @@ Section SubtypeFacts.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hf
+      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hwfA hf0 hf1
       | | | | | ] => Δ' hΔ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
         eapply subtype_targs_constraint_trans.
@@ -219,7 +229,8 @@ Section SubtypeFacts.
       + apply elem_of_list_lookup in hin as [i hin].
         by apply hΔ in hin.
       + eapply SubClassDyn => // k s t hst.
-        eapply subtype_constraint_trans; by eauto.
+        * eapply subtype_constraint_trans; by eauto.
+        * eapply subtype_constraint_trans; by eauto.
     - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Δ' hΔ.
       + by constructor.
       + econstructor; [ by eapply subtype_constraint_trans | by eapply subtype_constraint_trans | ].
@@ -460,7 +471,7 @@ Section SubtypeFacts.
     induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
       | kd A adef σ0 σ1 hpdefs hwfσ hσ | | | | | kd A args | kd s t h
       | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
-      | kd s t u hst hist htu hitu | kd s t hin | kd A adef σA hpdefs hsupdyn hf hi
+      | kd s t u hst hist htu hitu | kd s t hin | kd A adef σA hwfA hpdefs hsupdyn hf hi
       | | | | | ]
       => //=; try (by constructor).
     - inv hext; simplify_eq.
@@ -494,29 +505,31 @@ Section SubtypeFacts.
 
   Lemma subtype_subst Δ kd A B:
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     subtype Δ kd A B → ∀ σ,
     Forall wf_ty σ →
     subtype (subst_constraints σ Δ) kd (subst_ty σ A) (subst_ty σ B)
   with subtype_targs_subst Δ kd vs As Bs:
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     subtype_targs Δ kd vs As Bs → ∀ σ,
     Forall wf_ty σ →
     subtype_targs (subst_constraints σ Δ) kd vs (subst_ty σ <$> As) (subst_ty σ <$> Bs).
   Proof.
-    - move => hp.
-      destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
+    - move => hp hb.
+      destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hadef hA hext
       | kd A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | | kd A args
       | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
-      | kd s t u hst htu | kd s t hin | kd A adef σA hpdefs hsupdyn hf
+      | kd s t u hst htu | kd s t hin | kd A adef σA hadef hsupdyn hwfA hf0 hf1
       | | | | | ]
       => σ hσ => /=; try (by constructor).
       + constructor.
         by apply wf_ty_subst.
       + rewrite map_subst_ty_subst.
-        * econstructor; [exact hpdefs | | by assumption].
+        * econstructor; [exact hadef | | by assumption].
           by rewrite map_length.
         * apply extends_using_wf in hext; last done.
-          destruct hext as (? & hadef & hF & hwfB).
+          destruct hext as (? & hadef' & hF & hwfB).
           inv hwfB; simplify_eq.
           by rewrite hA.
       + eapply SubVariance.
@@ -536,12 +549,32 @@ Section SubtypeFacts.
         apply elem_of_list_lookup_1 in hin as [i hin].
         apply elem_of_list_lookup; exists i.
         by rewrite /subst_constraints list_lookup_fmap hin.
-      + eapply SubClassDyn => // k s t hst.
-        rewrite -Δsdt_subst_ty in hst.
-        apply list_lookup_fmap_inv in hst as [[] [[= -> ->] h]].
-        eapply subtype_subst; [done | | done].
-        by apply hf with k.
-    - move => hp.
+      + eapply SubClassDyn => //.
+        * inv hwfA; simplify_eq.
+          econstructor => //.
+          { by rewrite fmap_length. }
+          move => k ty h.
+          apply list_lookup_fmap_inv in h as [? [-> h]].
+          apply wf_ty_subst => //.
+          by eauto.
+        * move => k s t hst.
+          rewrite -Δsdt_subst_ty in hst.
+          apply list_lookup_fmap_inv in hst as [[] [[= -> ->] h]].
+          eapply subtype_subst; [done | done | | done].
+          by apply hf0 with k.
+        * move => k s t hst.
+          assert (hbst: bounded_constraint (length σA) (s, t)).
+          { inv hwfA; simplify_eq.
+            apply hb in hadef.
+            rewrite /wf_cdef_constraints_bounded Forall_lookup in hadef.
+            apply hadef in hst.
+            by rewrite H2.
+          }
+          destruct hbst as [].
+          rewrite -!subst_ty_subst //.
+          eapply subtype_subst; [done | done | | done].
+          by eapply hf1.
+    - move => hp hb.
       destruct 1 as [ | ?????? h0 h1 h | ?????? h0 h | ?????? h0 h] => σ hσ /=.
       + by constructor.
       + constructor.
@@ -627,11 +660,12 @@ Section SubtypeFacts.
 
   Lemma mdef_incl_subst Δ mdef0 mdef1 σ :
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     Forall wf_ty σ →
     mdef_incl Δ mdef0 mdef1 →
     mdef_incl (subst_constraints σ Δ) (subst_mdef σ mdef0) (subst_mdef σ mdef1).
   Proof.
-    move => hp hσ.
+    move => hp hb hσ.
     rewrite /mdef_incl /subst_mdef /=.
     case => [hdom [hargs hret]]; split; first by rewrite !dom_fmap_L.
     split; last by apply subtype_subst.
@@ -662,6 +696,7 @@ Section SubtypeFacts.
     wf_no_cycle pdefs →
     wf_method_override pdefs →
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     map_Forall (λ _cname, cdef_methods_bounded) pdefs →
     inherits_using A B σAB →
     has_method m A origA mdefA →
@@ -686,7 +721,7 @@ Section SubtypeFacts.
              subst_ty σA <$> σ = σAB ∧
              mdef_incl oA.(constraints) mA (subst_mdef σ (subst_mdef σB mB)))).
   Proof.
-    move => hc ho hp hm hin hA hB.
+    move => hc ho hp hb hm hin hA hB.
     assert (hhA := hA).
     assert (hhB := hB).
     apply has_method_from_def in hA => //.

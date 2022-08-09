@@ -117,6 +117,28 @@ Section ProgDef.
   Definition subst_constraints σ (cs: list constraint) :=
     subst_constraint σ <$> cs.
 
+  Lemma subst_constraint_gen_targs n c:
+    bounded_constraint n c →
+    subst_constraint (gen_targs n) c = c.
+  Proof.
+    rewrite /subst_constraint.
+    case : c => s t [] /= hs ht.
+    f_equal; by apply subst_ty_id.
+  Qed.
+
+  Lemma subst_constraints_gen_targs n (Σ: list constraint):
+    Forall (bounded_constraint n) Σ →
+    subst_constraints (gen_targs n) Σ = Σ.
+  Proof.
+    move/Forall_lookup => h.
+    apply list_eq => k.
+    rewrite /subst_constraints list_lookup_fmap.
+    destruct (Σ !! k) as [c | ] eqn:hc.
+    - rewrite hc /= subst_constraint_gen_targs //.
+      by apply h in hc.
+    - by rewrite hc.
+  Qed.
+
   (* A class definition 'parent' information is valid if the parent type is:
    * - well-formed (tag exists, class is fully applied)
    * - bounded by the current class (must only mention generics of the current class)
@@ -730,6 +752,30 @@ Section ProgDef.
       NonNullT | DynamicT | SupportDynT => ty
     end.
 
+  Lemma lift_ty_O ty : lift_ty 0 ty = ty.
+  Proof.
+    induction ty as [ | | | | t σ hi | | | s t hs ht |
+        s t hs ht | k | | ] => //=.
+    - f_equal.
+      apply list_eq => k.
+      rewrite Forall_lookup in hi.
+      rewrite list_lookup_fmap.
+      destruct (σ !! k) as [ty | ] eqn:h; last done.
+      apply hi in h.
+      by rewrite /= h.
+    - by rewrite hs ht.
+    - by rewrite hs ht.
+    - f_equal; by lia.
+  Qed.
+
+  Lemma lift_tys_O (σ : list lang_ty) : lift_ty 0 <$> σ = σ.
+  Proof.
+    apply list_eq => k.
+    rewrite list_lookup_fmap.
+    destruct (σ !! k) as [ty | ] eqn:h; last done.
+    by rewrite /= lift_ty_O.
+  Qed.
+
   Lemma lift_ty_wf ty: ∀ n, wf_ty ty → wf_ty (lift_ty n ty).
   Proof.
     induction ty as [ | | | | t σ hi | | | s t hs ht |
@@ -762,6 +808,30 @@ Section ProgDef.
       by lia.
   Qed.
 
+  Lemma lift_subst_ty n ty:
+    bounded n ty →
+    subst_ty (lift_ty n <$> gen_targs n) ty =
+    lift_ty n ty.
+  Proof.
+    move => hb.
+    induction ty as [ | | | | t σ hi | | | s t hs ht | s t hs ht | k | | ] => //=.
+    - f_equal.
+      apply list_eq => k.
+      rewrite Forall_lookup in hi.
+      rewrite !list_lookup_fmap.
+      destruct (σ !! k) as [ty | ] eqn:hty; last done.
+      simpl; f_equal.
+      inv hb.
+      apply hi in hty => //.
+      rewrite Forall_lookup in H0.
+      by eauto.
+    - inv hb; by rewrite hs // ht.
+    - inv hb; by rewrite hs // ht.
+    - rewrite list_lookup_fmap.
+      inv hb.
+      by rewrite lookup_gen_targs_lt.
+  Qed.
+
   Definition lift_constraint n c := (lift_ty n c.1, lift_ty n c.2).
 
   Definition lift_constraints n (Δ : list constraint) :=
@@ -788,6 +858,29 @@ Section ProgDef.
     split; by apply lift_ty_bounded.
   Qed.
 
+  Lemma lift_subst_constraint n c:
+    bounded_constraint n c →
+    subst_constraint (lift_ty n <$> gen_targs n) c =
+    lift_constraint n c.
+  Proof.
+    case : c => s t [] /= hs ht.
+    rewrite /subst_constraint /=.
+    f_equal; by rewrite !lift_subst_ty.
+  Qed.
+
+  Lemma lift_subst_constraints n (Δ: list constraint):
+    Forall (bounded_constraint n) Δ →
+    subst_constraints (lift_ty n <$> gen_targs n) Δ =
+    lift_constraints n Δ.
+  Proof.
+    move/Forall_lookup => hb.
+    apply list_eq => k.
+    rewrite /subst_constraints /lift_constraints !list_lookup_fmap.
+    destruct (Δ !! k) as [c | ] eqn:hc.
+    - rewrite hc /= lift_subst_constraint //.
+      by apply hb in hc.
+    - by rewrite hc.
+  Qed.
 End ProgDef.
 
 (* Hints and notations are local to the section. Re-exporting them *)

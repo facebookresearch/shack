@@ -65,7 +65,7 @@ Section proofs.
       discriminate H.
     }
     rewrite interp_sdt_equiv; last by apply wfpdefs.
-    iDestruct "He" as (dyntag Σdyn dyndef hpure) "(#HΣdyn & #hmixed1 & He)".
+    iDestruct "He" as (dyntag Σdyn dyndef hpure) "(#HΣdyn & #hmixed1 & #hΣ1 & He)".
     destruct hpure as [hdyndef hsupdyn].
     iDestruct "He" as (?? def def0 ????) "(%H & #hmixed & #hconstr & #hf0 & #hdyn & H◯)".
     destruct H as ([= <-] & hdef & hdef0 & hlen & ? & hinherits & hfields & hidom).
@@ -149,7 +149,31 @@ Section proofs.
         by apply hwfσ in hty0.
       }
       iAssert (□ Σinterp Σt Δdyn)%I as "#hconstr_dyn".
-      { iClear "Hle hconstr hdyn H◯ Hh HΦ H H▷".
+      { iClear "Hle hdyn H◯ Hh HΦ H H▷".
+        iAssert (□ Σinterp (interp_list Σt σ) dyndef.(constraints))%I as "#hΣ0".
+        { iModIntro. 
+          apply inherits_using_ok in hinherits => //.
+          destruct hinherits as (? & ? & hok); simplify_eq.
+          inv hok; simplify_eq.
+          iIntros (i c hc w) "#h".
+          assert (hb : bounded_constraint (length σ) c).
+          { apply wf_constraints_bounded in hdyndef.
+            rewrite /wf_cdef_constraints_bounded Forall_lookup in hdyndef.
+            apply hdyndef in hc.
+            by rewrite -hl0.
+          }
+          destruct hb as [].
+          assert (hwf: wf_ty (subst_ty σ c.1)).
+          { apply wf_ty_subst => //.
+            apply wf_constraints_wf in hdyndef.
+            rewrite /wf_cdef_constraints_wf Forall_lookup in hdyndef.
+            apply hdyndef in hc.
+            by destruct hc.
+          }
+          apply H6 in hc.
+          rewrite -!interp_type_subst //.
+          by iApply (subtype_is_inclusion def0.(constraints)).
+        }
         iModIntro; iIntros (i c0 hc w) "#h".
         rewrite /Δdyn -(subst_ty_gen_targs (length dyndef.(generics)) σ) // in hc.
         rewrite -Δsdt_subst_ty in hc.
@@ -163,8 +187,8 @@ Section proofs.
         }
         destruct hbc as [].
         rewrite !interp_type_subst //.
-        by iApply ((Δsdt_variance_interp _ _ _ _ wf_mono wf_parent hdyndef)
-          with "hmixed0 hmixed1 hf0 HΣdyn").
+        by iApply ((Δsdt_variance_interp _ _ _ _ wf_mono wf_parent wf_constraints_bounded wf_constraints_wf hdyndef)
+          with "hmixed0 hmixed1 hf0 hΣ0 hΣ1 HΣdyn").
       }
       iAssert (□ Σinterp Σt (constraints def0 ++ Δdyn))%I as "hconstr_".
       { iModIntro.
@@ -176,7 +200,7 @@ Section proofs.
       iSpecialize ("h" $! name _ with "[hdyn]"); first done.
       iDestruct "h" as (w) "[%hw hiw]".
       simplify_eq.
-      iDestruct (subtype_is_inclusion _ hwf_ wf_parent wf_mono _ Σt _ _ hsub' v) as "hsub".
+      iDestruct (subtype_is_inclusion _ hwf_ wf_parent wf_mono wf_constraints_wf wf_constraints_bounded _ Σt _ _ hsub' v) as "hsub".
       { by apply has_field_wf in hf. }
       by iApply "hsub".
     }

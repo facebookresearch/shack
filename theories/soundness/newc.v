@@ -87,7 +87,7 @@ Section proofs.
         apply list_lookup_fmap_inv in heq as [phi [-> heq]].
         assert (hsub: Δ ⊢ phi <: MixedT) by eauto.
         destruct wfpdefs.
-        iDestruct (subtype_is_inclusion _ hΔ wf_parent wf_mono _ _ _ _ hsub v with "hΣ hΣΔ hphi") as "hsub".
+        iDestruct (subtype_is_inclusion _ hΔ wf_parent wf_mono wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub v with "hΣ hΣΔ hphi") as "hsub".
         + by eauto.
         + by rewrite interp_mixed_unfold.
       }
@@ -112,17 +112,17 @@ Section proofs.
       { iModIntro; iNext.
         iIntros (i c heq v) "h".
         assert (hsub: Δ ⊢ (subst_ty σ c.1) <D: (subst_ty σ c.2)).
-        { apply subtype_constraint_elim with (Δ' := subst_constraints σ def.(constraints)) => //.
+        { destruct wfpdefs.
+          apply subtype_constraint_elim with (Δ' := subst_constraints σ def.(constraints)) => //.
           apply subtype_weaken with (Δ := subst_constraints σ def.(constraints)); last by set_solver.
           eapply subtype_subst => //.
-          - by apply wfpdefs.
-          - eapply SubConstraint.
-            apply elem_of_list_lookup_2 in heq.
-            by rewrite (surjective_pairing c) in heq.
+          eapply SubConstraint.
+          apply elem_of_list_lookup_2 in heq.
+          by rewrite (surjective_pairing c) in heq.
         }
         destruct wfpdefs.
         rewrite -!interp_type_subst.
-        { iApply (subtype_is_inclusion _ hΔ wf_parent wf_mono _ _ _ _ hsub v with "hΣ hΣΔ") => //.
+        { iApply (subtype_is_inclusion _ hΔ wf_parent wf_mono wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub v with "hΣ hΣΔ") => //.
           apply wf_ty_subst => //.
           apply wf_constraints_wf in H1.
           rewrite /wf_cdef_constraints_wf Forall_lookup in H1.
