@@ -73,13 +73,6 @@ Section proofs.
       inv hh; by simplify_eq.
     }
     pose (Δdyn0 := Δsdt t0 def0.(generics) (gen_targs (length def0.(generics)))).
-    pose (Δdyn := Δsdt dyntag dyndef.(generics) σ).
-    assert (hnewcond: Δentails Aware (def0.(constraints) ++ Δdyn) Δdyn0).
-    { apply inherits_using_extends_dyn in hinherits => //; try by apply wfpdefs.
-      destruct hinherits as (def0' & ? & hdef0' & ? & hwf); simplify_eq.
-      move => k c hc.
-      by apply hwf with k.
-    }
     iAssert (⌜t0 = t⌝ ∗ heap_models h ∗ ▷ interp_type DynamicT Σt v)%I with "[Hh]" as "[%Ht [Hh Hv]]".
     { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
       iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
@@ -102,87 +95,19 @@ Section proofs.
         apply h1 in hf.
         by apply hf.
       }
-      assert (hsub' : def0.(constraints) ++ Δdyn ⊢ fty <D: DynamicT).
-      { eapply subtype_constraint_trans; first by apply hsub.
-        move => i c hc.
-        rewrite lookup_app in hc.
-        destruct (constraints def0 !! i) as [[??] | ] eqn:h0.
-        - rewrite h0 in hc; case: hc => <-.
-          eapply subtype_weaken.
-          + apply SubConstraint.
-            apply elem_of_list_lookup_2 with i.
-            by apply h0.
-          + by set_solver.
-        - rewrite h0 in hc.
-          by eapply hnewcond.
-      }
       destruct wfpdefs.
       assert (hwfc: Forall wf_constraint def0.(constraints)) by by apply wf_constraints_wf in hdef0.
-      assert (hwfd: Forall wf_constraint Δdyn).
+      assert (hwfd: Forall wf_constraint Δdyn0).
       { apply Δsdt_wf.
-        apply inherits_using_wf in hinherits => //.
-        destruct hinherits as (? & ? & ? & hwf); simplify_eq.
-        by apply wf_ty_class_inv in hwf.
+        by apply gen_targs_wf_2.
       }
-      assert (hwf_ : Forall wf_constraint (def0.(constraints) ++ Δdyn)).
+      assert (hwf_ : Forall wf_constraint (def0.(constraints) ++ Δdyn0)).
       { apply Forall_app; by split.  }
       iNext.
-      assert (hwfσ : Forall wf_ty σ).
-      { apply inherits_using_wf in hinherits => //.
-        destruct hinherits as (? & ? & ? & hh).
-        by apply wf_ty_class_inv in hh.
-      }
-      iAssert (interp_env_as_mixed (interp_list Σt σ)) as "hmixed0".
-      { iIntros (k phi hk w) "hphi".
-        apply list_lookup_fmap_inv in hk as [ty0 [-> hty0]].
-        rewrite -(interp_type_unfold Σt MixedT w).
-        iApply (submixed_is_inclusion_aux Σt ty0 w) => //.
-        rewrite Forall_lookup in hwfσ.
-        by apply hwfσ in hty0.
-      }
-      iAssert (□ Σinterp Σt Δdyn)%I as "#hconstr_dyn".
-      { iClear "Hle hdyn H◯ Hh HΦ H H▷".
-        iAssert (□ Σinterp (interp_list Σt σ) dyndef.(constraints))%I as "#hΣ0".
-        { iModIntro. 
-          apply inherits_using_ok in hinherits => //.
-          destruct hinherits as (? & ? & hok); simplify_eq.
-          inv hok; simplify_eq.
-          iIntros (i c hc w) "#h".
-          assert (hb : bounded_constraint (length σ) c).
-          { apply wf_constraints_bounded in hdyndef.
-            rewrite /wf_cdef_constraints_bounded Forall_lookup in hdyndef.
-            apply hdyndef in hc.
-            by rewrite -hl0.
-          }
-          destruct hb as [].
-          assert (hwf: wf_ty (subst_ty σ c.1)).
-          { apply wf_ty_subst => //.
-            apply wf_constraints_wf in hdyndef.
-            rewrite /wf_cdef_constraints_wf Forall_lookup in hdyndef.
-            apply hdyndef in hc.
-            by destruct hc.
-          }
-          apply H6 in hc.
-          rewrite -!interp_type_subst //.
-          by iApply (subtype_is_inclusion def0.(constraints)).
-        }
-        iModIntro; iIntros (i c0 hc w) "#h".
-        rewrite /Δdyn -(subst_ty_gen_targs (length dyndef.(generics)) σ) // in hc.
-        rewrite -Δsdt_subst_ty in hc.
-        apply list_lookup_fmap_inv in hc as [c [-> hc]] => /=.
-        assert (hbc : bounded_constraint (length σ) c).
-        { rewrite -hl0.
-          move : (bounded_gen_targs (length dyndef.(generics))) => hh.
-          apply Δsdt_bounded with (A := dyntag) (vars := dyndef.(generics)) in hh.
-          rewrite Forall_lookup in hh.
-          by apply hh in hc.
-        }
-        destruct hbc as [].
-        rewrite !interp_type_subst //.
-        by iApply ((Δsdt_variance_interp _ _ _ _ wf_mono wf_parent wf_constraints_bounded wf_constraints_wf hdyndef)
-          with "hmixed0 hmixed1 hf0 hΣ0 hΣ1 HΣdyn").
-      }
-      iAssert (□ Σinterp Σt (constraints def0 ++ Δdyn))%I as "hconstr_".
+      (* Show that Σt |= Δt ∧ Δsdt^t *)
+      iAssert (□ Σinterp Σt (Δsdt_ t0 def0))%I as "#hΣt_Δt_sdt_t".
+      { by iApply (Σt_models_sdt with "hf0 hmixed1 hΣ1 HΣdyn hmixed hconstr"). }
+      iAssert (□ Σinterp Σt (constraints def0 ++ Δdyn0))%I as "hconstr_".
       { iModIntro.
         by iApply Σinterp_app.
       }
@@ -192,7 +117,7 @@ Section proofs.
       iSpecialize ("h" $! name _ with "[hdyn]"); first done.
       iDestruct "h" as (w) "[%hw hiw]".
       simplify_eq.
-      iDestruct (subtype_is_inclusion _ hwf_ wf_parent wf_mono wf_constraints_wf wf_constraints_bounded _ Σt _ _ hsub' v) as "hsub".
+      iDestruct (subtype_is_inclusion _ hwf_ wf_parent wf_mono wf_constraints_wf wf_constraints_bounded _ Σt _ _ hsub v) as "hsub".
       { by apply has_field_wf in hf. }
       by iApply "hsub".
     }

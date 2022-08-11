@@ -200,4 +200,117 @@ Section proofs.
     }
     by iApply "hstatic".
   Qed.
+
+  (* This is dynamic related. Once a [| dynamic |] is open,
+   * we want to use facts about the Σt and Σdyn to show that
+   * Σt models the SDT constraints of the runtime type.
+   *)
+  (* Show that Σt |= Δt ∧ Δsdt^t *)
+  Lemma Σt_models_sdt t A tdef adef σ (Σt ΣA: list (interp Θ)):
+    wf_cdefs pdefs →
+    pdefs !! t = Some tdef →
+    pdefs !! A = Some adef →
+    length Σt = length tdef.(generics) →
+    length ΣA = length adef.(generics) →
+    inherits_using t A σ →
+    □iForall3 interp_variance adef.(generics) (interp_list Σt σ) ΣA -∗
+    □ interp_env_as_mixed ΣA -∗
+    □ Σinterp ΣA adef.(constraints) -∗
+    □ Σinterp ΣA (Δsdt_ A adef) -∗
+    □ interp_env_as_mixed Σt -∗
+    □ Σinterp Σt tdef.(constraints) -∗
+    □ Σinterp Σt (Δsdt_ t tdef).
+  Proof.
+    move => wfpdefs htdef hadef hlt htA hin.
+    iIntros "#hF #hmA #hΣΔA #hΣΔsdtA #hmt #ΣΔt".
+    assert (hh: Forall wf_ty σ ∧ length adef.(generics) = length σ).
+    { apply inherits_using_wf in hin; try (by apply wfpdefs).
+      destruct hin as (?&?&?&hh).
+      split; first by apply wf_ty_class_inv in hh.
+      inv hh; by simplify_eq.
+    }
+    destruct hh as [hwfσ hl].
+    assert (hwfc: Forall wf_constraint tdef.(constraints)) by by apply wf_constraints_wf in htdef.
+    pose (Δsdt_t := Δsdt t tdef.(generics) (gen_targs (length tdef.(generics)))).
+    pose (Δsdt_A := Δsdt A adef.(generics) σ).
+    iAssert (□ Σinterp Σt Δsdt_A)%I as "#hΣt_sdt_A".
+    { iAssert (interp_env_as_mixed (interp_list Σt σ)) as "hmixed0".
+      { iIntros (k phi hk w) "hphi".
+        apply list_lookup_fmap_inv in hk as [ty0 [-> hty0]].
+        rewrite -(interp_type_unfold Σt MixedT w).
+        iApply (submixed_is_inclusion_aux Σt ty0 w) => //.
+        rewrite Forall_lookup in hwfσ.
+        by apply hwfσ in hty0.
+      }
+      iAssert (□ Σinterp (interp_list Σt σ) adef.(constraints))%I as "#hΣ0".
+      { iModIntro. 
+        apply inherits_using_ok in hin => //; try by apply wfpdefs.
+        destruct hin as (? & ? & hok); simplify_eq.
+        inv hok; simplify_eq.
+        iIntros (i c hc w) "#h".
+        assert (hb : bounded_constraint (length σ) c).
+        { apply wf_constraints_bounded in hadef => //.
+          rewrite /wf_cdef_constraints_bounded Forall_lookup in hadef.
+          apply hadef in hc.
+          by rewrite -hl.
+        }
+        destruct hb as [].
+        assert (hwf: wf_ty (subst_ty σ c.1)).
+        { apply wf_ty_subst => //.
+          apply wf_constraints_wf in hadef => //.
+          rewrite /wf_cdef_constraints_wf Forall_lookup in hadef.
+          apply hadef in hc.
+          by destruct hc.
+        }
+        apply H3 in hc.
+        rewrite -!interp_type_subst //.
+        iApply (subtype_is_inclusion tdef.(constraints)) => //; by apply wfpdefs.
+      }
+      iModIntro; iIntros (i c0 hc w) "#h".
+      rewrite /Δsdt_A -(subst_ty_gen_targs (length adef.(generics)) σ) // in hc.
+      rewrite -Δsdt_subst_ty in hc.
+      apply list_lookup_fmap_inv in hc as [c [-> hc]] => /=.
+      assert (hbc : bounded_constraint (length σ) c).
+      { rewrite -hl.
+        move : (bounded_gen_targs (length adef.(generics))) => hh.
+        apply Δsdt_bounded with (A := A) (vars := adef.(generics)) in hh.
+        rewrite Forall_lookup in hh.
+        by apply hh in hc.
+      }
+      destruct hbc as [].
+      rewrite !interp_type_subst //.
+      destruct wfpdefs.
+      by iApply ((Δsdt_variance_interp _ _ _ _
+      wf_mono wf_parent wf_constraints_bounded wf_constraints_wf hadef)
+      with "hmixed0 hmA hF hΣ0 hΣΔA hΣΔsdtA").
+    }
+    iAssert (□ Σinterp Σt (constraints tdef ++ Δsdt_A))%I as "#hconstr_".
+    { iModIntro.
+      by iApply Σinterp_app.
+    }
+    iModIntro.
+    assert (hnewcond: Δentails Aware (tdef.(constraints) ++ Δsdt_A) Δsdt_t).
+    { apply inherits_using_extends_dyn in hin => //; try by apply wfpdefs.
+      destruct hin as (? & ? & ? & ? & hwf); simplify_eq.
+      move => k c hc.
+      by apply hwf with k.
+    }
+    assert (Forall wf_constraint Δsdt_A).
+    { by apply Δsdt_wf. }
+    assert (hwf_ : Forall wf_constraint (tdef.(constraints) ++ Δsdt_A)).
+    { apply Forall_app; by split.  }
+    assert (hwfΔ0: Forall wf_constraint Δsdt_t).
+    { assert (hh: Forall wf_ty (gen_targs (length tdef.(generics))))
+      by apply gen_targs_wf_2.
+      by apply Δsdt_wf with (A := t) (vars := tdef.(generics)) in hh.
+    }
+    iIntros (i c hc w) "#h".
+    assert (h0 := hc).
+    apply hnewcond in h0.
+    assert (wf_ty c.1).
+    { rewrite Forall_lookup in hwfΔ0.
+      by apply hwfΔ0 in hc as [].
+    }
+    iApply (subtype_is_inclusion with "hmt hconstr_ h") => //; by apply wfpdefs.
+  Qed.
 End proofs.
