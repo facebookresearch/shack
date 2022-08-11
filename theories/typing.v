@@ -675,34 +675,43 @@ Section Typing.
   .
 
   (* Checks related to support dynamic *)
+  (* Note to the reader: I'll write Δ0 => Δ1 for `Δentails Δ0 Δ1`
+   *
+   * Each class and method can be annotated with a SDT statement, as
+   * long as they verify some conditions.
+   * Consider:
+   * <<SDT: Δsdt D>> class D<S...> where Δd {
+   *   <<SDT: Δsdt D f>> function f;
+   * }
+   * <<SDT: Δsdt C>> class C<T...> extends D<σ> where Δc {
+   *   <<SDT: Δsdt C g>> function g;
+   * }
+   *
+   * Normal type checking already requires that `Δc => Δd[σ]`
+   * for the extends relation to be sound.
+   * SD adds a couple more relations:
+   * - Since C <: D, if D can be cast to dynamic, C must be too.
+   *   Therefore, we require that `Δc ∧ Δsdt D[σ] => Δsdt C`
+   *
+   * - For all inherited methods, the same arguments apply, so we
+   *   require that `Δc ∧ Δsdt C => Δsdt D f[σ]`
+   *
+   * - For all methods defined in C, we need them to be SD so we
+   *   require that `Δc ∧ Δsdt C => Δsdt C g`
+   *
+   * Note that with our `has_method` predicates, we can factorize
+   * these last two into
+   * `has_method f C O mdef → ΔC ∧ Δsdt C => Δsdt O mdef
+   *
+   * The same reasoning applies to fields. We won't have a dedicated
+   * Δsdt for each field, they will all use the class level one.
+   *
+   * For now, we won't define dedicated Δsdt C f, so we are going to use
+   * Δsdt C for them all. We'll introduce this in the next diff.
+   *)
   Definition to_dyn (ty: lang_ty) : lang_ty := DynamicT.
 
-  (* TODO UDPATE METHOD DYN *)
-  Definition wf_mdef_dyn_ty tag Δ rigid σ mdef :=
-    ∃ Γ',
-    wf_lty Γ' ∧
-    cmd_has_ty tag Δ Aware rigid
-      {| type_of_this := (tag, σ); ctxt := to_dyn <$> mdef.(methodargs) |}
-      mdef.(methodbody) Γ' ∧
-    expr_has_ty Δ Γ' rigid Aware mdef.(methodret) (to_dyn mdef.(methodrettype))
-  .
-
-  Definition wf_cdef_methods_dyn_wf cname cdef :=
-    if cdef.(support_dynamic) then
-    ∀ mname orig mdef,
-    has_method mname cname orig mdef → mdef.(method_support_dynamic) = true
-    else True
-  .
-
-  Definition cdef_wf_mdef_dyn_ty cname cdef :=
-    let n := length cdef.(generics) in
-    let σ := gen_targs n in 
-    map_Forall (λ _ mdef,
-      if mdef.(method_support_dynamic) then
-        wf_mdef_dyn_ty cname cdef.(constraints) n σ mdef
-      else True) cdef.(classmethods)
-  .
-
+  (* `Δc ∧ Δsdt D[σ] => Δsdt C` *)
   Definition wf_cdef_extends_dyn_targs t def tp pdef σp :=
     let σ := gen_targs (length def.(generics)) in
     Δentails Aware (def.(constraints) ++ Δsdt tp pdef.(generics) σp)
@@ -740,6 +749,7 @@ Section Typing.
 
   Lemma inherits_using_extends_dyn A B σ:
     map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     map_Forall (λ _cname, wf_cdef_parent_ok) pdefs →
     map_Forall wf_cdef_extends_dyn pdefs →
     inherits_using A B σ →
@@ -748,7 +758,7 @@ Section Typing.
       pdefs !! B = Some bdef ∧
       wf_cdef_extends_dyn_targs A adef B bdef σ.
   Proof.
-    move => ? hok hwf.
+    move => ?? hok hwf.
     induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
     - exists adef, adef; repeat split => //.
       move => k [??] heq.
@@ -833,60 +843,40 @@ Section Typing.
     let n := length cdef.(generics) in
     let σ := gen_targs n in
     let Δ := cdef.(constraints) ++ Δsdt cname cdef.(generics) σ in
-    if cdef.(support_dynamic) then
     ∀ fields, has_fields cname fields →
     map_Forall (λ _fname vfty, wf_field_dyn_wf Δ vfty) fields
-    else True.
+    .
 
-  Definition wf_cdef_dyn_parent cdef :=
-    match cdef.(superclass) with
-    | Some (parent, _) =>
-        ∀ def, pdefs !! parent = Some def →
-        def.(support_dynamic) = true →
-        cdef.(support_dynamic) = true
-    | None => True
-    end.
+  Definition wf_mdef_dyn_ty tag Δ rigid σ mdef :=
+    ∃ Γ',
+    wf_lty Γ' ∧
+    cmd_has_ty tag Δ Aware rigid
+      {| type_of_this := (tag, σ); ctxt := to_dyn <$> mdef.(methodargs) |}
+      mdef.(methodbody) Γ' ∧
+    expr_has_ty Δ Γ' rigid Aware mdef.(methodret) (to_dyn mdef.(methodrettype))
+  .
 
-  Lemma extends_using_dyn_parent A B σ:
-    map_Forall (λ _, wf_cdef_parent pdefs) pdefs →
-    map_Forall (λ _, wf_cdef_dyn_parent) pdefs →
-    extends_using A B σ →
-    ∃ adef bdef,
-      pdefs !! A = Some adef ∧
-      pdefs !! B = Some bdef ∧
-      (bdef.(support_dynamic) = true → adef.(support_dynamic) = true).
-  Proof.
-    move => hp hwf hext.
-    assert (h0 := hext).
-    apply extends_using_wf in h0 => //.
-    destruct h0 as (adef & hadef & _ & h).
-    inv h.
-    destruct hext as [A B adef' σ hadef' hsuper]; simplify_eq.
-    exists adef', def; repeat split => //.
-    apply hwf in hadef'.
-    rewrite /wf_cdef_dyn_parent hsuper in hadef'.
-    by apply hadef'.
-  Qed.
+  (* `has_method f C O mdef → ΔC ∧ Δsdt C => Δsdt O mdef.
+   * Update this once we introduce Δsdt per method.
+   *)
+  Definition wf_cdef_methods_dyn_wf cname cdef :=
+    let n := length cdef.(generics) in
+    let σ := gen_targs n in
+    let Δ := cdef.(constraints) ++ Δsdt cname cdef.(generics) σ in
+    ∀ mname orig mdef,
+    has_method mname cname orig mdef → 
+    ∃ odef σ,
+      pdefs !! orig = Some odef ∧
+      inherits_using cname orig σ ∧
+      Δentails Aware Δ (Δsdt orig odef.(generics) σ)
+  .
 
-  Lemma inherits_using_dyn_parent A B σ:
-    map_Forall (λ _, wf_cdef_parent pdefs) pdefs →
-    map_Forall (λ _, wf_cdef_dyn_parent) pdefs →
-    inherits_using A B σ →
-    ∃ adef bdef,
-      pdefs !! A = Some adef ∧
-      pdefs !! B = Some bdef ∧
-      (bdef.(support_dynamic) = true → adef.(support_dynamic) = true).
-  Proof.
-    move => hp hwf.
-    induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
-    - exists adef, adef.
-      by repeat split => //.
-    - by apply extends_using_dyn_parent in hext.
-    - apply extends_using_dyn_parent in hext as (adef & bdef & ? & ? & h0) => //.
-      destruct hi as (bdef' & cdef & ? & ? & h1); simplify_eq.
-      exists adef, cdef; repeat split => //.
-      move => ?; by eauto.
-  Qed.
+  Definition cdef_wf_mdef_dyn_ty cname cdef :=
+    let n := length cdef.(generics) in
+    let σ := gen_targs n in
+    let Δ := cdef.(constraints) ++ Δsdt cname cdef.(generics) σ in
+    map_Forall (λ _ mdef, wf_mdef_dyn_ty cname Δ n σ mdef) cdef.(classmethods)
+  .
 
   (* Collection of all program invariant (at the source level):
    * - no cycle (we have a forest)
@@ -896,7 +886,6 @@ Section Typing.
    *)
   Record wf_cdefs (prog: stringmap classDef) := {
     wf_extends_wf : wf_no_cycle prog;
-    wf_extends_dyn : map_Forall wf_cdef_extends_dyn prog;
     wf_parent : map_Forall (λ _cname, wf_cdef_parent prog) prog;
     wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) prog;
     wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) prog;
@@ -915,9 +904,9 @@ Section Typing.
     wf_mdefs : map_Forall cdef_wf_mdef_ty prog;
     wf_mono : map_Forall (λ _cname, wf_cdef_mono) prog;
     (* Dynamic related invariant *)
-    wf_fields_dyn : map_Forall wf_cdef_fields_dyn_wf prog;
-    wf_dyn_parent: map_Forall (λ _cname, wf_cdef_dyn_parent) prog;
+    wf_extends_dyn : map_Forall wf_cdef_extends_dyn prog;
     wf_methods_dyn : map_Forall wf_cdef_methods_dyn_wf prog;
+    wf_fields_dyn : map_Forall wf_cdef_fields_dyn_wf prog;
     wf_mdefs_dyn : map_Forall cdef_wf_mdef_dyn_ty prog;
   }
   .

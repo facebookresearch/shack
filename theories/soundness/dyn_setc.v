@@ -67,8 +67,7 @@ Section proofs.
       discriminate H.
     }
     rewrite interp_sdt_equiv; last by apply wfpdefs.
-    iDestruct "He" as (dyntag Σdyn dyndef hpure) "(#HΣdyn & #hmixed1 & #hΣ1 & He)".
-    destruct hpure as [hdyndef hsupdyn].
+    iDestruct "He" as (dyntag Σdyn dyndef hdyndef) "(#HΣdyn & #hmixed1 & #hΣ1 & He)".
     iDestruct "He" as (?? def def0 ????) "(%H & #hmixed & #hconstr & #hf0 & #hdyn & H◯)".
     destruct H as ([= <-] & hdef & hdef0 & hlen & ? & hinherits & hfields & hidom).
     simplify_eq.
@@ -138,12 +137,7 @@ Section proofs.
     }
     assert (hsub: def0.(constraints) ++ Δdyn0 ⊢ DynamicT <D: fty).
     { destruct wfpdefs.
-      assert (h0 := hinherits).
-      apply inherits_using_dyn_parent in h0 => //.
-      destruct h0 as (def0' & dyndef' & hdef0' & hdyndef' & hsd); simplify_eq.
-      apply hsd in hsupdyn.
       apply wf_fields_dyn in hdef0.
-      rewrite /wf_cdef_fields_dyn_wf hsupdyn in hdef0.
       assert (h1 := hfields).
       apply hdef0 in h1.
       apply hfields in hf.

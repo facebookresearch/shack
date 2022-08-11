@@ -808,7 +808,7 @@ Section ProgDef.
       by lia.
   Qed.
 
-  Lemma lift_subst_ty n ty:
+  Lemma lift_subst_gen_targs n ty:
     bounded n ty →
     subst_ty (lift_ty n <$> gen_targs n) ty =
     lift_ty n ty.
@@ -858,17 +858,17 @@ Section ProgDef.
     split; by apply lift_ty_bounded.
   Qed.
 
-  Lemma lift_subst_constraint n c:
+  Lemma lift_subst_gen_targs_constraint n c:
     bounded_constraint n c →
     subst_constraint (lift_ty n <$> gen_targs n) c =
     lift_constraint n c.
   Proof.
     case : c => s t [] /= hs ht.
     rewrite /subst_constraint /=.
-    f_equal; by rewrite !lift_subst_ty.
+    f_equal; by rewrite !lift_subst_gen_targs.
   Qed.
 
-  Lemma lift_subst_constraints n (Δ: list constraint):
+  Lemma lift_subst_gen_targs_constraints n (Δ: list constraint):
     Forall (bounded_constraint n) Δ →
     subst_constraints (lift_ty n <$> gen_targs n) Δ =
     lift_constraints n Δ.
@@ -877,7 +877,7 @@ Section ProgDef.
     apply list_eq => k.
     rewrite /subst_constraints /lift_constraints !list_lookup_fmap.
     destruct (Δ !! k) as [c | ] eqn:hc.
-    - rewrite hc /= lift_subst_constraint //.
+    - rewrite hc /= lift_subst_gen_targs_constraint //.
       by apply hb in hc.
     - by rewrite hc.
   Qed.

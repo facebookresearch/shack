@@ -9,7 +9,10 @@ From stdpp Require Import base strings gmap stringmap fin_maps list.
 From iris.proofmode Require Import tactics.
 From shack Require Import lang progdef.
 
-(* Abstract definition of the SDT constraints at the class level *)
+(* Abstract definition of the SDT constraints at the class level.
+ * Currently we don not support SDT at the method level, but
+ * it will be added soon.
+ *)
 Class SDTClassConstraints := {
   Δsdt : tag → list variance → list lang_ty → list constraint;
 }.
@@ -54,7 +57,6 @@ Section Subtype.
     | SubConstraint: ∀ kd s t, (s, t) ∈ Δ → subtype Δ kd s t
     | SubClassDyn: ∀ kd A adef σA,
         pdefs !! A = Some adef →
-        adef.(support_dynamic) = true →
         wf_ty (ClassT A σA) →
         (* Δ => Δsdt,A[σA] *)
         (∀ k s t, (Δsdt A adef.(generics) σA) !! k = Some (s, t) → subtype Δ kd s t) →
@@ -136,7 +138,7 @@ Section SubtypeFacts.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hwfA hf0 hf1
+      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
       | | | | | ] => Δ' hΔ; try by econstructor.
       + econstructor; [ done | done | ].
         by eapply subtype_targs_weaken.
@@ -174,7 +176,7 @@ Section SubtypeFacts.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd |  kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
-      | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hwfA hf0 hf1
+      | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
       | | | | | ]
       => Δ Δ' heq hΔ; subst; try by econstructor.
       + econstructor; [done | done | ].
@@ -217,7 +219,7 @@ Section SubtypeFacts.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hsupdyn hwfA hf0 hf1
+      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
       | | | | | ] => Δ' hΔ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
         eapply subtype_targs_constraint_trans.
@@ -471,7 +473,7 @@ Section SubtypeFacts.
     induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
       | kd A adef σ0 σ1 hpdefs hwfσ hσ | | | | | kd A args | kd s t h
       | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
-      | kd s t u hst hist htu hitu | kd s t hin | kd A adef σA hwfA hpdefs hsupdyn hf hi
+      | kd s t u hst hist htu hitu | kd s t hin | kd A adef σA hwfA hpdefs hf hi
       | | | | | ]
       => //=; try (by constructor).
     - inv hext; simplify_eq.
@@ -520,7 +522,7 @@ Section SubtypeFacts.
       destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hadef hA hext
       | kd A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | | kd A args
       | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
-      | kd s t u hst htu | kd s t hin | kd A adef σA hadef hsupdyn hwfA hf0 hf1
+      | kd s t u hst htu | kd s t hin | kd A adef σA hadef hwfA hf0 hf1
       | | | | | ]
       => σ hσ => /=; try (by constructor).
       + constructor.

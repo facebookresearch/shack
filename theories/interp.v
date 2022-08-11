@@ -260,7 +260,7 @@ Section proofs.
 
   Definition interp_sdt (rec: ty_interpO) : interp Θ :=
     Interp (λ (v: value),
-      (∃ A Σa adef, ⌜pdefs !! A = Some adef ∧ adef.(support_dynamic) = true⌝ ∗
+      (∃ A Σa adef, ⌜pdefs !! A = Some adef⌝ ∗
       (* Σa |= Δsdt A *)
       □ ▷ (∀ i c, ⌜Δsdt_ A adef !! i = Some c⌝ →
         ∀ w, rec c.1 Σa w -∗ rec c.2 Σa w) ∗
@@ -709,7 +709,7 @@ Section proofs.
 
   Definition interp_sdt_alt : interp Θ :=
     Interp (λ (v: value),
-      (∃ A Σa adef, ⌜pdefs !! A = Some adef ∧ adef.(support_dynamic) = true⌝ ∗
+      (∃ A Σa adef, ⌜pdefs !! A = Some adef⌝ ∗
       □ ▷ (Σinterp Σa (Δsdt_ A adef)) ∗
       □ ▷ (interp_env_as_mixed Σa) ∗
       □ ▷ (Σinterp Σa adef.(constraints)) ∗
@@ -1542,7 +1542,7 @@ Section proofs.
     { destruct 1 as [ kd A | kd A h | kd A σA B σB adef hadef hlen hext
       | kd A def σ0 σ1 hadef hwfσ hσ | | | | | | kd A B h
       | kd A B h | kd A B C h0 h1 | kd A B | kd A B | kd A B C h0 h1
-      | | kd A B C h0 h1 | kd A B hin | kd A adef σA hadef hsupdyn _ hf0 hf1
+      | | kd A B C h0 h1 | kd A B hin | kd A adef σA hadef _ hf0 hf1
       | | | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency #h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold.
@@ -2112,7 +2112,7 @@ Section proofs.
         by iApply "hΣ0".
       }
       iApply Σinterp_app.
-      { rewrite lift_subst_constraints; last by apply hwfbc in hadef.
+      { rewrite lift_subst_gen_targs_constraints; last by apply hwfbc in hadef.
         by rewrite hlΣ0 Σinterp_lift.
       }
       rewrite /Δsdt_ Δsdt_subst_ty subst_ty_gen_targs //.
@@ -2150,7 +2150,7 @@ Section proofs.
         by apply hwfc in hadef.
       }
       apply Forall_app; split.
-      { rewrite lift_subst_constraints; last by apply hwfbc in hadef.
+      { rewrite lift_subst_gen_targs_constraints; last by apply hwfbc in hadef.
         apply lift_constraints_wf.
         by apply hwfc in hadef.
       }

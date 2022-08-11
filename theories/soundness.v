@@ -19,88 +19,14 @@ From shack.soundness Require Import dyn_getc dyn_setc dyn_call.
 Section proofs.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
+  (* assume some SDT constraints *)
+  Context `{SDTCC: SDTClassConstraints}.
+  (* assume the good properties of SDT constraints *)
+  Context `{SDTCP: SDTClassSpec}.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
 
-  (* virtual calls using Dynamic all verify cdef_wf_mdef_dyn_ty *)
-  Lemma wf_mdef_dyn_ty_wf Σ C Δ kd st st' rigid Γ lhs recv name args l n:
-    wf_cdefs pdefs →
-    wf_lty Γ →
-    Forall wf_constraint Δ →
-    expr_has_ty Δ Γ rigid kd recv DynamicT →
-    expr_eval st.1 recv = Some (LocV l) →
-    cmd_eval C st (CallC lhs recv name args) st' n →
-    □ interp_env_as_mixed Σ -∗
-    □ Σinterp Σ Δ -∗
-    heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗
-    ⌜∃ t vs orig σ def mdef,
-    has_method name t orig (subst_mdef σ mdef) ∧
-    st.2 !! l = Some (t, vs) ∧
-    inherits_using t orig σ ∧
-    pdefs !! orig = Some def ∧
-    def.(classmethods) !! name = Some mdef ∧
-    wf_mdef_dyn_ty orig def.(constraints) (length def.(generics)) (gen_targs (length def.(generics))) mdef⌝%I.
-  Proof.
-    move => wfpdefs ?? hrty heval hceval.
-    iIntros "#hΣ #hΣΔ [Hh #Hle]".
-    inv hceval; simpl in *.
-    rewrite heval in H3; simplify_eq.
-    iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "#He" => //; try (by apply wfpdefs).
-    rewrite interp_dynamic_unfold.
-    iDestruct "He" as "[H | He]".
-    { iDestruct "H" as (z) "%H".
-      discriminate H.
-    }
-    iDestruct "He" as "[H | He]".
-    { iDestruct "H" as (b) "%H".
-      discriminate H.
-    }
-    iDestruct "He" as "[H | He]".
-    { iDestruct "H" as "%H".
-      discriminate H.
-    }
-    iDestruct "He" as (dyntag Σdyn dyndef hpure) "He".
-    destruct hpure as [hdyndef hsupdyn].
-    rewrite interp_tag_equiv; last by apply wfpdefs.
-    iDestruct "He" as (?? def def0 ????) "[%H [#hmixed [#hconstr [#hf0 [#hdyn H◯]]]]]".
-    destruct H as ([= <-] & hdef & hdef0 & hlen & ? & hinherits & hfields & hidom).
-    simplify_eq.
-    iAssert (⌜t0 = t⌝)%I as "%Ht".
-    { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
-      iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
-      iDestruct ("Hh" with "[//]") as (iFs) "[H H▷]".
-      iRewrite "H" in "HΦ".
-      rewrite option_equivI prod_equivI /=.
-      iDestruct "HΦ" as "[%Ht HΦ]".
-      by fold_leibniz; subst.
-    }
-    subst.
-    iPureIntro.
-    assert (h0 := H6).
-    apply has_method_from_def in h0 => //; try by apply wfpdefs.
-    destruct h0 as (odef & omdef & hodef & homdef & _ & [σ0 [hin0 ->]]).
-    exists t, vs, orig, σ0, odef, omdef.
-    split; first done.
-    split; first done.
-    split; first done.
-    split; first done.
-    split; first done.
-    destruct wfpdefs.
-    assert (hsupdyn0: def0.(support_dynamic) = true).
-    { apply inherits_using_dyn_parent in hinherits => //.
-      destruct hinherits as (tdef & ddef & ? & ? & hh); simplify_eq.
-      by apply hh.
-    }
-    apply wf_methods_dyn in hdef0.
-    rewrite /wf_cdef_methods_dyn_wf hsupdyn0 in hdef0.
-    apply hdef0 in H6.
-    rewrite /subst_mdef /= in H6.
-    apply wf_mdefs_dyn in hodef.
-    apply hodef in homdef.
-    by rewrite /cdef_wf_mdef_dyn_ty H6 in homdef.
-  Qed.
-  
   Lemma cmd_soundness_ C Δ kd rigid Γ cmd Γ' :
     wf_cdefs pdefs →
     wf_lty Γ →
@@ -225,7 +151,6 @@ Definition main_cdef tag methods := {|
   superclass := None;
   classfields := ∅;
   classmethods := methods;
-  support_dynamic := false;
 |}.
 
 Definition main_heap tag : heap := {[1%positive := (tag, ∅)]}.
@@ -237,6 +162,8 @@ Definition main_heap tag : heap := {[1%positive := (tag, ∅)]}.
  *)
 Lemma sem_heap_init
   `{PDC: ProgDefContext}
+  `{SDTCC: SDTClassConstraints}
+  `{SDTCP: SDTClassSpec}
   `{!sem_heapGpreS Θ}:
   ∀ MainTag methods, pdefs !! MainTag = Some (main_cdef MainTag methods) →
   ⊢@{iPropI Θ} |==> ∃ _: sem_heapGS Θ, (heap_models (main_heap MainTag) ∗ interp_local_tys [] (main_lty MainTag) main_le).
