@@ -16,9 +16,7 @@ From shack.soundness Require Import expr defs.
 Section proofs.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints *)
-  Context `{SDTCC: SDTClassConstraints}.
-  (* assume the good properties of SDT constraints *)
+  (* assume some SDT constraints and their properties *)
   Context `{SDTCP: SDTClassSpec}.
 
   (* Helping the inference with this notation that hides pdefs *)
@@ -212,8 +210,8 @@ Section proofs.
       assert (hwf_ : Forall wf_constraint (def0.(constraints) ++ Δdyn)).
       { apply Forall_app; by split.  }
       assert (hwfΔ0: Forall wf_constraint Δdyn0).
-      { assert (hh: Forall wf_ty (gen_targs (length def0.(generics)))).
-        { apply Forall_lookup => k ty; by apply gen_targs_wf. }
+      { assert (hh: Forall wf_ty (gen_targs (length def0.(generics))))
+          by apply gen_targs_wf_2.
         by apply Δsdt_wf with (A := t0) (vars := def0.(generics)) in hh.
       }
       iIntros (i c hc w) "#h".

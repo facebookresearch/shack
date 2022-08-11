@@ -19,9 +19,7 @@ From shack.soundness Require Import dyn_getc dyn_setc dyn_call.
 Section proofs.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints *)
-  Context `{SDTCC: SDTClassConstraints}.
-  (* assume the good properties of SDT constraints *)
+  (* assume some SDT constraints and their properties *)
   Context `{SDTCP: SDTClassSpec}.
 
   (* Iris semantic context *)
@@ -65,7 +63,8 @@ Section proofs.
         Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
         Δ kd rigid Γ lhs recv name he hnotthis |
         Δ kd rigid Γ recv fld rhs hrecv hrhs hnotthis |
-        Δ kd rigid Γ lhs recv name args hrecv hi hnotthis
+        Δ kd rigid Γ lhs recv name args hrecv hi hnotthis |
+        Δ kd rigid Γ0 cmd Γ1 hwf hb hsub
       ] "IHty" forall (Σ st st' n hrigid hc) "hΣ hΣΔ".
     - (* Skip *)
       inv hc.
@@ -111,6 +110,8 @@ Section proofs.
     - by iApply dyn_get_soundness.
     - by iApply (dyn_set_soundness _ _ _ _ _ recv).
     - by iApply dyn_call_soundness.
+    - destruct wfpdefs.
+      by iDestruct (inconsistency with "hΣ hΣΔ") as "hFalse".
   Qed.
 
   Lemma cmd_soundness C Δ kd Σ Γ cmd Γ' :

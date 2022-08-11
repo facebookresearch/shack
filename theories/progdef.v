@@ -102,6 +102,11 @@ Section ProgDef.
     by constructor.
   Qed.
 
+  Lemma gen_targs_wf_2 n: Forall wf_ty (gen_targs n).
+  Proof.
+    apply Forall_lookup => ??; by apply gen_targs_wf.
+  Qed.
+
   (* All constraints in a class definition must be well-formed and bounded
    * by the class generics.
    *)
@@ -570,6 +575,21 @@ Section ProgDef.
    *)
   Definition has_fields A (fields: stringmap ((visibility * lang_ty) * tag)) : Prop :=
     ∀ fname vis typ orig, has_field fname A vis typ orig ↔ fields !! fname = Some (vis, typ, orig).
+
+  Lemma has_fields_fun A fs0 fs1:
+    has_fields A fs0 → has_fields A fs1 → fs0 = fs1.
+  Proof.
+    move => hfs0 hfs1.
+    apply map_eq => k.
+    destruct (fs0 !! k) as [[[v ty] t] | ] eqn:hf0.
+    { apply hfs0 in hf0.
+      by apply hfs1 in hf0.
+    }
+    destruct (fs1 !! k) as [[[v ty] t] | ] eqn:hf1; last done.
+    apply hfs1 in hf1.
+    apply hfs0 in hf1.
+    by rewrite hf1 in hf0.
+  Qed.
 
   (* has_method m C orig mdef means that class C inherits a method m,
    * described by the methodDef mdef.

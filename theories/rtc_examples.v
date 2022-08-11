@@ -19,7 +19,6 @@ Definition C := {|
   constraints := [(GenT 0, IntT)];
   classfields := {[ "x" := (Public, GenT 0)]};
   classmethods := ∅;
-  support_dynamic := false;
 |}.
 
 (* function push(T $_) : void { } *)
@@ -29,7 +28,6 @@ Definition Push := {|
   methodrettype := NullT;
   methodbody := SkipC;
   methodret := NullE;
-  method_support_dynamic := false;
 |}.
 
 Definition V := {|
@@ -39,7 +37,6 @@ Definition V := {|
   constraints := [];
   classfields := ∅;
   classmethods := {[ "push" := Push ]};
-  support_dynamic := false;
 |}.
 
 (* function f(mixed $c) : void {
@@ -64,7 +61,6 @@ Definition F := {|
   methodrettype := NullT;
   methodbody := f;
   methodret := NullE;
-  method_support_dynamic := false;
 |}.
 
 Definition Test := {|
@@ -74,10 +70,27 @@ Definition Test := {|
   constraints := [];
   classfields := ∅;
   classmethods := {[ "f" := F ]};
-  support_dynamic := false;
 |}.
 
 Local Instance PDC : ProgDefContext := { pdefs := {[ "C" := C; "V" := V; "Test" := Test ]} }.
+
+(* Invalid constraint, so we can prove anything trivially *)
+Local Instance SDTCC : SDTClassConstraints := { Δsdt := λ _ _ _, [(IntT, BoolT) ] }.
+
+Local Instance SDTCP : SDTClassSpec.
+Proof.
+  split.
+  - move => ????; apply Forall_singleton; by constructor.
+  - by move => ????.
+  - move => ?????; apply Forall_singleton; by constructor.
+  - by move => ????.
+  - move => ?????????.
+    move => ??.
+    rewrite list_lookup_singleton_Some.
+    case => ? <- /=.
+    apply SubConstraint.
+    by set_solver.
+Qed.
 
 Lemma Cfields : has_fields "C" {[ "x" := ((Public, GenT 0), "C") ]}.
 Proof.

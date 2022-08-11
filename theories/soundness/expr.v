@@ -15,9 +15,7 @@ From shack Require Import lang progdef subtype typing eval heap modality interp.
 Section proofs.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints *)
-  Context `{SDTCC: SDTClassConstraints}.
-  (* assume the good properties of SDT constraints *)
+  (* assume some SDT constraints and their properties *)
   Context `{SDTCP: SDTClassSpec}.
 
   (* Iris semantic context *)
@@ -39,8 +37,9 @@ Section proofs.
   Proof.
     move => ????? wflty he h; move: Ω val he.
     induction h as [| | | kd op e1 e2 hop he1 hi1 he2 hi2 |
-        kd op e1 e2 hop he1 hi1 he2 hi2 | kd e1 e2 h1 hi1 h2 hi2 | kd e0 h hi |
-        kd v vty hv | | kd exp S T hS hi hwf hok hsub | kd exp S T hS hi hwf hok hsub]
+        kd op e1 e2 hop he1 hi1 he2 hi2 | kd e1 e2 h1 hi1 h2 hi2 |
+        kd e0 h hi | kd v vty hv | | kd exp S T hS hi hwf hok hsub |
+        kd exp S T hS hi hwf hok hsub | kd e t hwf hb hsub ]
         => Ω val he; iIntros "#wfΣ #Σcoherency #Hlty".
     - inv he; rewrite interp_type_unfold /=; by eauto.
     - inv he; rewrite interp_type_unfold /=; by eauto.
@@ -160,6 +159,7 @@ Section proofs.
       iApply subtype_is_inclusion => //.
       + by apply expr_has_ty_wf in hS.
       + by iApply he.
+    - by iDestruct (inconsistency with "wfΣ Σcoherency") as "hFalse".
   Qed.
 End proofs.
 

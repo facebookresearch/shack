@@ -12,9 +12,7 @@ From shack Require Import lang progdef subtype.
 Section Typing.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints *)
-  Context `{SDTCC: SDTClassConstraints}.
-  (* assume the good properties of SDT constraints *)
+  (* assume some SDT constraints and their properties *)
   Context `{SDTCP: SDTClassSpec}.
 
   (* Helping the inference with this notation that hides pdefs *)
@@ -311,6 +309,11 @@ Section Typing.
         ok_ty Δ t →
         Δ ⊢ s <D: t →
         expr_has_ty Δ Γ rigid kd (UpcastE e t) t
+    | FalseTy: ∀ kd e t,
+        wf_ty t →
+        bounded rigid t →
+        subtype Δ kd IntT BoolT →
+        expr_has_ty Δ Γ rigid kd e t
   .
 
   Definition wf_lty Γ :=
@@ -337,7 +340,8 @@ Section Typing.
     move => hwf.
     induction 1 as [ | | | kd op e1 e2 hop h1 hi1 h2 hi2 |
       kd op e1 e2 hop h1 hi1 h2 hi2 | kd e1 e2 h1 hi1 h2 hi2 | kd e h hi | kd v ty h | |
-      kd e s t h hi ? hb hok hsub | kd e s t h hi ? hb hok hsub]
+      kd e s t h hi ? hb hok hsub | kd e s t h hi ? hb hok hsub |
+      kd ????? ]
       => //=; subst; try (by constructor).
     - by apply hwf in h.
     - by apply hwf.
@@ -377,7 +381,8 @@ Section Typing.
     move => hb.
     induction 1 as [ | | | kd op e1 e2 hop h1 hi1 h2 hi2 |
       kd op e1 e2 hop h1 hi1 h2 hi2 | kd e1 e2 h1 hi1 h2 hi2 | kd e h hi | kd v ty h | |
-      kd e s t h hi ? ? hok hsub | kd e s t h hi ? ? hok hsub]
+      kd e s t h hi ? ? hok hsub | kd e s t h hi ? ? hok hsub |
+      kd ?????]
       => //=; subst; try (by constructor).
     - by apply hb in h.
     - by apply hb.
@@ -521,6 +526,11 @@ Section Typing.
          | _ => True
          end) →
         cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := DynamicT]>Γ)
+    | FalseCmdTy: ∀ Δ kd rigid Γ0 cmd Γ1,
+        wf_lty Γ1 →
+        bounded_lty rigid Γ1 →
+        subtype Δ kd IntT BoolT →
+        cmd_has_ty C Δ kd rigid Γ0 cmd Γ1
   .
 
   Lemma cmd_has_ty_wf C Δ kd rigid Γ0 cmd Γ1:
@@ -541,7 +551,8 @@ Section Typing.
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
       ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
-      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis
+      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis |
+      ?????????
       ] => //=; try (by eauto).
     - apply hi2 => //.
       + by apply hi1.
@@ -600,7 +611,8 @@ Section Typing.
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
       ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
-      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis
+      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis |
+      ?????????
       ] => //=; try (by eauto).
     - apply hi2 => //.
       + by apply cmd_has_ty_wf in h1.
@@ -864,7 +876,7 @@ Section Typing.
     let σ := gen_targs n in
     let Δ := cdef.(constraints) ++ Δsdt cname cdef.(generics) σ in
     ∀ mname orig mdef,
-    has_method mname cname orig mdef → 
+    has_method mname cname orig mdef →
     ∃ odef σ,
       pdefs !! orig = Some odef ∧
       inherits_using cname orig σ ∧

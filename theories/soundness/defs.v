@@ -15,9 +15,7 @@ From shack Require Import lang progdef subtype typing eval heap modality interp.
 Section proofs.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints *)
-  Context `{SDTCC: SDTClassConstraints}.
-  (* assume the good properties of SDT constraints *)
+  (* assume some SDT constraints and their properties *)
   Context `{SDTCP: SDTClassSpec}.
 
   (* Iris semantic context *)

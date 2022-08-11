@@ -129,9 +129,7 @@ Arguments interpO : clear implicits.
 Section proofs.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints *)
-  Context `{SDTCC: SDTClassConstraints}.
-  (* assume the good properties of SDT constraints *)
+  (* assume some SDT constraints and their properties *)
   Context `{SDTCP: SDTClassSpec}.
 
   (* Iris semantic context *)
@@ -1543,7 +1541,7 @@ Section proofs.
       | kd A def σ0 σ1 hadef hwfσ hσ | | | | | | kd A B h
       | kd A B h | kd A B C h0 h1 | kd A B | kd A B | kd A B C h0 h1
       | | kd A B C h0 h1 | kd A B hin | kd A adef σA hadef _ hf0 hf1
-      | | | | | ]; iIntros (v hwfA) "#wfΣi #Σcoherency #h".
+      | | | | | | kd A B hwf h ]; iIntros (v hwfA) "#wfΣ #Σcoherency #h".
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         rewrite -!interp_type_unfold.
         by iApply submixed_is_inclusion_aux.
@@ -1579,10 +1577,10 @@ Section proofs.
       - clear subtype_targs_is_inclusion_aux.
         rewrite /= /interp_union.
         iDestruct "h" as "[h | h]".
-        + iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h0 | | ].
+        + iApply (subtype_is_inclusion_aux with "wfΣ Σcoherency"); [exact h0 | | ].
           * inv hwfA; by assumption.
           * by iAssumption.
-        + iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h1 | | ].
+        + iApply (subtype_is_inclusion_aux with "wfΣ Σcoherency"); [exact h1 | | ].
           * inv hwfA; by assumption.
           * by iAssumption.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
@@ -1594,15 +1592,15 @@ Section proofs.
       - clear subtype_targs_is_inclusion_aux.
         rewrite /= /interp_inter.
         iSplit.
-        + iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h0 | done | ].
+        + iApply (subtype_is_inclusion_aux with "wfΣ Σcoherency"); [exact h0 | done | ].
           by iAssumption.
-        + iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h1 | done | ].
+        + iApply (subtype_is_inclusion_aux with "wfΣ Σcoherency"); [exact h1 | done | ].
           by iAssumption.
       - done.
-      - iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h1 | | ].
+      - iApply (subtype_is_inclusion_aux with "wfΣ Σcoherency"); [exact h1 | | ].
         + apply subtype_wf in h0; [ | done | done | done ].
           by assumption.
-        + iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency"); [exact h0 | done | ].
+        + iApply (subtype_is_inclusion_aux with "wfΣ Σcoherency"); [exact h0 | done | ].
           by iAssumption.
       - apply elem_of_list_lookup_1 in hin as [i hin].
         rewrite -!interp_type_unfold /=.
@@ -1653,8 +1651,8 @@ Section proofs.
           }
           apply hf0 in hc'.
           assert (hwfc: wf_constraint c).
-          { assert (hh: Forall wf_ty (gen_targs (length adef.(generics)))).
-            { apply Forall_lookup => k ty; by apply gen_targs_wf. }
+          { assert (hh: Forall wf_ty (gen_targs (length adef.(generics))))
+             by apply gen_targs_wf_2.
             apply Δsdt_wf with (A := A) (vars := adef.(generics)) in hh.
             rewrite Forall_lookup in hh.
             by apply hh in hc.
@@ -1678,9 +1676,15 @@ Section proofs.
       - by iRight; iRight; iLeft.
       - done.
       - done.
+      - iDestruct ((subtype_is_inclusion_aux _ _ _ _ h (IntV 3)) with "wfΣ Σcoherency") as "hfalse".
+        { by constructor. }
+        iAssert (∃ z, ⌜IntV 3 = IntV z⌝)%I as "hh"; first by iExists _.
+        rewrite /=.
+        iDestruct ("hfalse" with "hh") as "%hfalse".
+        by destruct hfalse.
     }
     move => hwfA hwfB.
-    destruct 1 as [ | ?????? h0 h1 h | ?????? h0 h | ?????? h0 h]; iIntros "#wfΣi #Σcoherency".
+    destruct 1 as [ | ?????? h0 h1 h | ?????? h0 h | ?????? h0 h]; iIntros "#wfΣ #Σcoherency".
     - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
       done.
     - simpl.
@@ -1723,6 +1727,21 @@ Section proofs.
     iIntros (A B hAB v ?) "#wfΣi #Σcoherency".
     rewrite !interp_type_unfold.
     by iApply (subtype_is_inclusion_aux with "wfΣi Σcoherency").
+  Qed.
+
+  Theorem inconsistency Σ kd:
+    subtype Δ kd IntT BoolT →
+    □ interp_env_as_mixed Σ -∗
+    □ Σinterp Σ Δ -∗
+    False%I.
+  Proof.
+    iIntros (h) "#hmixed #hΣΔ".
+    iDestruct ((subtype_is_inclusion _ _ _ _ h (IntV 3)) with "hmixed hΣΔ") as "hfalse".
+    { by constructor. }
+    iAssert (∃ z, ⌜IntV 3 = IntV z⌝)%I as "hh"; first by iExists _.
+    rewrite !interp_type_unfold /=.
+    iDestruct ("hfalse" with "hh") as "%hfalse".
+    by destruct hfalse.
   Qed.
 
   Definition interp_this_def
@@ -2129,8 +2148,8 @@ Section proofs.
     assert (hc0: subst_constraints σ0 (Δsdt_ A adef) !! i = Some (subst_constraint σ0 c)).
     { by rewrite /subst_constraints list_lookup_fmap hc. }
     assert (hwfΔ : Forall wf_constraint (Δsdt_ A adef)).
-    { assert (hh: Forall wf_ty (gen_targs (length adef.(generics)))).
-      { apply Forall_lookup => k ty; by apply gen_targs_wf. }
+    { assert (hh: Forall wf_ty (gen_targs (length adef.(generics))))
+        by apply gen_targs_wf_2.
       by apply Δsdt_wf with (A := A) (vars := adef.(generics)) in hh.
     }
     iAssert (□ interp_env_as_mixed (Σ0 ++ Σ1))%I as "#hmixed".

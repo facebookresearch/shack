@@ -68,6 +68,10 @@ Section Subtype.
     | SubNullDyn kd: subtype Δ kd NullT SupportDynT
     | SubSupDyn: subtype Δ Aware SupportDynT DynamicT
     | SubDynPrim kd : subtype Δ kd DynamicT SupportDynT
+    | SubFalse kd : ∀ A B,
+        wf_ty B →
+        subtype Δ kd IntT BoolT →
+        subtype Δ kd A B
   with subtype_targs (Δ: list constraint) : subtype_kind → list variance → list lang_ty → list lang_ty → Prop :=
     | subtype_targs_nil kd: subtype_targs Δ kd [] [] []
     | subtype_targs_invariant: ∀ kd ty0 ty1 vs ty0s ty1s,
@@ -82,7 +86,7 @@ Section Subtype.
     | subtype_targs_contravariant: ∀ kd ty0 ty1 vs ty0s ty1s,
         subtype Δ kd ty1 ty0 →
         subtype_targs Δ kd vs ty0s ty1s →
-        subtype_targs Δ kd (Contravariant :: vs) (ty0 :: ty0s) ( ty1 :: ty1s)
+        subtype_targs Δ kd (Contravariant :: vs) (ty0 :: ty0s) (ty1 :: ty1s)
   .
 
   Definition Δentails kd (Δ0 Δ1: list constraint) :=
@@ -113,9 +117,7 @@ End Subtype.
 Section SubtypeFacts.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints *)
-  Context `{SDTCC: SDTClassConstraints}.
-  (* assume the good properties of SDT constraints *)
+  (* assume some SDT constraints and their properties *)
   Context `{SDTCP: SDTClassSpec}.
 
   Corollary length_subtype_targs_v1 Δ kd: ∀ vs ty0s ty1s,
@@ -139,7 +141,7 @@ Section SubtypeFacts.
       | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
       | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
-      | | | | | ] => Δ' hΔ; try by econstructor.
+      | | | | | | kd A B hwf h] => Δ' hΔ; try by econstructor.
       + econstructor; [ done | done | ].
         by eapply subtype_targs_weaken.
       + econstructor; by eapply subtype_weaken.
@@ -152,6 +154,8 @@ Section SubtypeFacts.
           by eapply hf0.
         * eapply subtype_weaken; last done.
           by eapply hf1.
+      + eapply SubFalse => //.
+        by eapply subtype_weaken.
     - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Δ' hΔ.
       + by constructor.
       + econstructor; [ by eapply subtype_weaken | by eapply subtype_weaken | ].
@@ -177,7 +181,7 @@ Section SubtypeFacts.
       | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd |  kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
       | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
-      | | | | | ]
+      | | | | | | kd A B hwf h ]
       => Δ Δ' heq hΔ; subst; try by econstructor.
       + econstructor; [done | done | ].
         by eapply subtype_targs_constraint_elim_.
@@ -191,6 +195,8 @@ Section SubtypeFacts.
       + eapply SubClassDyn => // k s t hst.
         * eapply subtype_constraint_elim_; by eauto.
         * eapply subtype_constraint_elim_; by eauto.
+      + eapply SubFalse => //.
+        eapply subtype_constraint_elim_; by eauto.
     - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Δ Δ' heq hΔ; subst.
       + by constructor.
       + econstructor; [ by eapply subtype_constraint_elim_ | by eapply subtype_constraint_elim_ | ].
@@ -220,7 +226,7 @@ Section SubtypeFacts.
       | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
       | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
-      | | | | | ] => Δ' hΔ; try by econstructor.
+      | | | | | | kd A B hwf h] => Δ' hΔ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
         eapply subtype_targs_constraint_trans.
         * by apply hσ.
@@ -233,6 +239,8 @@ Section SubtypeFacts.
       + eapply SubClassDyn => // k s t hst.
         * eapply subtype_constraint_trans; by eauto.
         * eapply subtype_constraint_trans; by eauto.
+      + eapply SubFalse => //.
+        eapply subtype_constraint_trans; by eauto.
     - destruct 1 as [ | ???????? h | ??????? h | ??????? h ] => Δ' hΔ.
       + by constructor.
       + econstructor; [ by eapply subtype_constraint_trans | by eapply subtype_constraint_trans | ].
@@ -474,7 +482,7 @@ Section SubtypeFacts.
       | kd A adef σ0 σ1 hpdefs hwfσ hσ | | | | | kd A args | kd s t h
       | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
       | kd s t u hst hist htu hitu | kd s t hin | kd A adef σA hwfA hpdefs hf hi
-      | | | | | ]
+      | | | | | | kd A B ? h hi ]
       => //=; try (by constructor).
     - inv hext; simplify_eq.
       rewrite /map_Forall_lookup in hp.
@@ -523,7 +531,7 @@ Section SubtypeFacts.
       | kd A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | | kd A args
       | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
       | kd s t u hst htu | kd s t hin | kd A adef σA hadef hwfA hf0 hf1
-      | | | | | ]
+      | | | | | | kd A B hwf h ]
       => σ hσ => /=; try (by constructor).
       + constructor.
         by apply wf_ty_subst.
@@ -576,6 +584,11 @@ Section SubtypeFacts.
           rewrite -!subst_ty_subst //.
           eapply subtype_subst; [done | done | | done].
           by eapply hf1.
+      + eapply SubFalse.
+        * by apply wf_ty_subst.
+        * change IntT with (subst_ty σ IntT).
+          change BoolT with (subst_ty σ BoolT).
+          by eapply subtype_subst.
     - move => hp hb.
       destruct 1 as [ | ?????? h0 h1 h | ?????? h0 h | ?????? h0 h] => σ hσ /=.
       + by constructor.
