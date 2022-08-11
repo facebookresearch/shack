@@ -129,14 +129,20 @@ Definition Main := {|
 Local Instance PDC : ProgDefContext := { pdefs := {[ "ROBox" := ROBox; "Box" := Box; "IntBoxS" := IntBoxS; "Main" := Main ]} }.
 
 (* Invalid constraint, so we can prove anything trivially *)
-Local Instance SDTCC : SDTClassConstraints := { Δsdt := λ _ _ _, [(IntT, BoolT) ] }.
+Local Instance SDTCC : SDTClassConstraints := {
+  Δsdt := λ _ _ _, [(IntT, BoolT) ];
+  Δsdt_m := λ _ _ _ _, [(IntT, BoolT) ];
+}.
 
 Local Instance SDTCP : SDTClassSpec.
 Proof.
   split.
   - move => ????; apply Forall_singleton; by constructor.
+  - move => ?????; apply Forall_singleton; by constructor.
+  - by move => ????.
   - by move => ????.
   - move => ?????; apply Forall_singleton; by constructor.
+  - move => ??????; apply Forall_singleton; by constructor.
   - by move => ????.
   - move => ?????????.
     move => ??.

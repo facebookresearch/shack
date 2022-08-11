@@ -256,6 +256,9 @@ Section proofs.
   Definition Δsdt_ t (def: classDef) :=
     Δsdt t def.(generics) (gen_targs (length def.(generics))).
 
+  Definition Δsdt_m_ t m (def: classDef) :=
+    Δsdt_m t m def.(generics) (gen_targs (length def.(generics))).
+
   Definition interp_sdt (rec: ty_interpO) : interp Θ :=
     Interp (λ (v: value),
       (∃ A Σa adef, ⌜pdefs !! A = Some adef⌝ ∗

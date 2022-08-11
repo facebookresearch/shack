@@ -717,9 +717,6 @@ Section Typing.
    *
    * The same reasoning applies to fields. We won't have a dedicated
    * Δsdt for each field, they will all use the class level one.
-   *
-   * For now, we won't define dedicated Δsdt C f, so we are going to use
-   * Δsdt C for them all. We'll introduce this in the next diff.
    *)
   Definition to_dyn (ty: lang_ty) : lang_ty := DynamicT.
 
@@ -868,9 +865,7 @@ Section Typing.
     expr_has_ty Δ Γ' rigid Aware mdef.(methodret) (to_dyn mdef.(methodrettype))
   .
 
-  (* `has_method f C O mdef → ΔC ∧ Δsdt C => Δsdt O mdef.
-   * Update this once we introduce Δsdt per method.
-   *)
+  (* `has_method f C O mdef → ΔC ∧ Δsdt C => Δsdt O mdef.  *)
   Definition wf_cdef_methods_dyn_wf cname cdef :=
     let n := length cdef.(generics) in
     let σ := gen_targs n in
@@ -880,14 +875,14 @@ Section Typing.
     ∃ odef σ,
       pdefs !! orig = Some odef ∧
       inherits_using cname orig σ ∧
-      Δentails Aware Δ (Δsdt orig odef.(generics) σ)
+      Δentails Aware Δ (Δsdt_m orig mname odef.(generics) σ)
   .
 
   Definition cdef_wf_mdef_dyn_ty cname cdef :=
     let n := length cdef.(generics) in
     let σ := gen_targs n in
-    let Δ := cdef.(constraints) ++ Δsdt cname cdef.(generics) σ in
-    map_Forall (λ _ mdef, wf_mdef_dyn_ty cname Δ n σ mdef) cdef.(classmethods)
+    let Δ := λ mname, cdef.(constraints) ++ Δsdt_m cname mname cdef.(generics) σ in
+    map_Forall (λ mname mdef, wf_mdef_dyn_ty cname (Δ mname)n σ mdef) cdef.(classmethods)
   .
 
   (* Collection of all program invariant (at the source level):

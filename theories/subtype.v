@@ -9,12 +9,10 @@ From stdpp Require Import base strings gmap stringmap fin_maps list.
 From iris.proofmode Require Import tactics.
 From shack Require Import lang progdef.
 
-(* Abstract definition of the SDT constraints at the class level.
- * Currently we don not support SDT at the method level, but
- * it will be added soon.
- *)
+(* Abstract definition of the SDT constraints at the class level. *)
 Class SDTClassConstraints := {
   Δsdt : tag → list variance → list lang_ty → list constraint;
+  Δsdt_m : tag → string → list variance → list lang_ty → list constraint;
 }.
 
 Section Subtype.
@@ -96,12 +94,17 @@ Section Subtype.
   Class SDTClassSpec := {
     (* Δsdt preserves the wf_ty of σ *)
     Δsdt_wf: ∀ A vars σ, Forall wf_ty σ → Forall wf_constraint (Δsdt A vars σ);
+    Δsdt_m_wf: ∀ A m vars σ, Forall wf_ty σ → Forall wf_constraint (Δsdt_m A m vars σ);
     (* Δsdt commutes with subst_ty *)
     Δsdt_subst_ty: ∀ A vars σ0 σ,
       subst_constraints σ (Δsdt A vars σ0) = Δsdt A vars (subst_ty σ <$> σ0);
+    Δsdt_m_subst_ty: ∀ A name vars σ0 σ,
+      subst_constraints σ (Δsdt_m A name vars σ0) = Δsdt_m A name vars (subst_ty σ <$> σ0);
     (* Δsdt preserves the bounded of σ *)
     Δsdt_bounded: ∀ A vars σ n,
       Forall (bounded n) σ → Forall (bounded_constraint n) (Δsdt A vars σ);
+    Δsdt_m_bounded: ∀ A m vars σ n,
+      Forall (bounded n) σ → Forall (bounded_constraint n) (Δsdt_m A m vars σ);
     (* Δsdt commutes with σ *)
     Δsdt_lift: ∀ n A vars σ,
       lift_constraints n (Δsdt A vars σ) = Δsdt A vars (lift_ty n <$> σ);
