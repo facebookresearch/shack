@@ -13,10 +13,8 @@ From iris.proofmode Require Import tactics.
 From shack Require Import lang progdef subtype typing eval heap modality interp.
 
 Section proofs.
-  (* assume a given set of class definitions *)
-  Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints and their properties *)
-  Context `{SDTCP: SDTClassSpec}.
+  (* assume a given set of class definitions and their SDT annotations. *)
+  Context `{SDTCVS: SDTClassVarianceSpec}.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
@@ -216,10 +214,10 @@ Section proofs.
     □iForall3 interp_variance adef.(generics) (interp_list Σt σ) ΣA -∗
     □ interp_env_as_mixed ΣA -∗
     □ Σinterp ΣA adef.(constraints) -∗
-    □ Σinterp ΣA (Δsdt_ A adef) -∗
+    □ Σinterp ΣA (Δsdt A) -∗
     □ interp_env_as_mixed Σt -∗
     □ Σinterp Σt tdef.(constraints) -∗
-    □ Σinterp Σt (Δsdt_ t tdef).
+    □ Σinterp Σt (Δsdt t).
   Proof.
     move => wfpdefs htdef hadef hlt htA hin.
     iIntros "#hF #hmA #hΣΔA #hΣΔsdtA #hmt #ΣΔt".
@@ -231,8 +229,7 @@ Section proofs.
     }
     destruct hh as [hwfσ hl].
     assert (hwfc: Forall wf_constraint tdef.(constraints)) by by apply wf_constraints_wf in htdef.
-    pose (Δsdt_t := Δsdt t tdef.(generics) (gen_targs (length tdef.(generics)))).
-    pose (Δsdt_A := Δsdt A adef.(generics) σ).
+    pose (Δsdt_A := subst_constraints σ (Δsdt A)).
     iAssert (□ Σinterp Σt Δsdt_A)%I as "#hΣt_sdt_A".
     { iAssert (interp_env_as_mixed (interp_list Σt σ)) as "hmixed0".
       { iIntros (k phi hk w) "hphi".
@@ -267,15 +264,10 @@ Section proofs.
         iApply (subtype_is_inclusion tdef.(constraints)) => //; by apply wfpdefs.
       }
       iModIntro; iIntros (i c0 hc w) "#h".
-      rewrite /Δsdt_A -(subst_ty_gen_targs (length adef.(generics)) σ) // in hc.
-      rewrite -Δsdt_subst_ty in hc.
       apply list_lookup_fmap_inv in hc as [c [-> hc]] => /=.
       assert (hbc : bounded_constraint (length σ) c).
       { rewrite -hl.
-        move : (bounded_gen_targs (length adef.(generics))) => hh.
-        apply Δsdt_bounded with (A := A) (vars := adef.(generics)) in hh.
-        rewrite Forall_lookup in hh.
-        by apply hh in hc.
+        by eapply Δsdt_bounded in hc.
       }
       destruct hbc as [].
       rewrite !interp_type_subst //.
@@ -289,21 +281,22 @@ Section proofs.
       by iApply Σinterp_app.
     }
     iModIntro.
-    assert (hnewcond: Δentails Aware (tdef.(constraints) ++ Δsdt_A) Δsdt_t).
+    assert (hnewcond: Δentails Aware (tdef.(constraints) ++ Δsdt_A) (Δsdt t)).
     { apply inherits_using_extends_dyn in hin => //; try by apply wfpdefs.
-      destruct hin as (? & ? & ? & ? & hwf); simplify_eq.
+      destruct hin as (? & ? & hwf); simplify_eq.
       move => k c hc.
       by apply hwf with k.
     }
     assert (Forall wf_constraint Δsdt_A).
-    { by apply Δsdt_wf. }
+    { rewrite Forall_lookup => k c hc.
+      apply list_lookup_fmap_inv in hc as [c0 [-> hc]].
+      apply Δsdt_wf in hc as [].
+      split; by apply wf_ty_subst.
+    }
     assert (hwf_ : Forall wf_constraint (tdef.(constraints) ++ Δsdt_A)).
     { apply Forall_app; by split.  }
-    assert (hwfΔ0: Forall wf_constraint Δsdt_t).
-    { assert (hh: Forall wf_ty (gen_targs (length tdef.(generics))))
-      by apply gen_targs_wf_2.
-      by apply Δsdt_wf with (A := t) (vars := tdef.(generics)) in hh.
-    }
+    assert (hwfΔ0: Forall wf_constraint (Δsdt t)).
+    { rewrite Forall_lookup; by apply Δsdt_wf. }
     iIntros (i c hc w) "#h".
     assert (h0 := hc).
     apply hnewcond in h0.

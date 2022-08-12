@@ -11,8 +11,8 @@ From shack Require Import lang progdef.
 
 (* Abstract definition of the SDT constraints at the class level. *)
 Class SDTClassConstraints := {
-  Δsdt : tag → list variance → list lang_ty → list constraint;
-  Δsdt_m : tag → string → list variance → list lang_ty → list constraint;
+  Δsdt : tag → list constraint;
+  Δsdt_m : tag → string → list constraint;
 }.
 
 Section Subtype.
@@ -57,7 +57,7 @@ Section Subtype.
         pdefs !! A = Some adef →
         wf_ty (ClassT A σA) →
         (* Δ => Δsdt,A[σA] *)
-        (∀ k s t, (Δsdt A adef.(generics) σA) !! k = Some (s, t) → subtype Δ kd s t) →
+        (∀ k s t, (subst_constraints σA (Δsdt A)) !! k = Some (s, t) → subtype Δ kd s t) →
         (* Δ => ΔA[σA] *)
         (∀ k s t, adef.(constraints) !! k = Some (s, t) → subtype Δ kd (subst_ty σA s) (subst_ty σA t)) →
         subtype Δ kd (ClassT A σA) SupportDynT
@@ -93,35 +93,31 @@ Section Subtype.
   (* Properties of Δsdt *)
   Class SDTClassSpec := {
     (* Δsdt preserves the wf_ty of σ *)
-    Δsdt_wf: ∀ A vars σ, Forall wf_ty σ → Forall wf_constraint (Δsdt A vars σ);
-    Δsdt_m_wf: ∀ A m vars σ, Forall wf_ty σ → Forall wf_constraint (Δsdt_m A m vars σ);
-    (* Δsdt commutes with subst_ty *)
-    Δsdt_subst_ty: ∀ A vars σ0 σ,
-      subst_constraints σ (Δsdt A vars σ0) = Δsdt A vars (subst_ty σ <$> σ0);
-    Δsdt_m_subst_ty: ∀ A name vars σ0 σ,
-      subst_constraints σ (Δsdt_m A name vars σ0) = Δsdt_m A name vars (subst_ty σ <$> σ0);
-    (* Δsdt preserves the bounded of σ *)
-    Δsdt_bounded: ∀ A vars σ n,
-      Forall (bounded n) σ → Forall (bounded_constraint n) (Δsdt A vars σ);
-    Δsdt_m_bounded: ∀ A m vars σ n,
-      Forall (bounded n) σ → Forall (bounded_constraint n) (Δsdt_m A m vars σ);
-    (* Δsdt commutes with σ *)
-    Δsdt_lift: ∀ n A vars σ,
-      lift_constraints n (Δsdt A vars σ) = Δsdt A vars (lift_ty n <$> σ);
-    (* Δsdt is compatible with the variance of a class *)
-    Δsdt_variance: ∀ Δ kd A adef vars σ0 σ1,
+    Δsdt_wf: ∀ A k c, Δsdt A !! k = Some c -> wf_constraint c;
+    Δsdt_m_wf: ∀ A m k c, Δsdt_m A m !! k = Some c -> wf_constraint c;
+    (* Δsdt is bounded by the generics of its class *)
+    Δsdt_bounded: ∀ A adef k c,
       pdefs !! A = Some adef →
-      subtype_targs Δ kd vars σ0 σ1 →
-      Δentails kd (Δ ++ (subst_constraints σ0 adef.(constraints)) ++
-                  (subst_constraints σ1 adef.(constraints)) ++ Δsdt A vars σ1) (Δsdt A vars σ0);
+      Δsdt A !! k = Some c →
+      bounded_constraint (length adef.(generics)) c;
+    Δsdt_m_bounded: ∀ A m adef k c,
+      pdefs !! A = Some adef →
+      Δsdt_m A m !! k = Some c →
+      bounded_constraint (length adef.(generics)) c;
   }.
 End Subtype.
 
 Section SubtypeFacts.
-  (* assume a given set of class definitions *)
-  Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints and their properties *)
-  Context `{SDTCP: SDTClassSpec}.
+  (* assume a given set of class definitions and
+   * their SDT annotations.
+   *)
+  Context `{SDTCS: SDTClassSpec}.
+
+  Corollary length_subtype_targs_v0 Δ kd: ∀ vs ty0s ty1s,
+    subtype_targs Δ kd vs ty0s ty1s → length vs = length ty0s.
+  Proof.
+    induction 1 as [ | ???????? h hi | ??????? h hi | ??????? h hi] => //=; by rewrite hi.
+  Qed.
 
   Corollary length_subtype_targs_v1 Δ kd: ∀ vs ty0s ty1s,
     subtype_targs Δ kd vs ty0s ty1s → length vs = length ty1s.
@@ -571,10 +567,16 @@ Section SubtypeFacts.
           apply wf_ty_subst => //.
           by eauto.
         * move => k s t hst.
-          rewrite -Δsdt_subst_ty in hst.
-          apply list_lookup_fmap_inv in hst as [[] [[= -> ->] h]].
+          apply list_lookup_fmap_inv in hst as [[u v] [[= -> ->] h]].
+          assert (hbst: bounded_constraint (length σA) (u, v)).
+          { inv hwfA; simplify_eq.
+            rewrite H2; by eapply Δsdt_bounded in h.
+          }
+          destruct hbst as [].
+          rewrite -!subst_ty_subst //.
           eapply subtype_subst; [done | done | | done].
-          by apply hf0 with k.
+          apply hf0 with k.
+          by rewrite /subst_constraints list_lookup_fmap h.
         * move => k s t hst.
           assert (hbst: bounded_constraint (length σA) (s, t)).
           { inv hwfA; simplify_eq.

@@ -17,7 +17,7 @@ Section proofs.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
   (* assume some SDT constraints and their properties *)
-  Context `{SDTCP: SDTClassSpec}.
+  Context `{SDTCS: SDTClassSpec}.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.

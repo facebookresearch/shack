@@ -17,10 +17,8 @@ From shack.soundness Require Import rtc_tag rtc_prim.
 From shack.soundness Require Import dyn_getc dyn_setc dyn_call.
 
 Section proofs.
-  (* assume a given set of class definitions *)
-  Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints and their properties *)
-  Context `{SDTCP: SDTClassSpec}.
+  (* assume a given set of class definitions and their SDT annotations. *)
+  Context `{SDTCVS: SDTClassVarianceSpec}.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
@@ -164,7 +162,7 @@ Definition main_heap tag : heap := {[1%positive := (tag, ∅)]}.
 Lemma sem_heap_init
   `{PDC: ProgDefContext}
   `{SDTCC: SDTClassConstraints}
-  `{SDTCP: SDTClassSpec}
+  `{SDTCS: SDTClassSpec}
   `{!sem_heapGpreS Θ}:
   ∀ MainTag methods, pdefs !! MainTag = Some (main_cdef MainTag methods) →
   ⊢@{iPropI Θ} |==> ∃ _: sem_heapGS Θ, (heap_models (main_heap MainTag) ∗ interp_local_tys [] (main_lty MainTag) main_le).

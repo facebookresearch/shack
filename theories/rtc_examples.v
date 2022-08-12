@@ -76,27 +76,28 @@ Local Instance PDC : ProgDefContext := { pdefs := {[ "C" := C; "V" := V; "Test" 
 
 (* Invalid constraint, so we can prove anything trivially *)
 Local Instance SDTCC : SDTClassConstraints := {
-  Δsdt := λ _ _ _, [(IntT, BoolT) ];
-  Δsdt_m := λ _ _ _ _, [(IntT, BoolT) ];
+  Δsdt := λ _, [(IntT, BoolT) ];
+  Δsdt_m := λ _ _, [(IntT, BoolT) ];
 }.
 
-
-Local Instance SDTCP : SDTClassSpec.
+Local Instance SDTCS : SDTClassSpec.
 Proof.
   split.
-  - move => ????; apply Forall_singleton; by constructor.
-  - move => ?????; apply Forall_singleton; by constructor.
-  - by move => ????.
-  - by move => ?????.
-  - move => ?????; apply Forall_singleton; by constructor.
-  - move => ??????; apply Forall_singleton; by constructor.
-  - by move => ????.
-  - move => ?????????.
-    move => ??.
-    rewrite list_lookup_singleton_Some.
-    case => ? <- /=.
-    apply SubConstraint.
-    by set_solver.
+  - move => ???; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+  - move => ????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+  - move => ?????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+  - move => ??????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+Qed.
+
+Local Instance SDTCVS : SDTClassVarianceSpec.
+Proof.
+  split.
+  move => ????????.
+  move => ??.
+  rewrite list_lookup_singleton_Some.
+  case => ? <- /=.
+  apply SubConstraint.
+  by set_solver.
 Qed.
 
 Lemma Cfields : has_fields "C" {[ "x" := ((Public, GenT 0), "C") ]}.

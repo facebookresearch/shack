@@ -14,10 +14,8 @@ From shack Require Import lang progdef subtype typing eval heap modality interp.
 From shack.soundness Require Import expr defs.
 
 Section proofs.
-  (* assume a given set of class definitions *)
-  Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints and their properties *)
-  Context `{SDTCP: SDTClassSpec}.
+  (* assume a given set of class definitions and their SDT annotations. *)
+  Context `{SDTCVS: SDTClassVarianceSpec}.
 
   (* Helping the inference with this notation that hides pdefs *)
   Local Notation "Δ ⊢ s <: t" := (@subtype _ _ Δ Plain s t) (at level 70, s at next level, no associativity).
@@ -133,7 +131,7 @@ Section proofs.
     assert (hwfσ0: Forall wf_ty σ0) by by apply wf_ty_class_inv in hwf0.
     iModIntro; iNext.
     (* Show that Σt |= Δt ∧ Δsdt^t *)
-    iAssert (□ Σinterp Σt (Δsdt_ t0 def0))%I as "#hΣt_Δt_sdt_t".
+    iAssert (□ Σinterp Σt (Δsdt t0))%I as "#hΣt_Δt_sdt_t".
     { by iApply (Σt_models_sdt with "hf0 hmixed1 hΣ1 HΣdyn hmixed hconstr"). }
     (* Build premises of "IH" *)
     iAssert (Σinterp (interp_list Σt σ0) (constraints odef))%I as "hΣtΔo".
@@ -184,25 +182,23 @@ Section proofs.
         rewrite /to_dyn lookup_fmap_Some => [[ty [<- hk]]].
         by constructor.
     }
-    assert (hwfoΔsdt: Forall wf_constraint (odef.(constraints) ++ Δsdt_m_ orig name odef)).
+    assert (hwfoΔsdt: Forall wf_constraint (odef.(constraints) ++ Δsdt_m orig name)).
     { apply Forall_app; split; first by apply wf_constraints_wf in hodef.
-      apply Δsdt_m_wf.
-      apply Forall_lookup => k ty hty.
-      by eapply gen_targs_wf.
+      apply Forall_lookup => k ty.
+      by apply Δsdt_m_wf.
     }
     assert (hwfΔ0: Forall wf_constraint def0.(constraints)).
     { by apply wf_constraints_wf in hdef0. }
-    assert (hwf0Δsdt: Forall wf_constraint (constraints def0 ++ Δsdt_ t0 def0)).
+    assert (hwf0Δsdt: Forall wf_constraint (constraints def0 ++ Δsdt t0)).
     { apply Forall_app; split => //.
-      apply Δsdt_wf.
-      apply Forall_lookup => k ty hty.
-      by eapply gen_targs_wf.
+      apply Forall_lookup => k ty.
+      by apply Δsdt_wf.
     }
     assert (hΔ_bounded: Forall (bounded_constraint (length odef.(generics)))
-              (odef.(constraints) ++ Δsdt_m_ orig name odef)).
+              (odef.(constraints) ++ Δsdt_m orig name)).
     { apply Forall_app; split; first by apply wf_constraints_bounded in hodef.
-      apply Δsdt_m_bounded.
-      by eapply bounded_gen_targs.
+      rewrite Forall_lookup => ??.
+      by apply Δsdt_m_bounded.
     }
     iAssert (interp_env_as_mixed (interp_list Σt σ0)) as "hmixed0".
     { iIntros (k phi hk w) "hphi".
@@ -212,7 +208,7 @@ Section proofs.
       rewrite Forall_lookup in hwfσ0.
       by apply hwfσ0 in hty0.
     }
-    iAssert (□ Σinterp (interp_list Σt σ0) (constraints odef ++ Δsdt_m_ orig name odef))%I as "hΣt_".
+    iAssert (□ Σinterp (interp_list Σt σ0) (constraints odef ++ Δsdt_m orig name))%I as "hΣt_".
     { iModIntro.
       iApply Σinterp_app; first done.
       (* Get relation between Δsdt *)
@@ -220,30 +216,24 @@ Section proofs.
       apply wf_methods_dyn in h0.
       assert (h1 := hhasm0).
       apply h0 in h1.
-      destruct h1 as (? & σo & ? & hσo & hΔsdt_m); simplify_eq.
+      destruct h1 as (σo & hσo & hΔsdt_m).
       clear h0.
       replace σo with σ0 in *; last first.
       { by eapply inherits_using_fun. }
       clear σo hσo.
       iIntros (i c hc w) "#hc".
-      assert (hsub: Δsdt_m orig name odef.(generics) σ0 !! i = Some (subst_constraint σ0 c)).
-      { rewrite -(subst_ty_gen_targs (length odef.(generics)) σ0) //.
-        by rewrite -Δsdt_m_subst_ty list_lookup_fmap hc subst_ty_gen_targs.
-      }
+      assert (hsub: subst_constraints σ0 (Δsdt_m orig name) !! i = Some (subst_constraint σ0 c)).
+      { by rewrite /subst_constraints list_lookup_fmap hc. }
       apply hΔsdt_m in hsub.
       rewrite /subst_constraint /= in hsub.
       assert (hbc : bounded_constraint (length σ0) c).
       { rewrite hl0.
-        move : (bounded_gen_targs (length odef.(generics))) => hh.
-        apply Δsdt_m_bounded with (A := orig) (m := name) (vars := odef.(generics)) in hh.
-        rewrite Forall_lookup in hh.
-        by apply hh in hc.
+        by eapply Δsdt_m_bounded.
       }
       destruct hbc as [].
-      assert (hwf_sdt: Forall wf_constraint (Δsdt_m_ orig name odef)).
-      { apply Δsdt_m_wf.
-        apply Forall_lookup => k ty hty.
-        by eapply gen_targs_wf.
+      assert (hwf_sdt: Forall wf_constraint (Δsdt_m orig name)).
+      { apply Forall_lookup => k ty.
+        by apply Δsdt_m_wf.
       }
       assert (wf_ty (subst_ty σ0 c.1)).
       { apply wf_ty_subst => //.
@@ -251,7 +241,7 @@ Section proofs.
         by apply hwf_sdt in hc as [].
       }
       rewrite -!interp_type_subst //.
-      iAssert (□ Σinterp Σt (constraints def0 ++ Δsdt_ t0 def0))%I as "#hconstr_".
+      iAssert (□ Σinterp Σt (constraints def0 ++ Δsdt t0))%I as "#hconstr_".
       { iModIntro.
         by iApply Σinterp_app.
       }
@@ -326,7 +316,7 @@ Section proofs.
     iIntros "[Hmodels Hle2]"; iFrame.
     iApply interp_local_tys_update; first by done.
     rewrite /to_dyn in hret.
-    iDestruct (expr_soundness (odef.(constraints) ++ Δsdt_m_ orig name odef) _ (interp_list Σt σ0) _ _ rty) as "hh" => //.
+    iDestruct (expr_soundness (odef.(constraints) ++ Δsdt_m orig name) _ (interp_list Σt σ0) _ _ rty) as "hh" => //.
     rewrite !interp_dynamic_unfold.
     by iApply "hh".
   Qed.

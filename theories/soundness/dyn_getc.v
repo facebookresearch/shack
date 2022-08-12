@@ -14,10 +14,8 @@ From shack Require Import lang progdef subtype typing eval heap modality interp.
 From shack.soundness Require Import expr defs.
 
 Section proofs.
-  (* assume a given set of class definitions *)
-  Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints and their properties *)
-  Context `{SDTCP: SDTClassSpec}.
+  (* assume a given set of class definitions and their SDT annotations. *)
+  Context `{SDTCVS: SDTClassVarianceSpec}.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
@@ -72,7 +70,6 @@ Section proofs.
       destruct hinherits as (?&?&?&hh).
       inv hh; by simplify_eq.
     }
-    pose (Δdyn0 := Δsdt t0 def0.(generics) (gen_targs (length def0.(generics)))).
     iAssert (⌜t0 = t⌝ ∗ heap_models h ∗ ▷ interp_type DynamicT Σt v)%I with "[Hh]" as "[%Ht [Hh Hv]]".
     { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
       iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
@@ -86,7 +83,7 @@ Section proofs.
       (* the field must be public, since we can't access it from This *)
       destruct H9 as (vis & fty & orig & hf & hvc).
       destruct vis; last by destruct recv.
-      assert (hsub: def0.(constraints) ++ Δdyn0 ⊢ fty <D: DynamicT).
+      assert (hsub: def0.(constraints) ++ Δsdt t0 ⊢ fty <D: DynamicT).
       { destruct wfpdefs.
         apply wf_fields_dyn in hdef0.
         assert (h1 := hfields).
@@ -97,17 +94,15 @@ Section proofs.
       }
       destruct wfpdefs.
       assert (hwfc: Forall wf_constraint def0.(constraints)) by by apply wf_constraints_wf in hdef0.
-      assert (hwfd: Forall wf_constraint Δdyn0).
-      { apply Δsdt_wf.
-        by apply gen_targs_wf_2.
-      }
-      assert (hwf_ : Forall wf_constraint (def0.(constraints) ++ Δdyn0)).
+      assert (hwfd: Forall wf_constraint (Δsdt t0)).
+      { rewrite Forall_lookup; by apply Δsdt_wf. }
+      assert (hwf_ : Forall wf_constraint (def0.(constraints) ++ Δsdt t0)).
       { apply Forall_app; by split.  }
       iNext.
       (* Show that Σt |= Δt ∧ Δsdt^t *)
-      iAssert (□ Σinterp Σt (Δsdt_ t0 def0))%I as "#hΣt_Δt_sdt_t".
+      iAssert (□ Σinterp Σt (Δsdt t0))%I as "#hΣt_Δt_sdt_t".
       { by iApply (Σt_models_sdt with "hf0 hmixed1 hΣ1 HΣdyn hmixed hconstr"). }
-      iAssert (□ Σinterp Σt (constraints def0 ++ Δdyn0))%I as "hconstr_".
+      iAssert (□ Σinterp Σt (constraints def0 ++ Δsdt t0))%I as "hconstr_".
       { iModIntro.
         by iApply Σinterp_app.
       }

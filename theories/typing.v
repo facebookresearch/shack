@@ -10,10 +10,8 @@ From iris.proofmode Require Import tactics.
 From shack Require Import lang progdef subtype.
 
 Section Typing.
-  (* assume a given set of class definitions *)
-  Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints and their properties *)
-  Context `{SDTCP: SDTClassSpec}.
+  (* assume a given set of class definitions and their SDT annotations. *)
+  Context `{SDTCS: SDTClassSpec}.
 
   (* Helping the inference with this notation that hides pdefs *)
   Local Notation "Δ ⊢ s <: t" := (@subtype _ _ Δ Plain s t) (at level 70, s at next level, no associativity).
@@ -721,10 +719,10 @@ Section Typing.
   Definition to_dyn (ty: lang_ty) : lang_ty := DynamicT.
 
   (* `Δc ∧ Δsdt D[σ] => Δsdt C` *)
-  Definition wf_cdef_extends_dyn_targs t def tp pdef σp :=
-    let σ := gen_targs (length def.(generics)) in
-    Δentails Aware (def.(constraints) ++ Δsdt tp pdef.(generics) σp)
-             (Δsdt t def.(generics) σ)
+  Definition wf_cdef_extends_dyn_targs t def tp σp :=
+    Δentails Aware
+      (def.(constraints) ++ subst_constraints σp (Δsdt tp))
+      (Δsdt t)
     .
 
   Definition wf_cdef_extends_dyn t def :=
@@ -732,17 +730,16 @@ Section Typing.
     | None => True
     | Some (parent, σ) =>
         ∃ pdef, pdefs !! parent = Some pdef ∧
-        wf_cdef_extends_dyn_targs t def parent pdef σ
+        wf_cdef_extends_dyn_targs t def parent σ
     end.
 
   Lemma extends_using_extends_dyn A B σ:
     map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
     map_Forall wf_cdef_extends_dyn pdefs →
     extends_using A B σ →
-    ∃ adef bdef,
+    ∃ adef,
       pdefs !! A = Some adef ∧
-      pdefs !! B = Some bdef ∧
-      wf_cdef_extends_dyn_targs A adef B bdef σ.
+      wf_cdef_extends_dyn_targs A adef B σ.
   Proof.
     move => ? hwf hext.
     assert (hext0 := hext).
@@ -750,7 +747,7 @@ Section Typing.
     destruct hext0 as (adef & hadef & ? & hwfb).
     inv hwfb.
     destruct hext as [A' B' adef' σ hadef' hsuper]; simplify_eq.
-    exists adef'; exists def; repeat split => //.
+    exists adef'; repeat split => //.
     apply hwf in hadef'.
     rewrite /wf_cdef_extends_dyn hsuper in hadef'.
     destruct hadef' as (? & ? & ?); by simplify_eq.
@@ -762,21 +759,22 @@ Section Typing.
     map_Forall (λ _cname, wf_cdef_parent_ok) pdefs →
     map_Forall wf_cdef_extends_dyn pdefs →
     inherits_using A B σ →
-    ∃ adef bdef,
+    ∃ adef,
       pdefs !! A = Some adef ∧
-      pdefs !! B = Some bdef ∧
-      wf_cdef_extends_dyn_targs A adef B bdef σ.
+      wf_cdef_extends_dyn_targs A adef B σ.
   Proof.
     move => ?? hok hwf.
     induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
-    - exists adef, adef; repeat split => //.
+    - exists adef; repeat split => //.
       move => k [??] heq.
       eapply subtype_weaken.
       + apply SubConstraint.
         by apply elem_of_list_lookup_2 with k.
-      + by set_solver.
+      + rewrite subst_constraints_gen_targs; first by set_solver.
+        rewrite Forall_lookup => ? ty.
+        by apply Δsdt_bounded.
     - by apply extends_using_extends_dyn in hext.
-    - destruct hi as (bdef & cdef & hbdef & hcdef & h1).
+    - destruct hi as (bdef & hbdef & h1).
       assert (hσ : Forall wf_ty σ ∧ length bdef.(generics) = length σ).
       { apply extends_using_wf in hext => //.
         destruct hext as (? & ? & ? & hh); simplify_eq.
@@ -785,9 +783,9 @@ Section Typing.
       }
       destruct hσ as [hσ hl].
       assert (hext0 := hext).
-      apply extends_using_extends_dyn in hext0 as (adef & bdef' & hadef & hbdef' & h0) => //.
+      apply extends_using_extends_dyn in hext0 as (adef & hadef & h0) => //.
       simplify_eq.
-      exists adef, cdef; repeat split => //.
+      exists adef; repeat split => //.
       move => k c heq.
       rewrite /wf_cdef_extends_dyn_targs in h0, h1.
       apply h0 in heq.
@@ -805,14 +803,10 @@ Section Typing.
         - by set_solver.
       }
       rewrite hc0 in heq.
-      replace (Δsdt B bdef.(generics) σ) with
-              (subst_constraints σ (Δsdt B bdef.(generics) (gen_targs (length bdef.(generics)))))
-              in heq;last first.
-      { by rewrite Δsdt_subst_ty subst_ty_gen_targs. }
       apply list_lookup_fmap_inv in heq as [c1 [-> hc1]].
       simpl.
       apply subtype_constraint_trans with
-        ((subst_constraints σ bdef.(constraints)) ++ Δsdt C cdef.(generics) (subst_ty σ <$> σC));
+        ((subst_constraints σ bdef.(constraints)) ++ subst_constraints (subst_ty σ <$> σC) (Δsdt C));
         last first.
       { move => i c hc.
         rewrite lookup_app in hc.
@@ -831,12 +825,15 @@ Section Typing.
             destruct c; by apply hc.
           + by set_solver.
       }
-      replace (subst_constraints σ bdef.(constraints) ++ Δsdt C cdef.(generics) (subst_ty σ <$> σC)) with
-              (subst_constraints σ (bdef.(constraints) ++ Δsdt C cdef.(generics) σC)); last first.
-      { rewrite /subst_constraints fmap_app.
-        f_equal.
-        by rewrite -Δsdt_subst_ty.
+      rewrite -subst_constraints_subst; last first.
+      { apply inherits_using_wf in h => //.
+        destruct h as (? & ? & ? & h).
+        inv h; simplify_eq.
+        rewrite H4.
+        rewrite Forall_lookup => ??.
+        by apply Δsdt_bounded.
       }
+      rewrite -subst_constraints_app.
       apply subtype_subst => //.
       by apply h1 in hc1.
   Qed.
@@ -849,9 +846,7 @@ Section Typing.
     end.
 
   Definition wf_cdef_fields_dyn_wf cname cdef :=
-    let n := length cdef.(generics) in
-    let σ := gen_targs n in
-    let Δ := cdef.(constraints) ++ Δsdt cname cdef.(generics) σ in
+    let Δ := cdef.(constraints) ++ Δsdt cname in
     ∀ fields, has_fields cname fields →
     map_Forall (λ _fname vfty, wf_field_dyn_wf Δ vfty) fields
     .
@@ -867,22 +862,19 @@ Section Typing.
 
   (* `has_method f C O mdef → ΔC ∧ Δsdt C => Δsdt O mdef.  *)
   Definition wf_cdef_methods_dyn_wf cname cdef :=
-    let n := length cdef.(generics) in
-    let σ := gen_targs n in
-    let Δ := cdef.(constraints) ++ Δsdt cname cdef.(generics) σ in
+    let Δ := cdef.(constraints) ++ Δsdt cname in
     ∀ mname orig mdef,
     has_method mname cname orig mdef →
-    ∃ odef σ,
-      pdefs !! orig = Some odef ∧
+    ∃ σ,
       inherits_using cname orig σ ∧
-      Δentails Aware Δ (Δsdt_m orig mname odef.(generics) σ)
+      Δentails Aware Δ (subst_constraints σ (Δsdt_m orig mname))
   .
 
   Definition cdef_wf_mdef_dyn_ty cname cdef :=
     let n := length cdef.(generics) in
     let σ := gen_targs n in
-    let Δ := λ mname, cdef.(constraints) ++ Δsdt_m cname mname cdef.(generics) σ in
-    map_Forall (λ mname mdef, wf_mdef_dyn_ty cname (Δ mname)n σ mdef) cdef.(classmethods)
+    let Δ := λ mname, cdef.(constraints) ++ Δsdt_m cname mname in
+    map_Forall (λ mname mdef, wf_mdef_dyn_ty cname (Δ mname) n σ mdef) cdef.(classmethods)
   .
 
   (* Collection of all program invariant (at the source level):

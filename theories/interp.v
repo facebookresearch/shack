@@ -126,11 +126,22 @@ End interp_cofe.
 
 Arguments interpO : clear implicits.
 
+Section VarianceSpec.
+  Class SDTClassVarianceSpec `{SDTCS: SDTClassSpec} := {
+    (* Δsdt is compatible with the variance of a class *)
+    Δsdt_variance: ∀ Δ kd A adef σ0 σ1,
+      pdefs !! A = Some adef →
+      subtype_targs Δ kd adef.(generics) σ0 σ1 →
+      Δentails kd (Δ ++
+                   (subst_constraints σ0 adef.(constraints)) ++
+                   (subst_constraints σ1 adef.(constraints)) ++
+                   (subst_constraints σ1 (Δsdt A))) (subst_constraints σ0 (Δsdt A));
+  }.
+End VarianceSpec.
+
 Section proofs.
-  (* assume a given set of class definitions *)
-  Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints and their properties *)
-  Context `{SDTCP: SDTClassSpec}.
+  (* assume a given set of class definitions and their SDT annotations. *)
+  Context `{SDTCVS: SDTClassVarianceSpec}.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
@@ -253,17 +264,11 @@ Section proofs.
   Definition interp_generic (Σ : list (interp Θ)) (tv: nat) : interp Θ :=
     default interp_nothing (Σ !! tv).
 
-  Definition Δsdt_ t (def: classDef) :=
-    Δsdt t def.(generics) (gen_targs (length def.(generics))).
-
-  Definition Δsdt_m_ t m (def: classDef) :=
-    Δsdt_m t m def.(generics) (gen_targs (length def.(generics))).
-
   Definition interp_sdt (rec: ty_interpO) : interp Θ :=
     Interp (λ (v: value),
       (∃ A Σa adef, ⌜pdefs !! A = Some adef⌝ ∗
       (* Σa |= Δsdt A *)
-      □ ▷ (∀ i c, ⌜Δsdt_ A adef !! i = Some c⌝ →
+      □ ▷ (∀ i c, ⌜Δsdt A !! i = Some c⌝ →
         ∀ w, rec c.1 Σa w -∗ rec c.2 Σa w) ∗
       (* Σa included in [| mixed |] *)
       □ ▷ (∀ i (ϕi: interp Θ),  ⌜Σa !! i = Some ϕi⌝ →
@@ -711,7 +716,7 @@ Section proofs.
   Definition interp_sdt_alt : interp Θ :=
     Interp (λ (v: value),
       (∃ A Σa adef, ⌜pdefs !! A = Some adef⌝ ∗
-      □ ▷ (Σinterp Σa (Δsdt_ A adef)) ∗
+      □ ▷ (Σinterp Σa (Δsdt A)) ∗
       □ ▷ (interp_env_as_mixed Σa) ∗
       □ ▷ (Σinterp Σa adef.(constraints)) ∗
       interp_tag_alt Σa A v))%I.
@@ -1648,25 +1653,15 @@ Section proofs.
             }
             by rewrite (interp_tag_equivI _ _ heq).
         + iModIntro; iNext; iIntros (i c hc w) "#h1".
-          assert (hc': Δsdt A adef.(generics) σA !! i = Some (subst_constraint σA c)).
-          { rewrite -{1}(subst_ty_gen_targs (length adef.(generics)) σA) //.
-            by rewrite -Δsdt_subst_ty list_lookup_fmap hc.
-          }
+          assert (hc': subst_constraints σA (Δsdt A) !! i = Some (subst_constraint σA c)).
+          { by rewrite /subst_constraints list_lookup_fmap hc. }
           apply hf0 in hc'.
           assert (hwfc: wf_constraint c).
-          { assert (hh: Forall wf_ty (gen_targs (length adef.(generics))))
-             by apply gen_targs_wf_2.
-            apply Δsdt_wf with (A := A) (vars := adef.(generics)) in hh.
-            rewrite Forall_lookup in hh.
-            by apply hh in hc.
-          }
+          { by apply Δsdt_wf in hc. }
           destruct hwfc as [].
           assert (hbc : bounded_constraint (length σA) c).
           { rewrite hl.
-            move : (bounded_gen_targs (length adef.(generics))) => h.
-            apply Δsdt_bounded with (A := A) (vars := adef.(generics)) in h.
-            rewrite Forall_lookup in h.
-            by apply h in hc.
+            by eapply Δsdt_bounded in hc.
           }
           destruct hbc as [].
           rewrite -!interp_type_subst //.
@@ -2047,8 +2042,8 @@ Section proofs.
     □ iForall3 interp_variance adef.(generics) Σ0 Σ1 -∗
     □ Σinterp Σ0 adef.(constraints) -∗
     □ Σinterp Σ1 adef.(constraints) -∗
-    □ Σinterp Σ1 (Δsdt_ A adef) -∗
-    □ Σinterp Σ0 (Δsdt_ A adef).
+    □ Σinterp Σ1 (Δsdt A) -∗
+    □ Σinterp Σ0 (Δsdt A).
   Proof.
     move => Σ0 Σ1 A adef hwfp hwfm hwfbc hwfc hadef.
     (* assume T0s and T1s such that for all i
@@ -2068,11 +2063,9 @@ Section proofs.
     assert (hl1 : length σ1 = length adef.(generics)).
     { by rewrite /σ1 fmap_length. }
     pose (Δ := Δ01 ++ subst_constraints σ0 adef.(constraints) ++
-              subst_constraints σ1 adef.(constraints) ++ subst_constraints σ1 (Δsdt_ A adef)).
-    assert (hsub: Δentails Aware Δ (subst_constraints σ0 (Δsdt_ A adef))).
-    { rewrite /Δ /Δsdt_ !Δsdt_subst_ty !subst_ty_gen_targs //.
-      by apply Δsdt_variance.
-    }
+              subst_constraints σ1 adef.(constraints) ++ subst_constraints σ1 (Δsdt A)).
+    assert (hsub: Δentails Aware Δ (subst_constraints σ0 (Δsdt A))).
+    { by eapply Δsdt_variance. }
     iIntros "#hmixed0 #hmixed1 #hForall #hΣ0 #hΣ1 #h1".
     iDestruct (iForall3_length with "hForall") as "[%hlΣ0 %hlΣ1]".
     iAssert (Σinterp (Σ0 ++ Σ1) Δ) with "[h1]" as "hΣΔ".
@@ -2137,24 +2130,19 @@ Section proofs.
       { rewrite lift_subst_gen_targs_constraints; last by apply hwfbc in hadef.
         by rewrite hlΣ0 Σinterp_lift.
       }
-      rewrite /Δsdt_ Δsdt_subst_ty subst_ty_gen_targs //.
-      replace (Δsdt A adef.(generics) σ1) with
-              (lift_constraints (length adef.(generics))
-                 (Δsdt A (generics adef) (gen_targs (length (generics adef)))));
-              last first.
-      { rewrite /σ1 Δsdt_lift.
-        f_equal; by f_equal.
+      replace (subst_constraints σ1 (Δsdt A)) with
+              (lift_constraints (length adef.(generics)) (Δsdt A)); last first.
+      { rewrite lift_subst_gen_targs_constraints //.
+        rewrite Forall_lookup => ??.
+        by apply Δsdt_bounded.
       }
      by rewrite hlΣ0 Σinterp_lift.
     }
     iModIntro; iIntros (i c hc v) "#h".
-    assert (hc0: subst_constraints σ0 (Δsdt_ A adef) !! i = Some (subst_constraint σ0 c)).
+    assert (hc0: subst_constraints σ0 (Δsdt A) !! i = Some (subst_constraint σ0 c)).
     { by rewrite /subst_constraints list_lookup_fmap hc. }
-    assert (hwfΔ : Forall wf_constraint (Δsdt_ A adef)).
-    { assert (hh: Forall wf_ty (gen_targs (length adef.(generics))))
-        by apply gen_targs_wf_2.
-      by apply Δsdt_wf with (A := A) (vars := adef.(generics)) in hh.
-    }
+    assert (hwfΔ : Forall wf_constraint (Δsdt A)).
+    { rewrite Forall_lookup => ??; by apply Δsdt_wf. }
     iAssert (□ interp_env_as_mixed (Σ0 ++ Σ1))%I as "#hmixed".
     { iModIntro; iIntros (j phi hj w) "hphi".
       rewrite lookup_app in hj.
@@ -2203,11 +2191,7 @@ Section proofs.
       by iApply (subtype_is_inclusion _ wfΣc hwfm hwfp hwfc hwfbc Aware (Σ0 ++ Σ1) _ _ hc0).
     }
     assert (hbc: bounded_constraint (length (adef.(generics))) c).
-    { move : (bounded_gen_targs (length adef.(generics))) => h.
-      apply Δsdt_bounded with (A := A) (vars := adef.(generics)) in h.
-      rewrite Forall_lookup in h.
-      by apply h in hc.
-    }
+    { by eapply Δsdt_bounded in hc. }
     destruct hbc as [].
     rewrite !subst_ty_id //.
     rewrite (interp_type_app c.2 Σ0 Σ1); last by rewrite -hlΣ0.

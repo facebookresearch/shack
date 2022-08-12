@@ -144,6 +144,35 @@ Section ProgDef.
     - by rewrite hc.
   Qed.
 
+  Lemma subst_constraint_subst σ0 σ1 c:
+    bounded_constraint (length σ1) c →
+    subst_constraint σ0 (subst_constraint σ1 c) =
+    subst_constraint (subst_ty σ0 <$> σ1) c.
+  Proof.
+    case : c => s t [??].
+    rewrite /subst_constraint /=.
+    by rewrite !subst_ty_subst.
+  Qed.
+
+  Lemma subst_constraints_subst σ0 σ1 Σ:
+    Forall (bounded_constraint (length σ1)) Σ →
+    subst_constraints σ0 (subst_constraints σ1 Σ) =
+    subst_constraints (subst_ty σ0 <$> σ1) Σ.
+  Proof.
+    rewrite /subst_constraints => h.
+    apply list_eq => k.
+    rewrite !list_lookup_fmap.
+    destruct (Σ !! k) as [c | ] eqn:hc; last done.
+    rewrite /= subst_constraint_subst //.
+    rewrite Forall_lookup in h.
+    by apply h in hc.
+  Qed.
+
+  Lemma subst_constraints_app σ Σ0 Σ1:
+    subst_constraints σ (Σ0 ++ Σ1) =
+    subst_constraints σ Σ0 ++ subst_constraints σ Σ1.
+  Proof.  by rewrite /subst_constraints fmap_app. Qed.
+
   (* A class definition 'parent' information is valid if the parent type is:
    * - well-formed (tag exists, class is fully applied)
    * - bounded by the current class (must only mention generics of the current class)

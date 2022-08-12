@@ -130,26 +130,28 @@ Local Instance PDC : ProgDefContext := { pdefs := {[ "ROBox" := ROBox; "Box" := 
 
 (* Invalid constraint, so we can prove anything trivially *)
 Local Instance SDTCC : SDTClassConstraints := {
-  Δsdt := λ _ _ _, [(IntT, BoolT) ];
-  Δsdt_m := λ _ _ _ _, [(IntT, BoolT) ];
+  Δsdt := λ _, [(IntT, BoolT) ];
+  Δsdt_m := λ _ _, [(IntT, BoolT) ];
 }.
 
-Local Instance SDTCP : SDTClassSpec.
+Local Instance SDTCS : SDTClassSpec.
 Proof.
   split.
-  - move => ????; apply Forall_singleton; by constructor.
-  - move => ?????; apply Forall_singleton; by constructor.
-  - by move => ????.
-  - by move => ????.
-  - move => ?????; apply Forall_singleton; by constructor.
-  - move => ??????; apply Forall_singleton; by constructor.
-  - by move => ????.
-  - move => ?????????.
-    move => ??.
-    rewrite list_lookup_singleton_Some.
-    case => ? <- /=.
-    apply SubConstraint.
-    by set_solver.
+  - move => ???; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+  - move => ????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+  - move => ?????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+  - move => ??????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+Qed.
+
+Local Instance SDTCVS : SDTClassVarianceSpec.
+Proof.
+  split.
+  move => ????????.
+  move => ??.
+  rewrite list_lookup_singleton_Some.
+  case => ? <- /=.
+  apply SubConstraint.
+  by set_solver.
 Qed.
 
 Lemma wfσ : Forall wf_ty σ.
@@ -1414,7 +1416,7 @@ Proof.
   case => [[<- <-]|[?]].
   { move => m o mdef hm.
     apply has_method_ROBox in hm as (-> & -> & ->).
-    exists ROBox, (gen_targs (length ROBox.(generics))); split => //.
+    exists (gen_targs (length ROBox.(generics))).
     split; first by constructor.
     move => i c /=.
     rewrite list_lookup_singleton_Some.
@@ -1425,13 +1427,13 @@ Proof.
   case => [[<- <-]|[?]].
   { move => m o mdef hm.
     apply has_method_Box in hm as [(-> & -> & ->) | (-> & -> & ->)].
-    + exists Box, (gen_targs (length Box.(generics))); split => //.
+    + exists (gen_targs (length Box.(generics))).
       split; first by constructor.
       move => i c /=.
       rewrite list_lookup_singleton_Some.
       case => ? <-.
       constructor; by set_solver.
-    + exists Box, (gen_targs (length Box.(generics))); split => //.
+    + exists (gen_targs (length Box.(generics))).
       split; first by constructor.
       move => i c /=.
       rewrite list_lookup_singleton_Some.
@@ -1442,19 +1444,19 @@ Proof.
   case => [[<- <-]|[?]].
   { move => m o mdef hm.
     apply has_method_IntBoxS in hm as [(-> & -> & ->) | [(-> & -> & ->) | (-> & -> & ->)]].
-    + exists Box, σ; split => //.
+    + exists σ.
       split; first by eauto.
       move => i c /=.
       rewrite list_lookup_singleton_Some.
       case => ? <-.
       constructor; by set_solver.
-    + exists Box, σ; split => //.
+    + exists σ.
       split; first by eauto.
       move => i c /=.
       rewrite list_lookup_singleton_Some.
       case => ? <-.
       constructor; by set_solver.
-    + exists IntBoxS, (gen_targs (length IntBoxS.(generics))); split => //.
+    + exists (gen_targs (length IntBoxS.(generics))).
       split; first by constructor.
       move => i c /=.
       rewrite list_lookup_singleton_Some.
@@ -1465,7 +1467,7 @@ Proof.
   case => [[<- <-]|[?]]; last by rewrite lookup_empty.
   { move => m o mdef hm.
     apply has_method_Main in hm as (-> & -> & ->).
-    exists Main, (gen_targs (length Main.(generics))); split => //.
+    exists (gen_targs (length Main.(generics))).
     split; first by constructor.
     move => i c /=.
     rewrite list_lookup_singleton_Some.

@@ -78,31 +78,32 @@ Local Instance PDC : ProgDefContext := {
 }.
 
 (* This is where we encode the <<SDT>> attribute *)
-Definition BoxSDT (σ: list lang_ty) :=
-  (subst_ty σ (GenT 0), DynamicT) :: (DynamicT, subst_ty σ (GenT 0)) :: [].
+Definition BoxSDT := [(GenT 0, DynamicT); (DynamicT, GenT 0)].
 
-Definition ROBoxSDT (σ: list lang_ty) :=
-  (subst_ty σ (GenT 0), DynamicT) :: [].
+Definition ROBoxSDT := [(GenT 0, DynamicT)].
 
-Definition BoxGetSDT (σ: list lang_ty) :=
-  (subst_ty σ (GenT 0), DynamicT) :: [].
+Definition BoxGetSDT := [(GenT 0, DynamicT)].
 
-Definition BoxSetSDT (σ: list lang_ty) :=
-  (DynamicT, subst_ty σ (GenT 0)) :: [].
+Definition BoxSetSDT := [(DynamicT, GenT 0)].
 
-Definition ROBoxSetSDT (_: list lang_ty) : list constraint := [].
+Definition ROBoxSetSDT : list constraint := [].
 
-Definition SDT (t: tag) (_ : list variance) (σ : list lang_ty) : list constraint :=
-  if String.eqb t "Box" then BoxSDT σ else
-  if String.eqb t "ROBox" then ROBoxSDT σ else
-  (IntT, BoolT) :: []
+(* TODO: move this in typing or subtype and add
+ * wf/bounded lemmas.
+ *)
+Definition CFalse : constraint := (IntT, BoolT).
+
+Definition SDT (t: tag)  : list constraint :=
+  if String.eqb t "Box" then BoxSDT else
+  if String.eqb t "ROBox" then ROBoxSDT else
+  [CFalse]
 .
 
-Definition SDT_M (t: tag) (m: string) (_ : list variance) (σ : list lang_ty) : list constraint :=
-  if String.eqb t "Box" && String.eqb m "get" then BoxGetSDT σ else
-  if String.eqb t "Box" && String.eqb m "set" then BoxSetSDT σ else
-  if String.eqb t "ROBox" && String.eqb m "set" then ROBoxSetSDT σ else
-  (IntT, BoolT) :: []
+Definition SDT_M (t: tag) (m: string) : list constraint :=
+  if String.eqb t "Box" && String.eqb m "get" then BoxGetSDT else
+  if String.eqb t "Box" && String.eqb m "set" then BoxSetSDT else
+  if String.eqb t "ROBox" && String.eqb m "set" then ROBoxSetSDT else
+  [CFalse]
 .
 
 Local Instance SDTCC : SDTClassConstraints := {
@@ -110,43 +111,143 @@ Local Instance SDTCC : SDTClassConstraints := {
   Δsdt_m := SDT_M;
 }.
 
-Local Instance SDTCP : SDTClassSpec.
+Local Instance SDTCS : SDTClassSpec.
 Proof.
   split.
-  - move => A ? σ /Forall_lookup hwf.
-    apply Forall_lookup => k c.
-    rewrite /Δsdt /= /SDT.
+  - rewrite /Δsdt /= /SDT => A k c.
     destruct (A =? "Box")%string.
     { rewrite /BoxSDT.
       case : k => [ | [ | k]] /=.
-      - case => <-.
-        destruct (σ !! 0) as [ ty | ] eqn:h; last by split; constructor.
-        by apply hwf in h; split.
-      - case => <-.
-        destruct (σ !! 0) as [ ty | ] eqn:h; last by split; constructor.
-        by apply hwf in h; split.
+      - case => <-; by repeat constructor.
+      - case => <-; by repeat constructor.
       - by rewrite lookup_nil.
     }
     destruct (A =? "ROBox")%string.
     { rewrite /ROBoxSDT.
       rewrite list_lookup_singleton.
       case : k => [ | k] //=.
-      case => <-.
-      destruct (σ !! 0) as [ ty | ] eqn:h; last by split; constructor.
-      by apply hwf in h; split.
+      case => <-; by repeat constructor.
     }
     rewrite list_lookup_singleton.
     case : k => [ | k] //=.
-    case => <-.
-    by split.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-  - admit.
-Admitted.
+    case => <-; by repeat constructor.
+  - rewrite /Δsdt_m /= /SDT_M => A m k c.
+    destruct (A =? "Box")%string eqn:h0 => /=.
+    { destruct (m =? "get")%string => /=.
+      { case : k => [ | k] /=.
+        - case => <-; by repeat constructor.
+        - by rewrite lookup_nil.
+      }
+      destruct (m =? "set")%string => /=.
+      { case : k => [ | k] /=.
+        - case => <-; by repeat constructor.
+        - by rewrite lookup_nil.
+      }
+      destruct (A =? "ROBox")%string => //=.
+      - rewrite list_lookup_singleton.
+        case : k => [ | k] //=.
+        case => <-; by repeat constructor.
+      - rewrite list_lookup_singleton.
+        case : k => [ | k] //=.
+        case => <-; by repeat constructor.
+    }
+    destruct (A =? "ROBox")%string eqn:h1 => /=.
+    { destruct (m =? "set")%string => /=.
+      { by case : k => [ | k]. }
+      rewrite list_lookup_singleton.
+      case : k => [ | k] //=.
+      case => <-; by repeat constructor.
+    }
+    rewrite list_lookup_singleton_Some => [[? <-]].
+    by repeat constructor.
+  - rewrite /Δsdt /= /SDT => A adef k c.
+    rewrite lookup_insert_Some => [[[<- <-] | ]] /=.
+    { rewrite /ROBoxSDT.
+      rewrite list_lookup_singleton.
+      case : k => [ | k] //=.
+      case => <-; by repeat constructor.
+    }
+    case => ?; rewrite lookup_singleton_Some => [[<- <-]] /=.
+    rewrite /BoxSDT.
+    case : k => [ | [ | k]] /=.
+    + case => <-; by repeat constructor.
+    + case => <-; by repeat constructor.
+    + by rewrite lookup_nil.
+  - rewrite /Δsdt_m /= /SDT_M => A m adef k c.
+    rewrite lookup_insert_Some => [[[<- <-] | ]] /=.
+    { destruct (m =? "set")%string.
+      + by rewrite /ROBoxSetSDT lookup_nil.
+      + case : k => [ | k] //=.
+        case => <-; by repeat constructor.
+    }
+    case => ?; rewrite lookup_singleton_Some => [[<- <-]] /=.
+    rewrite /BoxGetSDT.
+    destruct (m =? "get")%string eqn:h0.
+    { rewrite list_lookup_singleton_Some => [[<- <-]].
+      by repeat constructor.
+    }
+    destruct (m =? "set")%string.
+    { rewrite /BoxSetSDT.
+      rewrite list_lookup_singleton_Some => [[<- <-]].
+      by repeat constructor.
+    }
+    rewrite list_lookup_singleton_Some => [[<- <-]].
+    by repeat constructor.
+Qed.
+
+Local Instance SDTCVS : SDTClassVarianceSpec.
+Proof.
+  split.
+  move => Δ kd A adef σ0 σ1 hadef hσ.
+  move => i c0 h.
+  assert (hl0: length adef.(generics) = length σ0) by by eapply length_subtype_targs_v0.
+  assert (hl1: length σ0 = length σ1).
+  { rewrite -hl0; by eapply length_subtype_targs_v1. }
+  apply list_lookup_fmap_inv in h as [c [-> hc]].
+  rewrite /Δsdt /= /SDT /= in hc.
+  rewrite lookup_insert_Some in hadef.
+  destruct hadef as [[<- <-] | hadef]; simpl in *.
+  { inv hσ; simpl in *.
+    case: hl0 => hl0.
+    symmetry in hl0.
+    apply nil_length_inv in hl0; subst.
+    case: hl1 => /= hl1.
+    symmetry in hl1.
+    apply nil_length_inv in hl1; subst.
+    rewrite list_lookup_singleton_Some in hc.
+    case: hc => ? <- /=.
+    rewrite /subst_constraint /=.
+    apply SubTrans with ty1.
+    - apply subtype_weaken with Δ => //.
+      by set_solver.
+    - apply SubConstraint; by set_solver.
+  }
+  destruct hadef as (? & h).
+  rewrite lookup_singleton_Some in h.
+  destruct h as [<- <-]; simpl in *.
+  inv hσ; simpl in *.
+  case: hl0 => hl0.
+  symmetry in hl0.
+  apply nil_length_inv in hl0; subst.
+  case: hl1 => /= hl1.
+  symmetry in hl1.
+  apply nil_length_inv in hl1; subst.
+  rewrite /BoxSDT in hc.
+  destruct i as [ | i]; simpl in *.
+  - case : hc => <- /=.
+    rewrite /subst_constraint /=.
+    apply SubTrans with ty1.
+    + apply subtype_weaken with Δ => //.
+      by set_solver.
+    + apply SubConstraint; by set_solver.
+  - rewrite list_lookup_singleton_Some in hc.
+    case: hc => ? <- /=.
+    rewrite /subst_constraint /=.
+    apply SubTrans with ty1.
+    + apply SubConstraint; by set_solver.
+    + apply subtype_weaken with Δ => //.
+      by set_solver.
+Qed.
 
 Lemma has_fields_Box : has_fields "Box" {[ "$x" := (Private, GenT 0, "Box") ]}.
 Proof.
@@ -250,13 +351,13 @@ Proof.
   case => [[<- <-]|[?]].
   { move => m o mdef hm.
     apply has_method_ROBox in hm as [(-> & -> & ->) | (-> & -> & ->)].
-    - exists Box, [GenT 0]; split => //.
+    - exists [GenT 0].
       split; first by eauto.
       move => i c /=.
       rewrite list_lookup_singleton_Some.
       case => ? <- /=.
       constructor; by set_solver.
-    - exists ROBox, (gen_targs (length ROBox.(generics))); split => //.
+    - exists (gen_targs (length ROBox.(generics))).
       split; first by constructor.
       move => i c /=.
       rewrite /SDT_M /ROBoxSetSDT /=.
@@ -266,13 +367,13 @@ Proof.
   case => [<- <-].
   move => m o mdef hm.
   apply has_method_Box in hm as [(-> & -> & ->) | (-> & -> & ->)].
-  + exists Box, (gen_targs (length Box.(generics))); split => //.
+  + exists (gen_targs (length Box.(generics))).
     split; first by constructor.
     move => i c /=.
     rewrite list_lookup_singleton_Some.
     case => ? <-.
     constructor; by set_solver.
-  + exists Box, (gen_targs (length Box.(generics))); split => //.
+  + exists (gen_targs (length Box.(generics))).
     split; first by constructor.
     move => i c /=.
     rewrite list_lookup_singleton_Some.

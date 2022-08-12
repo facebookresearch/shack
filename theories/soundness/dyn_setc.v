@@ -14,10 +14,8 @@ From shack Require Import lang progdef subtype typing eval heap modality interp.
 From shack.soundness Require Import expr defs.
 
 Section proofs.
-  (* assume a given set of class definitions *)
-  Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints and their properties *)
-  Context `{SDTCP: SDTClassSpec}.
+  (* assume a given set of class definitions and their SDT annotations. *)
+  Context `{SDTCVS: SDTClassVarianceSpec}.
 
   (* Helping the inference with this notation that hides pdefs *)
   Local Notation "Δ ⊢ s <: t" := (@subtype _ _ Δ Plain s t) (at level 70, s at next level, no associativity).
@@ -125,8 +123,7 @@ Section proofs.
       destruct hinherits as (?&?&?&hh).
       inv hh; by simplify_eq.
     }
-    pose (Δdyn0 := Δsdt t def0.(generics) (gen_targs (length def0.(generics)))).
-    assert (hsub: def0.(constraints) ++ Δdyn0 ⊢ DynamicT <D: fty).
+    assert (hsub: def0.(constraints) ++ Δsdt t ⊢ DynamicT <D: fty).
     { destruct wfpdefs.
       apply wf_fields_dyn in hdef0.
       assert (h1 := hfields).
@@ -137,16 +134,14 @@ Section proofs.
     }
     destruct wfpdefs.
     assert (hwfc: Forall wf_constraint def0.(constraints)) by by apply wf_constraints_wf in hdef0.
-    assert (hwfd: Forall wf_constraint Δdyn0).
-    { apply Δsdt_wf.
-      by apply gen_targs_wf_2.
-    }
-    assert (hwf_ : Forall wf_constraint (def0.(constraints) ++ Δdyn0)).
+    assert (hwfd: Forall wf_constraint (Δsdt t)).
+    { rewrite Forall_lookup; by apply Δsdt_wf. }
+    assert (hwf_ : Forall wf_constraint (def0.(constraints) ++ Δsdt t)).
     { apply Forall_app; by split.  }
     (* Show that Σt |= Δt ∧ Δsdt^t *)
-    iAssert (□ Σinterp Σt (Δsdt_ t def0))%I as "#hΣt_Δt_sdt_t".
+    iAssert (□ Σinterp Σt (Δsdt t))%I as "#hΣt_Δt_sdt_t".
     { by iApply (Σt_models_sdt with "hf0 hmixed1 hΣ1 HΣdyn hmixed hconstr"). }
-    iAssert (□ Σinterp Σt (constraints def0 ++ Δdyn0))%I as "hconstr_".
+    iAssert (□ Σinterp Σt (constraints def0 ++ Δsdt t))%I as "hconstr_".
     { iModIntro.
       by iApply Σinterp_app.
     }
