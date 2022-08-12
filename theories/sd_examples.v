@@ -538,6 +538,23 @@ Proof.
     destruct H; discriminate.
 Qed.
 
+Lemma helper_in_ROBox : ∀ T σt, inherits_using "ROBox" T σt →
+  (T = "ROBox" ∧ σt = [GenT 0]) ∨
+  (T = "Box" ∧ σt = [GenT 0]).
+Proof.
+  move => T σt h; inv h.
+  + rewrite /pdefs /=.
+    rewrite lookup_insert in H.
+    left.
+    by simplify_eq.
+  + apply helper_ext in H.
+    destruct H; right; by simplify_eq.
+  + apply helper_ext in H.
+    destruct H as [_ [-> ->]]; right.
+    apply helper_in_Box in H0 as [-> ->].
+    done.
+Qed.
+
 Lemma helper_in: ∀ A B σ0, inherits_using A B σ0 →
      (A = "Box" ∧ B = "Box" ∧ σ0 = [GenT 0]) ∨
      (A = "ROBox" ∧ B = "Box" ∧ σ0 = [GenT 0]) ∨
@@ -626,4 +643,371 @@ Proof.
     by repeat constructor.
   - case => ?.
     by rewrite lookup_empty.
+Qed.
+
+Lemma wf_extends_wf : wf_no_cycle pdefs.
+Proof.
+  move => A B σ0 σ1 h0 h1.
+  apply helper_in in h0.
+  destruct h0 as [[-> [-> ->]] | h0].
+  { apply helper_in_Box in h1; by firstorder. }
+  destruct h0 as [[-> [-> ->]] | h0].
+  { apply helper_in_Box in h1; by firstorder. }
+  destruct h0 as [-> [-> ->]].
+  apply helper_in_ROBox in h1 as [h1 | ]; by firstorder.
+Qed.
+
+Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs.
+Proof.
+  apply map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-] | [?]].
+  { split.
+    + eapply wf_ty_class => //.
+      by repeat constructor.
+    + by repeat constructor.
+  }
+  rewrite lookup_insert_Some.
+  by case => [[? <-] | [?]].
+Qed.
+
+Lemma wf_fields : map_Forall (λ _cname, wf_cdef_fields) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_fields /ROBox. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  by rewrite /wf_cdef_fields /Box.
+Qed.
+
+Lemma wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by apply map_Forall_empty. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  apply map_Forall_singleton.
+  by repeat constructor.
+Qed.
+
+Lemma wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by apply map_Forall_empty. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  apply map_Forall_singleton.
+  by repeat constructor.
+Qed.
+
+Lemma wf_fields_mono : map_Forall (λ _cname, wf_field_mono) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by apply map_Forall_empty. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  apply map_Forall_singleton.
+  by repeat constructor.
+Qed.
+
+Lemma wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /cdef_methods_bounded /ROBox /=.
+    apply map_Forall_singleton.
+    split.
+    { apply map_Forall_singleton.
+      by repeat constructor.
+    }
+    split; by repeat constructor.
+  }
+  rewrite lookup_singleton_Some => [[? <-]].
+  apply map_Forall_lookup => m mdef.
+  rewrite /Box /= lookup_insert_Some => [[[? <-] | ]].
+  - split.
+    { apply map_Forall_singleton.
+      by repeat constructor.
+    }
+    split; by repeat constructor.
+  - case => ?.
+    rewrite lookup_singleton_Some => [[? <-]].
+    split; first by apply map_Forall_empty.
+    by repeat constructor.
+Qed.
+
+Lemma wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /cdef_methods_bounded /ROBox /=.
+    apply map_Forall_singleton.
+    split.
+    { apply map_Forall_singleton.
+      by repeat constructor.
+    }
+    by repeat constructor.
+  }
+  rewrite lookup_singleton_Some => [[? <-]].
+  apply map_Forall_lookup => m mdef.
+  rewrite /Box /= lookup_insert_Some => [[[? <-] | ]].
+  - split.
+    { apply map_Forall_singleton.
+      by repeat constructor.
+    }
+    by repeat constructor.
+  - case => ?.
+    rewrite lookup_singleton_Some => [[? <-]].
+    split; first by apply map_Forall_empty.
+    by repeat constructor.
+Qed.
+
+Lemma wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /cdef_methods_bounded /ROBox /=.
+    apply map_Forall_singleton.
+    split.
+    { apply map_Forall_singleton.
+      by repeat constructor.
+    }
+    by repeat constructor.
+  }
+  rewrite lookup_singleton_Some => [[? <-]].
+  apply map_Forall_lookup => m mdef.
+  rewrite /Box /= lookup_insert_Some => [[[? <-] | ]].
+  - split.
+    { apply map_Forall_singleton.
+      by repeat constructor.
+    }
+    by repeat constructor.
+  - case => ?.
+    rewrite lookup_singleton_Some => [[? <-]].
+    split; first by apply map_Forall_empty.
+    by repeat constructor.
+Qed.
+
+Lemma wf_mdefs : map_Forall cdef_wf_mdef_ty pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[<- <-]|[?]].
+  { move => k m hm.
+    rewrite lookup_singleton_Some in hm.
+    case : hm => ? <-.
+    rewrite /ROBox /= /ROBoxSet /wf_mdef_dyn_ty /=.
+    pose (Γ := {|
+        type_of_this := ("ROBox", gen_targs 1);
+        ctxt := {["$y" := MixedT]};
+      |}
+      ).
+    assert (wf_lty Γ).
+    { split => //.
+      - rewrite /this_type /=.
+        apply wf_ty_class with ROBox => //.
+        by apply gen_targs_wf_2.
+      - rewrite /Γ /=.
+        by apply map_Forall_singleton.
+    }
+    exists Γ; split; first done.
+    split.
+    - constructor; first done.
+      constructor; first by repeat constructor.
+      by apply map_Forall_singleton.
+    - by constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[<- <-]|[?]] //.
+  { move => k m hm.
+    rewrite lookup_insert_Some in hm.
+    case : hm => [[? <-] | ].
+    - rewrite /wf_mdef_dyn_ty.
+      pose (Γ := {|
+        type_of_this := ("Box", gen_targs 1);
+        ctxt := {[ "$y" := GenT 0 ]};
+      |}
+      ).
+      assert (wf_lty Γ).
+      { split => //.
+        - rewrite /this_type /=.
+          apply wf_ty_class with Box => //.
+          by apply gen_targs_wf_2.
+        - rewrite /Γ /=.
+          by apply map_Forall_singleton.
+      }
+      exists Γ; split; first done.
+      rewrite /BoxSet /= /BoxSetSDT /=.
+      split.
+      + eapply SetPrivTy => //.
+        * change Private with (Private, GenT 0).1.
+          by econstructor.
+        * by constructor.
+      + by constructor.
+    - case => ?.
+      rewrite lookup_singleton_Some => [[? <-]].
+      rewrite /wf_mdef_dyn_ty.
+      pose (Γ := {|
+        type_of_this := ("Box", gen_targs 1);
+        ctxt := {[ "$ret" := GenT 0 ]};
+      |}
+      ).
+      assert (wf_lty Γ).
+      { split => //.
+        - rewrite /this_type /=.
+          apply wf_ty_class with Box => //.
+          by apply gen_targs_wf_2.
+        - rewrite /Γ /=.
+          by apply map_Forall_singleton.
+      }
+      pose (Γ0 := {| type_of_this := ("Box", gen_targs 1); ctxt := ∅ |}).
+      exists Γ; split; first done.
+      rewrite /Get /= /BoxGetSDT /=.
+      split.
+      + replace Γ with (<[ "$ret" := subst_ty (gen_targs 1) (GenT 0)]> Γ0) ; last first.
+        { rewrite /Γ0 /Γ /= /local_tys_insert /=.
+          by f_equal.
+        }
+        eapply GetPrivTy => //.
+        change Private with (Private, GenT 0).1.
+        by econstructor.
+      + by constructor.
+  }
+Qed.
+
+Lemma wf_mono : map_Forall (λ _cname, wf_cdef_mono) pdefs.
+Proof.
+  rewrite map_Forall_lookup => x cx.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_mono /ROBox /=.
+    econstructor => //.
+    + move => i wi ti //=.
+      rewrite list_lookup_singleton_Some.
+      case => [-> <-].
+      simpl.
+      case => <- _.
+      by constructor.
+    + move => i wi ti //=.
+      rewrite list_lookup_singleton_Some.
+      case => [-> <-].
+      simpl.
+      case => <- _.
+      (* Impossible to prove, this is wrong ;D *) admit.
+  }
+  rewrite lookup_singleton_Some.
+  by case => [? <-].
+Admitted (* currently wrong *).
+
+Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_wf /ROBox /= Forall_nil. }
+  rewrite lookup_singleton_Some => [[? <-]].
+  { by rewrite /wf_cdef_constraints_wf /Box /= Forall_nil. }
+Qed.
+
+Lemma wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_bounded /ROBox /= Forall_nil. }
+  rewrite lookup_singleton_Some => [[? <-]].
+  { by rewrite /wf_cdef_constraints_bounded /Box /= Forall_nil. }
+Qed.
+
+Lemma wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_parent_ok /=.
+    econstructor => // i ty.
+    rewrite list_lookup_singleton_Some => [[? <-]].
+    by constructor.
+  }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  by rewrite /wf_cdef_parent_ok.
+Qed.
+
+Lemma wf_constraints_ok : map_Forall (λ _cname, wf_cdef_constraints_ok) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  {  rewrite /wf_cdef_constraints_ok /ROBox /=.
+    by constructor.
+  }
+  rewrite lookup_singleton_Some => [[? <-]].
+  { rewrite /wf_cdef_constraints_ok /Box /=.
+    by constructor.
+  }
+Qed.
+
+Lemma wf_methods_ok : map_Forall (λ _cname, cdef_methods_ok) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /cdef_methods_ok /ROBox /=.
+    apply map_Forall_singleton.
+    rewrite /mdef_ok /=.
+    split; last by constructor.
+    apply map_Forall_singleton.
+    by constructor.
+  }
+  rewrite lookup_singleton_Some => [[? <-]].
+  rewrite /cdef_methods_ok /Box /=.
+  rewrite map_Forall_lookup => x mx.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  * rewrite /mdef_ok /BoxSet /=.
+    split; last by constructor.
+    apply map_Forall_singleton.
+    by constructor.
+  * rewrite lookup_singleton_Some => [[? <-]].
+    rewrite /mdef_ok /Get /=.
+    split; first by apply map_Forall_empty.
+    by constructor.
+Qed.
+
+Lemma wf: wf_cdefs pdefs.
+Proof.
+  split.
+  by apply wf_extends_wf.
+  by apply wf_parent.
+  by apply wf_parent_ok.
+  by apply wf_constraints_wf.
+  by apply wf_constraints_ok.
+  by apply wf_constraints_bounded.
+  by apply wf_override.
+  by apply wf_fields.
+  by apply wf_fields_bounded.
+  by apply wf_fields_wf.
+  by apply wf_fields_mono.
+  by apply wf_methods_bounded.
+  by apply wf_methods_wf.
+  by apply wf_methods_mono.
+  by apply wf_methods_ok.
+  by apply wf_mdefs.
+  by apply wf_mono.
+  by apply wf_extends_dyn.
+  by apply wf_methods_dyn.
+  by apply wf_fields_dyn.
+  by apply wf_mdefs_dyn.
 Qed.
