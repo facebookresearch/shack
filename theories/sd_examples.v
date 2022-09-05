@@ -51,7 +51,7 @@ Definition Box := {|
 
 (*
  * << SDT when T <: Dynamic >>
- * class ROBox<+T> extends Box<T> {
+ * class ROBox<T> extends Box<T> {
  *   << SDT when True >>
  *   function set(mixed $y) : void { error }
  * }
@@ -67,7 +67,7 @@ Definition ROBoxSet := {|
 Definition ROBox := {|
   classname := "ROBox";
   superclass := Some ("Box", [GenT 0]);
-  generics := [Covariant];
+  generics := [Invariant];
   constraints := [];
   classfields := ∅;
   classmethods := {["set" := ROBoxSet ]};
@@ -904,11 +904,11 @@ Proof.
       case => [-> <-].
       simpl.
       case => <- _.
-      (* Impossible to prove, this is wrong ;D *) admit.
+      by constructor.
   }
   rewrite lookup_singleton_Some.
   by case => [? <-].
-Admitted (* currently wrong *).
+Qed.
 
 Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs.
 Proof.
