@@ -6,22 +6,6 @@
  *)
 From stdpp Require Import base strings gmap stringmap fin_maps natmap list.
 
-Section MissingHelpers.
-  Context {A B: Type} (f: A → B).
-
-  Lemma list_fmap_equiv_ext_elem_of `{!Equiv B} (g : A → B) l :
-        (∀ x, x ∈ l → f x ≡ g x) → f <$> l ≡ g <$> l.
-  Proof.
-    induction l as [ | hd tl hi]; intro h; simpl in *.
-    { by constructor. }
-    f_equiv.
-    { apply h; by constructor. }
-    apply hi; intros x hin.
-    apply h; by constructor.
-  Qed.
-End MissingHelpers.
-
-
 From iris.base_logic Require Import upred derived.
 From iris.base_logic.lib Require Import iprop own.
 From iris.algebra Require Import ofe cmra gmap_view.
@@ -784,7 +768,7 @@ Section proofs.
     rewrite -heq interp_type_unfold /=.
     assert (h: go interp_type Σ <$> σA ≡ interp_list Σ σA).
     { rewrite /interp_list.
-      apply list_fmap_equiv_ext => ty w.
+      apply list_fmap_equiv_ext => ? ty ? w.
       by rewrite interp_type_unfold.
     }
     by apply interp_tag_equivI with (A := A) (v := v) in h.
@@ -809,7 +793,8 @@ Section proofs.
       f_equiv.
       { do 12 f_equiv.
         rewrite -list_fmap_compose.
-        apply list_fmap_equiv_ext_elem_of => ty hin w.
+        apply list_fmap_equiv_ext => ? ty hin w.
+        apply elem_of_list_lookup_2 in hin.
         rewrite Forall_forall in hi.
         apply hi with (v := w) in hin; first by rewrite hin.
         inv hbounded.
@@ -818,8 +803,9 @@ Section proofs.
       }
       do 17 f_equiv.
       rewrite -list_fmap_compose.
-      apply list_fmap_equiv_ext_elem_of => ty hin w.
+      apply list_fmap_equiv_ext => ? ty hin w.
       rewrite Forall_forall in hi.
+      apply elem_of_list_lookup_2 in hin.
       apply hi with (v := w) in hin; first by rewrite hin.
       inv hbounded.
       rewrite Forall_forall in H0.
@@ -1366,7 +1352,8 @@ Section proofs.
     iModIntro; iNext.
     assert (heq: interp_list Σt (subst_ty σ <$> σB) ≡ interp_list (interp_list Σt σ) σB).
     { rewrite /interp_list -!list_fmap_compose.
-      apply list_fmap_equiv_ext_elem_of => ty0 hin0 /= w.
+      apply list_fmap_equiv_ext => ? ty0 hin0 /= w.
+      apply elem_of_list_lookup_2 in hin0.
       rewrite interp_type_subst //.
       rewrite Forall_forall in hF.
       inv hwfA; simplify_eq.
@@ -1409,7 +1396,8 @@ Section proofs.
       assert (hΣ : interp_list Σ (subst_ty σA <$> σB) ≡
                    interp_list (interp_list Σ σA) σB).
       { rewrite /interp_list -list_fmap_compose.
-        apply list_fmap_equiv_ext_elem_of => ty0 hin0 /= w.
+        apply list_fmap_equiv_ext  => ? ty0 hin0 /= w.
+        apply elem_of_list_lookup_2 in hin0.
         rewrite -interp_type_subst //.
         apply extends_using_wf in hext => //.
         destruct hext as (adef & ? & hF & _); simplify_eq.
@@ -1489,7 +1477,7 @@ Section proofs.
       iExists (interp_list Σ σC).
       assert (heq: (go interp_type Σ <$> σC) ≡ interp_list Σ σC).
       { rewrite /interp_list.
-        apply list_fmap_equiv_ext => ty w.
+        apply list_fmap_equiv_ext => ? ty ? w.
         by rewrite interp_type_unfold.
       }
       by rewrite (interp_tag_equivI _ _ heq C v).
@@ -1648,7 +1636,7 @@ Section proofs.
             by iApply subtype_is_inclusion_aux.
           * assert (heq: interp_list Σ σA ≡ go interp_type Σ <$> σA).
             { rewrite /interp_list.
-              apply list_fmap_equiv_ext_elem_of => ty hty w.
+              apply list_fmap_equiv_ext => ? ty hty w.
               by rewrite interp_type_unfold.
             }
             by rewrite (interp_tag_equivI _ _ heq).
@@ -1800,7 +1788,8 @@ Section proofs.
     }
     do 4 f_equiv.
     rewrite /interp_list.
-    apply list_fmap_equiv_ext_elem_of => ty hty.
+    apply list_fmap_equiv_ext => ? ty hty.
+    apply elem_of_list_lookup_2 in hty.
     apply interp_type_app.
     inv hb.
     rewrite Forall_forall in H0.

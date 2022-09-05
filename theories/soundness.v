@@ -72,7 +72,7 @@ Section proofs.
     - (* Seq *)
       inv hc. iIntros "H".
       iSpecialize ("IHty" $! wflty blty hΔ hΔb Σ _ _ _ refl_equal with "[//] hΣ hΣΔ H").
-      rewrite Nat_iter_add.
+      rewrite Nat.iter_add.
       iApply (updN_mono_I with "[] IHty").
       destruct wfpdefs.
       iApply "IHty1" => //.

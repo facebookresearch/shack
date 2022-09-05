@@ -14,7 +14,8 @@ installed via the Ocaml package manager [opam](https://opam.ocaml.org/).
 
 Shack requires or works with:
 * Coq 8.15.1
-* Iris dev.2022-05-13.1.ebb89887
+* Iris dev.2022-09-02.0.0378f456
+* Stdpp dev.2022-08-16.0.0ccf17a1
 
 ## Building shack
 The whole project using Coq's Makefile setup to build. Everything can be built
