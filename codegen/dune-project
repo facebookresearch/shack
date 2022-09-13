@@ -1,0 +1,19 @@
+(lang dune 3.4)
+(using menhir 2.0)
+
+(name codegen)
+
+(generate_opam_files false)
+
+(authors "Vincent Siles")
+
+(maintainers "Vincent Siles")
+
+(license MIT)
+
+(package
+ (name codegen)
+ (synopsis "simple text2Coq generator")
+ (description "smple text2Coq generator")
+ (depends ocaml dune menhir)
+)

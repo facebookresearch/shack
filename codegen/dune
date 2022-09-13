@@ -1,0 +1,12 @@
+(menhir
+ (flags --explain)
+ (modules parser)
+)
+
+(ocamllex lexer)
+
+(executable
+ (name codegen)
+ (preprocess (pps ppx_deriving.std))
+ (libraries core_kernel)
+)

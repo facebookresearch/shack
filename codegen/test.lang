@@ -1,0 +1,5 @@
+class Main extends C<> where int as bool {
+  public #T f;
+
+  function get() : null {} return 42
+}
