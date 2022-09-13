@@ -409,11 +409,7 @@ Inductive cmd : Set :=
   | NewC (lhs: var) (class_name: tag) (type_args: list lang_ty) (args: stringmap expr)
   | GetC (lhs: var) (recv: expr) (name: string)
   | SetC (recv: expr) (fld: string) (rhs: expr)
-      (* tag test "if ($v is C<_>) { ... }".
-       * For now, we'll only support the runtime check on
-       * classes without generics. We'll support classes with
-       * generics in a second phase.
-       *)
+      (* tag test "if ($v is C<_>) { ... }".  *)
   | RuntimeCheckC (v : var) (rc: runtime_check) (thn els: cmd)
   | ErrorC
 .
