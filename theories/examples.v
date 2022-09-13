@@ -99,9 +99,9 @@ Definition IntBoxS := {|
  * }
  *)
 Definition ProgramBody :=
-   SeqC (NewC "$robox" "ROBox" [IntT] {["$data" := IntE 32]})
+   SeqC (NewC "$robox" "ROBox" {["$data" := IntE 32]})
   (SeqC (CallC "$init" (VarE "$robox") "get" ∅)
-  (SeqC (NewC "$box" "IntBoxS" [] {["$data" := VarE "$init"]})
+  (SeqC (NewC "$box" "IntBoxS" {["$data" := VarE "$init"]})
   (SeqC (CallC "$tmp" (VarE "$box") "get" ∅)
   (SeqC (LetC "$tmp" (BinOpE PlusO (VarE "$tmp") (IntE 20)))
   (SeqC (CallC "$_" (VarE "$box") "set"
@@ -939,12 +939,11 @@ Proof.
   split.
   { constructor.
     - constructor.
-      + by repeat constructor.
       + rewrite map_Forall_singleton.
         by repeat constructor.
     - constructor; first by repeat constructor.
       constructor.
-      { constructor; first by repeat constructor.
+      { constructor.
         rewrite map_Forall_singleton.
         by repeat constructor.
       }

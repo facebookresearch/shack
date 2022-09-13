@@ -406,7 +406,7 @@ Inductive cmd : Set :=
   | LetC (lhs: var) (e: expr)
   | IfC (cond: expr) (thn: cmd) (els: cmd)
   | CallC (lhs: var) (recv: expr) (name: string) (args: stringmap expr)
-  | NewC (lhs: var) (class_name: tag) (type_args: list lang_ty) (args: stringmap expr)
+  | NewC (lhs: var) (class_name: tag) (args: stringmap expr)
   | GetC (lhs: var) (recv: expr) (name: string)
   | SetC (recv: expr) (fld: string) (rhs: expr)
       (* tag test "if ($v is C<_>) { ... }".  *)
@@ -422,8 +422,8 @@ Fixpoint subst_cmd (σ:list lang_ty) (cmd: cmd) :=
   | IfC cond thn els => IfC (subst_expr σ cond) (subst_cmd σ thn) (subst_cmd σ els)
   | CallC lhs recv name args =>
       CallC lhs (subst_expr σ recv) name (subst_expr σ <$> args)
-  | NewC lhs C σ0 args =>
-      NewC lhs C (subst_ty σ <$> σ0) (subst_expr σ <$> args)
+  | NewC lhs C args =>
+      NewC lhs C (subst_expr σ <$> args)
   | GetC lhs recv name => GetC lhs (subst_expr σ recv) name
   | SetC recv fld rhs => SetC (subst_expr σ recv) fld (subst_expr σ rhs)
   | RuntimeCheckC v rc thn els =>
@@ -434,13 +434,13 @@ Fixpoint subst_cmd (σ:list lang_ty) (cmd: cmd) :=
 Lemma subst_cmd_nil cmd : subst_cmd [] cmd = cmd.
 Proof.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
-    | lhs recv name args | lhs C σ0 args | lhs recv name
+    | lhs recv name args | lhs C args | lhs recv name
     | recv fld rhs | v rc thn hi0 els hi1 | ] => //=.
   - by rewrite hi0 hi1.
   - by rewrite subst_expr_nil.
   - by rewrite subst_expr_nil hi0 hi1.
   - by rewrite subst_expr_nil fmap_subst_expr_nil.
-  - by rewrite map_subst_ty_nil fmap_subst_expr_nil.
+  - by rewrite fmap_subst_expr_nil.
   - by rewrite subst_expr_nil.
   - by rewrite !subst_expr_nil.
   - by rewrite hi0 hi1.
@@ -457,10 +457,9 @@ Inductive cmd_bounded (n: nat) : cmd → Prop :=
       expr_bounded n recv →
       map_Forall (λ _, expr_bounded n) args →
       cmd_bounded n (CallC lhs recv name args)
-  | NewBounded lhs C σ args:
-      Forall (bounded n) σ →
+  | NewBounded lhs C args:
       map_Forall (λ _, expr_bounded n) args →
-      cmd_bounded n (NewC lhs C σ args)
+      cmd_bounded n (NewC lhs C args)
   | GetBounded lhs recv name: expr_bounded n recv →
       cmd_bounded n (GetC lhs recv name)
   | SetBounded recv fld rhs : expr_bounded n recv →
@@ -479,7 +478,7 @@ Lemma subst_cmd_cmd k l cmd :
 Proof.
   move => hb.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
-    | lhs recv name args | lhs C σ0 args | lhs recv name
+    | lhs recv name args | lhs C args | lhs recv name
     | recv fld rhs | v rc thn hi0 els hi1 | ] => //=.
   - inv hb.
     by rewrite hi0 // hi1.
@@ -490,7 +489,7 @@ Proof.
   - inv hb.
     by rewrite fmap_subst_expr_subst // subst_expr_subst.
   - inv hb.
-    by rewrite fmap_subst_expr_subst // map_subst_ty_subst.
+    by rewrite fmap_subst_expr_subst.
   - inv hb.
     by rewrite subst_expr_subst.
   - inv hb.
@@ -506,7 +505,7 @@ Lemma cmd_bounded_subst n cmd:
   cmd_bounded m (subst_cmd targs cmd).
 Proof.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
-    | lhs recv name args | lhs C σ0 args | lhs recv name
+    | lhs recv name args | lhs C args | lhs recv name
     | recv fld rhs | v rc thn hi0 els hi1 | ]
     => //= h m σ hlen hF; try by constructor.
   - inv h.
@@ -526,16 +525,10 @@ Proof.
     by apply H4 in he.
   - inv h.
     constructor.
-    { rewrite Forall_lookup => ? hi hk.
-      apply list_lookup_fmap_inv in hk as [ty [-> hty]].
-      apply bounded_subst with (length σ) => //.
-      rewrite Forall_lookup in H1.
-      by eauto.
-    }
     rewrite map_Forall_lookup => i ?.
     rewrite lookup_fmap_Some => [[e [<- he]]].
     apply expr_bounded_subst with (length σ) => //.
-    by apply H4 in he.
+    by eauto.
   - inv h.
     constructor; by apply expr_bounded_subst with (length σ).
   - inv h.
@@ -807,7 +800,7 @@ Lemma subst_cmd_gen_targs n cmd :
   subst_cmd (gen_targs n) cmd = cmd.
 Proof.
   induction cmd as [ | fst hi0 snd hi1 | lhs e | ? thn hi0 els hi1
-    | lhs recv name args | lhs C σ0 args | lhs recv name
+    | lhs recv name args | lhs C args | lhs recv name
     | recv fld rhs | v rc thn hi0 els hi1 | ] => //=h.
   - inv h.
     by rewrite hi0 // hi1.
@@ -818,7 +811,7 @@ Proof.
   - inv h.
     by rewrite subst_expr_gen_targs // fmap_subst_exprs_id.
   - inv h.
-    by rewrite subst_tys_id // fmap_subst_exprs_id.
+    by rewrite fmap_subst_exprs_id.
   - inv h.
     by rewrite subst_expr_gen_targs.
   - inv h.

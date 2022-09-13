@@ -210,11 +210,10 @@ Section Evaluation.
     | LetEv: ∀ C Ω h v e val,
         expr_eval Ω e = Some val →
         cmd_eval C (Ω, h) (LetC v e) (<[v := val]> Ω, h) 0
-    | NewEv: ∀ C Ω h lhs new t targs args vargs,
-        (* targs are not stored in the heap: erased generics *)
+    | NewEv: ∀ C Ω h lhs new t args vargs,
         h !! new = None →
         map_args (expr_eval Ω) args = Some vargs →
-        cmd_eval C (Ω, h) (NewC lhs t targs args) (<[lhs := LocV new]>Ω, <[new := (t, vargs)]>h) 1
+        cmd_eval C (Ω, h) (NewC lhs t args) (<[lhs := LocV new]>Ω, <[new := (t, vargs)]>h) 1
     | GetEv: ∀ C Ω h lhs recv name l t vs v,
         expr_eval Ω recv = Some (LocV l) →
         h !! l = Some (t, vs) →
@@ -266,7 +265,7 @@ Section Evaluation.
     cmd_eval C st cmd st' n.
   Proof.
     induction cmd as [ | fst hi0 snd hi1 | lhs e | cond thn hi0 els hi1 |
-        lhs recv name args | lhs cname type_args args | lhs recv name |
+        lhs recv name args | lhs cname args | lhs recv name |
             recv fld rhs | v rc thn hi0 els hi1 | ] => C st st' n σ /= h.
     - inv h; by constructor.
     - inv h.

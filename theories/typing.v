@@ -441,7 +441,7 @@ Section Typing.
         fields !! f = Some fty →
         args !! f = Some arg →
         expr_has_ty Δ Γ rigid kd arg (subst_ty targs fty.1.2)) →
-        cmd_has_ty C Δ kd rigid Γ (NewC lhs t targs args) (<[lhs := ClassT t targs]>Γ)
+        cmd_has_ty C Δ kd rigid Γ (NewC lhs t args) (<[lhs := ClassT t targs]>Γ)
     | CallTy: ∀ Δ kd rigid Γ lhs recv t targs name orig mdef args,
         expr_has_ty Δ Γ rigid kd recv (ClassT t targs) →
         has_method name t orig mdef →
