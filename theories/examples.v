@@ -99,9 +99,9 @@ Definition IntBoxS := {|
  * }
  *)
 Definition ProgramBody :=
-   SeqC (NewC "$robox" "ROBox" {["$data" := IntE 32]})
+   SeqC (NewC "$robox" "ROBox" (Some [IntT]) {["$data" := IntE 32]})
   (SeqC (CallC "$init" (VarE "$robox") "get" ∅)
-  (SeqC (NewC "$box" "IntBoxS" {["$data" := VarE "$init"]})
+  (SeqC (NewC "$box" "IntBoxS" None {["$data" := VarE "$init"]})
   (SeqC (CallC "$tmp" (VarE "$box") "get" ∅)
   (SeqC (LetC "$tmp" (BinOpE PlusO (VarE "$tmp") (IntE 20)))
   (SeqC (CallC "$_" (VarE "$box") "set"
@@ -391,7 +391,7 @@ Proof.
   move => hb.
   rewrite /final_lty /ProgramBody.
   eapply SeqTy.
-  { eapply NewTy with (targs := [IntT]).
+  { eapply NewTySome.
     + econstructor => //.
       move => k ty; rewrite list_lookup_singleton_Some.
       case => _ <-; by constructor.
@@ -421,7 +421,7 @@ Proof.
     + move => ????; by rewrite lookup_empty.
   }
   eapply SeqTy.
-  { eapply NewTy with (targs := []).
+  { eapply NewTyNone with (targs := []).
     + by econstructor.
     + by econstructor.
     + by econstructor.
@@ -939,11 +939,12 @@ Proof.
   split.
   { constructor.
     - constructor.
+      + by repeat constructor.
       + rewrite map_Forall_singleton.
         by repeat constructor.
     - constructor; first by repeat constructor.
       constructor.
-      { constructor.
+      { constructor; first by repeat constructor.
         rewrite map_Forall_singleton.
         by repeat constructor.
       }

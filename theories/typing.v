@@ -431,7 +431,7 @@ Section Typing.
         has_field fld t Public fty orig →
         expr_has_ty Δ Γ rigid kd rhs (subst_ty σ fty) →
         cmd_has_ty C Δ kd rigid Γ (SetC recv fld rhs) Γ
-    | NewTy: ∀ Δ kd rigid Γ lhs t targs args fields,
+    | NewTyNone: ∀ Δ kd rigid Γ lhs t targs args fields,
         wf_ty (ClassT t targs) →
         bounded rigid (ClassT t targs) →
         ok_ty Δ (ClassT t targs) →
@@ -441,7 +441,18 @@ Section Typing.
         fields !! f = Some fty →
         args !! f = Some arg →
         expr_has_ty Δ Γ rigid kd arg (subst_ty targs fty.1.2)) →
-        cmd_has_ty C Δ kd rigid Γ (NewC lhs t args) (<[lhs := ClassT t targs]>Γ)
+        cmd_has_ty C Δ kd rigid Γ (NewC lhs t None args) (<[lhs := ClassT t targs]>Γ)
+    | NewTySome: ∀ Δ kd rigid Γ lhs t targs args fields,
+        wf_ty (ClassT t targs) →
+        bounded rigid (ClassT t targs) →
+        ok_ty Δ (ClassT t targs) →
+        has_fields t fields →
+        dom fields = dom args →
+        (∀ f fty arg,
+        fields !! f = Some fty →
+        args !! f = Some arg →
+        expr_has_ty Δ Γ rigid kd arg (subst_ty targs fty.1.2)) →
+        cmd_has_ty C Δ kd rigid Γ (NewC lhs t (Some targs) args) (<[lhs := ClassT t targs]>Γ)
     | CallTy: ∀ Δ kd rigid Γ lhs recv t targs name orig mdef args,
         expr_has_ty Δ Γ rigid kd recv (ClassT t targs) →
         has_method name t orig mdef →
@@ -543,7 +554,9 @@ Section Typing.
     move => hp hfields hmethods hΔ [hthis hwf].
     induction 1 as [ | ?????? | ???????? h1 hi1 h2 hi2 | ??????? he |
       ???????? he h1 hi1 h2 hi2 | ????????? he hf | ??????????? he hf |
-      ????????? he hf hr | ??????????? he hf hr | ????????? ht hb hok hf hdom hargs |
+      ????????? he hf hr | ??????????? he hf hr |
+      ????????? ht hb hok hf hdom hargs |
+      ????????? ht hb hok hf hdom hargs |
       ???????????? he hm hdom hargs |
       ??????? hsub hb h hi | ??????????? hin hdef hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
@@ -567,6 +580,8 @@ Section Typing.
       apply wf_ty_subst; last by apply has_field_wf in hf.
       apply expr_has_ty_wf in he => //.
       by apply wf_ty_class_inv in he.
+    - split; first by apply hthis.
+      by apply map_Forall_insert_2.
     - split; first by apply hthis.
       by apply map_Forall_insert_2.
     - split; first by apply hthis.
@@ -603,7 +618,9 @@ Section Typing.
     move => hp ?? hfields hmethods hΔ hwf [hthis hb].
     induction 1 as [ | ?????? | ???????? h1 hi1 h2 hi2 | ??????? he |
       ???????? he h1 hi1 h2 hi2 | ????????? he hf | ??????????? he hf |
-      ????????? he hf hr | ??????????? he hf hr | ????????? ht htb hok hf hdom hargs |
+      ????????? he hf hr | ??????????? he hf hr |
+      ????????? ht htb hok hf hdom hargs |
+      ????????? ht htb hok hf hdom hargs |
       ???????????? he hm hdom hargs |
       ??????? hsub hΓb h hi | ??????????? hin hdef hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
@@ -640,6 +657,7 @@ Section Typing.
       + apply expr_has_ty_bounded in he => //.
         inv he.
         by simplify_eq.
+    - by apply insert_bounded_lty.
     - by apply insert_bounded_lty.
     - split; first by apply hthis.
       apply map_Forall_insert_2 => //.

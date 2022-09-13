@@ -26,10 +26,14 @@ Section proofs.
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
 
-  Lemma new_soundness C Δ kd rigid Γ lhs t σ args fields:
+  Lemma new_soundness oσ iσ σ C Δ kd rigid Γ lhs t args fields:
     wf_cdefs pdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
+    σ = match oσ with
+      | Some σ => σ
+      | None => iσ
+      end →
     wf_ty (ClassT t σ) →
     ok_ty Δ (ClassT t σ) →
     has_fields t fields →
@@ -40,13 +44,13 @@ Section proofs.
        expr_has_ty Δ Γ rigid kd arg (subst_ty σ fty.1.2)) →
     ∀ Σ st st' n,
     length Σ = rigid →
-    cmd_eval C st (NewC lhs t args) st' n →
+    cmd_eval C st (NewC lhs t oσ args) st' n →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
     heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗
     |=▷^n heap_models st'.2 ∗ interp_local_tys Σ (<[lhs:=ClassT t σ]> Γ) st'.1.
   Proof.
-    move => wfpdefs wflty hΔ hwf hok hf hdom harg Σ st st' n hrigid hc.
+    move => wfpdefs wflty hΔ hσ hwf hok hf hdom harg Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ".
     inv hc.
     iIntros "[Hh #Hle]"; simpl.
@@ -56,6 +60,7 @@ Section proofs.
     { apply (not_elem_of_dom (D:=gset loc)).
       by rewrite Hdom not_elem_of_dom.
     }
+    set (σ := match oσ with | Some σ => σ | None => iσ end).
     set (iFs :=
       (λ(ty: lang_ty), (interp_car (interp_type ty Σ))) <$>
       ((λ x, subst_ty σ x.1.2) <$>
@@ -96,7 +101,7 @@ Section proofs.
         apply list_lookup_fmap_inv in hin as [c [-> hin]].
         rewrite /subst_constraint /=.
         inv hok; simplify_eq.
-        apply H8 in hin.
+        apply H6 in hin.
         apply subtype_weaken with (Δ' := (Δ ++ subst_constraints σ def.(constraints))) in hin => //;
         last by set_solver.
         apply subtype_constraint_elim in hin => //.
@@ -170,8 +175,8 @@ Section proofs.
     rewrite /heap_models_fields.
     iSplitR.
     {
-      apply dom_map_args in H7.
-      by rewrite /iFs !dom_fmap_L H7 -hdom.
+      apply dom_map_args in H8.
+      by rewrite /iFs !dom_fmap_L H8 -hdom.
     }
     iNext.
     iIntros (f iF) "hiF".
@@ -191,8 +196,8 @@ Section proofs.
     assert (h1: is_Some (vargs !! f)).
     {
       apply elem_of_dom.
-      apply dom_map_args in H7.
-      by rewrite H7 -hdom.
+      apply dom_map_args in H8.
+      by rewrite H8 -hdom.
     }
     destruct h1 as [v0 hv0].
     assert (h2: is_Some (fields !! f)) by (by apply elem_of_dom).
@@ -200,7 +205,7 @@ Section proofs.
     iExists v0; iSplitR; first done.
     rewrite lookup_fmap.
     assert (heval0: expr_eval Ω a0 = Some v0).
-    { rewrite (map_args_lookup _ _ _ args vargs H7 f) in hv0.
+    { rewrite (map_args_lookup _ _ _ args vargs H8 f) in hv0.
       by rewrite ha0 in hv0.
     }
     assert (hty0: expr_has_ty Δ Γ (length Σ) kd a0 (subst_ty σ fty.1.2)) by (by apply harg with f).

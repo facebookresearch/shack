@@ -51,6 +51,7 @@ Section proofs.
         Δ kd rigid Γ fld rhs fty t σ hrecv hf hrhs |
         Δ kd rigid Γ recv fld rhs fty orig t σ hrecv hrhs hf |
         Δ kd rigid Γ lhs t targs args fields hwf hb hok hf hdom harg |
+        Δ kd rigid Γ lhs t targs args fields hwf hb hok hf hdom harg |
         Δ kd rigid Γ lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
         Δ kd rigid Γ c Γ0 Γ1 hsub hb h hi |
         Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hthn hi0 hels hi1 |
@@ -93,7 +94,8 @@ Section proofs.
     - by iApply get_pub_soundness.
     - by iApply set_priv_soundness.
     - by iApply set_pub_soundness.
-    - by iApply new_soundness.
+    - by iApply (new_soundness None targs targs).
+    - by iApply (new_soundness (Some targs) targs targs).
     - by iApply call_soundness.
     - by iApply sub_soundness.
     - by iApply rtc_tag_soundness.
