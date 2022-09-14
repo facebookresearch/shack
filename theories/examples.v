@@ -391,7 +391,8 @@ Proof.
   move => hb.
   rewrite /final_lty /ProgramBody.
   eapply SeqTy.
-  { eapply NewTySome.
+  { eapply NewTy.
+    + reflexivity.
     + econstructor => //.
       move => k ty; rewrite list_lookup_singleton_Some.
       case => _ <-; by constructor.
@@ -421,7 +422,8 @@ Proof.
     + move => ????; by rewrite lookup_empty.
   }
   eapply SeqTy.
-  { eapply NewTyNone with (targs := []).
+  { eapply NewTy.
+    + by exists [].
     + by econstructor.
     + by econstructor.
     + by econstructor.

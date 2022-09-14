@@ -152,7 +152,8 @@ Proof.
   split.
   { rewrite /F /= /f.
     eapply SeqTy.
-    - eapply NewTySome.
+    - eapply NewTy.
+      + reflexivity.
       + econstructor => //.
         move => k ty h; by apply list_lookup_singleton_Some in h as [? <-].
       + constructor.
