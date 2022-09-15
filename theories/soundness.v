@@ -50,7 +50,7 @@ Section proofs.
         Δ kd rigid Γ lhs recv t targs name fty orig hrecv hf |
         Δ kd rigid Γ fld rhs fty t σ hrecv hf hrhs |
         Δ kd rigid Γ recv fld rhs fty orig t σ hrecv hrhs hf |
-        Δ kd rigid Γ lhs t targs args fields hwf hb hok hf hdom harg |
+        Δ kd rigid Γ lhs t otargs targs args fields htargs hwf hb hok hf hdom harg |
         Δ kd rigid Γ lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
         Δ kd rigid Γ c Γ0 Γ1 hsub hb h hi |
         Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hthn hi0 hels hi1 |

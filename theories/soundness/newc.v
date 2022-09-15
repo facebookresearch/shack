@@ -26,7 +26,7 @@ Section proofs.
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
 
-  Lemma new_soundness C Δ kd rigid Γ lhs t σ args fields:
+  Lemma new_soundness oσ σ C Δ kd rigid Γ lhs t args fields:
     wf_cdefs pdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
@@ -40,7 +40,7 @@ Section proofs.
        expr_has_ty Δ Γ rigid kd arg (subst_ty σ fty.1.2)) →
     ∀ Σ st st' n,
     length Σ = rigid →
-    cmd_eval C st (NewC lhs t σ args) st' n →
+    cmd_eval C st (NewC lhs t oσ args) st' n →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
     heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗

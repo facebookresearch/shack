@@ -48,7 +48,7 @@ Definition V := {|
 }
 *)
 Definition f : cmd :=
-  SeqC (NewC "$v" "V" [IntT] ∅)
+  SeqC (NewC "$v" "V" (Some [IntT]) ∅)
        (RuntimeCheckC "$c" (RCTag "C")
          (SeqC (GetC "$x" (VarE "$c") "x")
                (CallC "$_" (VarE "$v") "push" {["$v" := VarE "$x"]}))
@@ -153,6 +153,7 @@ Proof.
   { rewrite /F /= /f.
     eapply SeqTy.
     - eapply NewTy.
+      + reflexivity.
       + econstructor => //.
         move => k ty h; by apply list_lookup_singleton_Some in h as [? <-].
       + constructor.
