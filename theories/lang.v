@@ -406,7 +406,7 @@ Inductive cmd : Set :=
   | LetC (lhs: var) (e: expr)
   | IfC (cond: expr) (thn: cmd) (els: cmd)
   | CallC (lhs: var) (recv: expr) (name: string) (args: stringmap expr)
-  (* We performing New, one can specify the type parameter, or
+  (* When performing New, one can specify the type parameter, or
    * expect them to be infered (and pass nothing).
    * It is not possible to only pass some of them at the moment, it is
    * an all or nothing situation.
