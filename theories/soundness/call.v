@@ -89,7 +89,7 @@ Section proofs.
     rewrite option_equivI prod_equivI /=.
     iDestruct "HΦ" as "[%Ht HΦ]".
     fold_leibniz; subst.
-    destruct (has_method_ordered _ _ _ _ _ _ _ _ wf_extends_wf wf_override wf_parent wf_constraints_bounded wf_methods_bounded hin_t1_t hhasm0 hhasm)
+    destruct (has_method_ordered _ _ _ _ _ _ _ _ wf_override wf_parent wf_constraints_bounded wf_methods_bounded hin_t1_t hhasm0 hhasm)
     as (odef0 & odef & σt1_o0 & σt_o & omdef0 & omdef & hodef0 & hodef & homdef0 & homdef & hin_t1_o0
     & hin_t_o & -> & -> & hincl0 & _).
     assert (hwf0: wf_ty (ClassT orig0 (gen_targs (length odef0.(generics))))).

@@ -128,6 +128,60 @@ Definition Main := {|
 
 Local Instance PDC : ProgDefContext := { pdefs := {[ "ROBox" := ROBox; "Box" := Box; "IntBoxS" := IntBoxS; "Main" := Main ]} }.
 
+Lemma pacc : ∀ c : tag, Acc (λ x y : tag, extends y x) c.
+Proof.
+  assert (helper: Acc (λ x y : tag, extends y x) "Box").
+  { constructor => t hext.
+    inv hext.
+    rewrite lookup_insert_ne in H; last done.
+    rewrite lookup_insert in H; case: H => H; subst.
+    by rewrite /Box /= in H0.
+  }
+  move => c.
+  destruct (String.eqb c "ROBox") eqn:heq0.
+  { apply String.eqb_eq in heq0 as ->.
+    constructor => t hext.
+    inv hext.
+    rewrite lookup_insert in H; case: H => H; subst.
+    by rewrite /ROBox /= in H0.
+  }
+  apply String.eqb_neq in heq0.
+  destruct (String.eqb c "Box") eqn:heq1.
+  { apply String.eqb_eq in heq1 as ->.
+    exact helper.
+  }
+  apply String.eqb_neq in heq1.
+  destruct (String.eqb c "IntBoxS") eqn: heq2.
+  { apply String.eqb_eq in heq2 as ->.
+    constructor => t hext.
+    inv hext.
+    rewrite lookup_insert_ne in H; last done.
+    rewrite lookup_insert_ne in H; last done.
+    rewrite lookup_insert in H; case: H => H; subst.
+    rewrite /IntBoxS /= in H0.
+    case : H0 => <- ?.
+    exact helper.
+  }
+  apply String.eqb_neq in heq2.
+  destruct (String.eqb c "Main") eqn:heq3.
+  { apply String.eqb_eq in heq3 as ->.
+    constructor => t hext.
+    inv hext.
+    rewrite lookup_insert_ne in H; last done.
+    rewrite lookup_insert_ne in H; last done.
+    rewrite lookup_insert_ne in H; last done.
+    rewrite lookup_insert in H; case: H => H; subst.
+    by rewrite /Main /= in H0.
+  }
+  apply String.eqb_neq in heq3.
+  clear helper.
+  constructor => t hext; exfalso.
+  inv hext.
+  by repeat (rewrite lookup_insert_ne // in H).
+Qed.
+
+Local Instance PDA : ProgDefAcc  := { pacc := pacc }.
+
 (* Invalid constraint, so we can prove anything trivially *)
 Local Instance SDTCC : SDTClassConstraints := {
   Δsdt := λ _, [(IntT, BoolT) ];
@@ -650,22 +704,6 @@ Proof.
   + apply helper_ext in H as [-> [-> ->]].
     apply helper_in_Box in H0 as [-> ->].
     by left.
-Qed.
-
-Lemma wf_extends_wf : wf_no_cycle pdefs.
-Proof.
-  move => A B σ0 σ1 h0 h1.
-  apply helper_in in h0.
-  destruct h0 as [[-> [-> ->]] | h0].
-  { apply helper_in_Box in h1; by destruct h1; discriminate. }
-  destruct h0 as [[-> [-> ->]] | h0].
-  { by apply helper_in_IntBoxS in h1 as [[_ ->] | [h ?]]. }
-  destruct h0 as [[-> [-> ->]] | h0].
-  { by apply helper_in_Box in h1 as [_ ->]. }
-  destruct h0 as [[-> [-> ->]] | h0].
-  { by apply helper_in_ROBox in h1 as [_ ->]. }
-  destruct h0 as [-> [-> ->]].
-  by apply helper_in_Main in h1 as [_ ->].
 Qed.
 
 Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs.
@@ -1639,7 +1677,6 @@ Qed.
 Lemma wf: wf_cdefs pdefs.
 Proof.
   split.
-  by apply wf_extends_wf.
   by apply wf_parent.
   by apply wf_parent_ok.
   by apply wf_constraints_wf.

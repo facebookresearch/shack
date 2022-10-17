@@ -316,11 +316,147 @@ Section ProgDef.
       by econstructor.
   Qed.
 
-  (* Our class inheritance tree/forest doesn't have cycles. Which means
-   * inherits A B → inherits B A → A = B.
-   *)
-  Definition wf_no_cycle (prog: stringmap classDef) :=
-    ∀ A B σ σ', inherits_using A B σ → inherits_using B A σ' → A = B ∧ σ = σ'.
+  Lemma inherits_using_ex t t' def:
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    pdefs !! t = Some def →
+    inherits t t' → ∃ σ, inherits_using t t' σ.
+  Proof.
+    move => hp hpdef h; move : def hpdef.
+    induction h as [ A | A B C hAB hBC hi ] => def hpdef.
+    - exists (gen_targs (length def.(generics))); by constructor.
+    - destruct hAB as [A B adef' σB hadef hsuper]; simplify_eq.
+      assert (hadef' := hadef).
+      apply hp in hadef.
+      rewrite /wf_cdef_parent hsuper in hadef.
+      destruct hadef as [hwfB ?].
+      inv hwfB.
+      apply hi in H2 as [σC hC].
+      exists (subst_ty σB <$> σC).
+      eapply InheritsTrans => //.
+      by econstructor.
+  Qed.
+
+End ProgDef.
+
+Global Hint Constructors wf_ty : core.
+
+(* From Pierre-Yves Strub *)
+Variant option_spec {T : Type} (x : option T) : Type :=
+  | OptionSome (y : T) : x = Some y -> option_spec x
+  | OptionNone : x = None -> option_spec x
+.
+
+Lemma optionP {T : Type} (x : option T) : option_spec x.
+Proof. by case: x => [y|]; [constructor 1 with y | constructor 2]. Qed.
+
+(* Infra to be able to use the `extends` relation into a `parent`
+ * relation that gives the list of all parents of a class.
+ *)
+Section CloseUp.
+  Context (T : Type) (r : relation T) (c : T -> option T).
+
+  Context
+  (rP      : ∀ x y, c x = Some y -> r x y).
+
+  Context (wf : ∀ c, Acc (fun x y => r y x) c).
+
+  Definition cs (x : T) :=
+    @Fix
+    T
+    (fun x y => r y x)
+    wf
+    (fun _ => list T)
+    (fun x ih =>
+    x :: if optionP (c x) is OptionSome _ y e then ih _ (rP _ _ e) else [])
+    x.
+
+  Lemma csE (x : T) :
+    cs x = x :: (if c x is Some y then cs y else []).
+  Proof.
+    rewrite /cs Fix_eq => [|??? ih] /=; congr (_ :: _).
+    - by case: optionP => [y|] ->.
+    - by case: optionP.
+  Qed.
+
+  Lemma csP (x : T): ∀ y, y ∈ cs x → rtc r x y.
+  Proof.
+    move: x.
+    elim/(well_founded_ind wf) => x hi y.
+    rewrite csE elem_of_cons.
+    case => [-> | ]; first done.
+    move: (rP x).
+    case: (c x) => [p | ]; last first.
+    { move => _ h.
+      by apply not_elem_of_nil in h.
+    }
+    move => h hin.
+    apply rtc_l with p; first by apply h.
+    apply hi => //.
+    by apply h.
+  Qed.
+End CloseUp.
+
+Class ProgDefAcc `{ PDC: ProgDefContext} := { pacc : ∀ c : tag, Acc (λ x y : tag, extends y x) c; }.
+
+Section ProgDef2.
+
+  Context `{PDA: ProgDefAcc}.
+
+  Definition parent C :=
+    match pdefs !! C with
+    | None => None
+    | Some cdef =>
+        match cdef.(superclass) with
+        | Some (P, _) => Some P
+        | None => None
+        end
+    end.
+
+  Lemma parent_spec C P: parent C = Some P → extends C P.
+  Proof.
+    rewrite /parent.
+    destruct (pdefs !! C) as [ cdef | ] eqn:hcdef => //.
+    destruct cdef.(superclass) as [[p ?] |] eqn:hsuper => //.
+    case => h; subst.
+    by econstructor.
+  Qed.
+
+  Lemma extends_is_not_reflexive: ∀ c, ~ extends c c.
+  Proof.
+    move => c hext.
+    destruct PDA as [hwf].
+    induction (hwf c) as [c h hi].
+    by apply hi with c.
+  Qed.
+
+  Lemma wf_no_cycle_ :
+    ∀ A B, inherits A B → inherits B A → A = B.
+  Proof.
+    destruct PDA as [ hwf ].
+    move => A B h0 h1.
+    move: B h0 h1.
+    induction (hwf A) as [A h hi] => B h0 h1.
+    inv h0 => //.
+    assert (Hext := H).
+    apply hi with (B := A) in H.
+    - rewrite H in Hext.
+      by apply extends_is_not_reflexive in Hext.
+    - by transitivity B.
+    - by econstructor.
+  Qed.
+
+  Definition parents : tag → list tag :=
+    cs tag extends parent parent_spec PDA.(pacc).
+
+  Lemma parents_spec A B adef:
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    pdefs !! A = Some adef →
+    B ∈ parents A → ∃ σ, inherits_using A B σ.
+  Proof.
+    move => hp hadef hin.
+    apply csP in hin.
+    by eapply inherits_using_ex.
+  Qed.
 
   (* if A inherits B and A inherits C,
    * then either B inherits C or C inherits B *)
@@ -400,11 +536,10 @@ Section ProgDef.
   Qed.
 
   Lemma inherits_using_refl A σ:
-    wf_no_cycle pdefs →
     inherits_using A A σ →
     ∃ adef, pdefs !! A = Some adef ∧ σ = gen_targs (length adef.(generics)).
   Proof.
-    move => hwf hA.
+    move => hA.
     assert (h: ∃ adef, pdefs !! A = Some adef).
     { inv hA.
       - by exists adef.
@@ -415,50 +550,82 @@ Section ProgDef.
     }
     destruct h as [adef hpdefs].
     exists adef; split => //.
-    eapply hwf; first by apply hA.
-    by constructor.
+    inv hA; simplify_eq => //.
+    - apply extends_using_erase in H.
+      by apply extends_is_not_reflexive in H.
+    - apply extends_using_erase in H.
+      apply inherits_using_erase in H0.
+      replace B with A in *; last first.
+      { eapply wf_no_cycle_ => //.
+        by econstructor.
+      }
+      by apply extends_is_not_reflexive in H.
+  Qed.
+
+  Lemma extends_using_fun A B σ:
+    extends_using A B σ →
+    ∀ B' σ', extends_using A B' σ' → B = B' ∧ σ = σ'.
+  Proof.
+    destruct 1 as [ A B adef σ hadef hsuper].
+    destruct 1 as [ A B' ? σ' ? hsuper'].
+    by simplify_eq.
   Qed.
 
   Lemma inherits_using_fun A B σ:
-    wf_no_cycle pdefs →
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     inherits_using A B σ →
     ∀ σ', inherits_using A B σ' → σ = σ'.
   Proof.
-    move => hwf hp.
+    move => hp.
     induction 1 as [ A adef hpdefs | A B s hext | A B s C t hext h hi ] => σ' hother.
     - apply inherits_using_refl in hother as [? [h ->]] => //.
       by simplify_eq.
-    - inv hext; inv hother.
-      + simplify_eq.
-        destruct (inherits_using_refl B s) as [? [h ->]] => //; last by simplify_eq.
-        eapply InheritsExtends.
-        by econstructor.
-      + inv H1; by simplify_eq.
-      + inv H1; simplify_eq.
-        apply inherits_using_refl in H2 as [bdef [hb ->]] => //.
+    - inv hother.
+      + apply extends_using_erase in hext.
+        by apply extends_is_not_reflexive in hext.
+      + by destruct (extends_using_fun _ _ _ hext _ _ H) as [? ->].
+      + destruct (extends_using_fun _ _ _ hext _ _ H) as [-> ->].
+        apply inherits_using_refl in H0 as [bdef [hb ->]].
         rewrite subst_ty_gen_targs //.
-        apply hp in H.
-        rewrite /wf_cdef_parent H0 in H.
-        destruct H as [H ?].
-        inv H.
+        destruct H as [A B0 adef σB hadef hsuper].
+        apply hp in hadef.
+        rewrite /wf_cdef_parent hsuper in hadef.
+        destruct hadef as [hwfb ?].
+        inv hwfb.
         by simplify_eq.
-    - inv hext; inv hother.
-      + simplify_eq.
-        eapply hwf; last by constructor.
-        eapply InheritsTrans; last done.
-        by econstructor.
-      + inv H1; simplify_eq.
+    - inv hother.
+      + apply extends_using_erase in hext.
+        apply inherits_using_erase in h.
+        replace C with B in *; last first.
+        { apply wf_no_cycle_ => //.
+          by econstructor.
+        }
+        by apply extends_is_not_reflexive in hext.
+      + destruct (extends_using_fun _ _ _ hext _ _ H) as [-> ->].
         apply inherits_using_refl in h => //.
         destruct h as [bdef [hB ->]].
         rewrite subst_ty_gen_targs //.
-        apply hp in H.
-        rewrite /wf_cdef_parent H0 in H.
-        destruct H as [H ?].
-        inv H.
+        destruct H as [A C adef σ' hadef hsuper].
+        apply hp in hadef.
+        rewrite /wf_cdef_parent hsuper in hadef.
+        destruct hadef as [hwfc ?].
+        inv hwfc.
         by simplify_eq.
-      + inv H1; simplify_eq.
-        apply hi in H2; by subst.
+      + destruct (extends_using_fun _ _ _ hext _ _ H) as [-> ->].
+        apply hi in H0; by subst.
+  Qed.
+
+  (* Our class inheritance tree/forest doesn't have cycles. Which means
+   * inherits A B → inherits B A → A = B.
+   *)
+  Lemma wf_no_cycle :
+    ∀ A B σ σ', inherits_using A B σ → inherits_using B A σ' → A = B ∧ σ = σ'.
+  Proof.
+    move => A B σ σ' h0 h1.
+    replace B with A in *; last first.
+    { apply wf_no_cycle_; by eapply inherits_using_erase. }
+    apply inherits_using_refl in h0 as (adef & hadef & ->).
+    apply inherits_using_refl in h1 as (? & ? & ->); by simplify_eq.
   Qed.
 
   (* has_field f C vis fty orig means that class C defines or inherits a field f
@@ -739,7 +906,6 @@ Section ProgDef.
    * A <: B <: orig, then B must also inherits method m from orig.
    *)
   Lemma has_method_below_orig A m orig mdef:
-    wf_no_cycle pdefs →
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     map_Forall (λ _cname, cdef_methods_bounded) pdefs →
     has_method m A orig mdef →
@@ -750,10 +916,10 @@ Section ProgDef.
     has_method m B orig mdefB ∧
     mdefB = subst_mdef σ' mdefo.
   Proof.
-    move => hc hp hb.
+    move => hp hb.
     induction 1 as [ A cdef mdef hpdefs hm | A parent orig σ cdef mdef hpdefs hm hs h hi ] =>
           B σA σB hAB hBO.
-    - destruct (hc _ _ _ _ hAB hBO) as [-> ->].
+    - destruct (wf_no_cycle _ _ _ _ hAB hBO) as [-> ->].
       apply inherits_using_refl in hAB as [ ? [? ->]] => // ; simplify_eq.
       exists cdef, mdef, mdef; repeat split => //.
       + by econstructor.
@@ -930,11 +1096,10 @@ Section ProgDef.
       by apply hb in hc.
     - by rewrite hc.
   Qed.
-End ProgDef.
+End ProgDef2.
 
 (* Hints and notations are local to the section. Re-exporting them *)
 Global Hint Constructors has_field : core.
 Global Hint Constructors has_method : core.
-Global Hint Constructors wf_ty : core.
 Global Hint Constructors extends_using : core.
 Global Hint Constructors inherits_using : core.

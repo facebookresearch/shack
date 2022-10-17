@@ -74,6 +74,43 @@ Definition Test := {|
 
 Local Instance PDC : ProgDefContext := { pdefs := {[ "C" := C; "V" := V; "Test" := Test ]} }.
 
+Lemma pacc : ∀ c : tag, Acc (λ x y : tag, extends y x) c.
+Proof.
+  move => c.
+  destruct (String.eqb c "C") eqn:heq0.
+  { apply String.eqb_eq in heq0 as ->.
+    constructor => t hext.
+    inv hext.
+    rewrite lookup_insert in H; case: H => H; subst.
+    by rewrite /C /= in H0.
+  }
+  apply String.eqb_neq in heq0.
+  destruct (String.eqb c "V") eqn:heq1.
+  { apply String.eqb_eq in heq1 as ->.
+    constructor => t hext.
+    inv hext.
+    rewrite lookup_insert_ne in H; last done.
+    rewrite lookup_insert in H; case: H => H; subst.
+    by rewrite /V /= in H0.
+  }
+  apply String.eqb_neq in heq1.
+  destruct (String.eqb c "Test") eqn:heq2.
+  { apply String.eqb_eq in heq2 as ->.
+    constructor => t hext.
+    inv hext.
+    rewrite lookup_insert_ne in H; last done.
+    rewrite lookup_insert_ne in H; last done.
+    rewrite lookup_insert in H; case: H => H; subst.
+    by rewrite /Test /= in H0.
+  }
+  apply String.eqb_neq in heq2.
+  constructor => t hext; exfalso.
+  inv hext.
+  by repeat (rewrite lookup_insert_ne // in H).
+Qed.
+
+Local Instance PDA : ProgDefAcc  := { pacc := pacc }.
+
 (* Invalid constraint, so we can prove anything trivially *)
 Local Instance SDTCC : SDTClassConstraints := {
   Δsdt := λ _, [(IntT, BoolT) ];

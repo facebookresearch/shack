@@ -890,7 +890,6 @@ Section Typing.
    * - variance is checked
    *)
   Record wf_cdefs (prog: stringmap classDef) := {
-    wf_extends_wf : wf_no_cycle prog;
     wf_parent : map_Forall (λ _cname, wf_cdef_parent prog) prog;
     wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) prog;
     wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) prog;

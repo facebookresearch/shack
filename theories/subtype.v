@@ -18,6 +18,8 @@ Class SDTClassConstraints := {
 Section Subtype.
   (* assume a given set of class definitions *)
   Context `{PDC: ProgDefContext}.
+  (* That are not cyclic *)
+  Context `{PDA: ProgDefAcc}.
   (* assume some SDT constraints *)
   Context `{SDTCC: SDTClassConstraints}.
 
@@ -91,7 +93,7 @@ Section Subtype.
     ∀ i c, Δ1 !! i = Some c → subtype Δ0 kd c.1 c.2.
 
   (* Properties of Δsdt *)
-  Class SDTClassSpec := {
+  Class SDTClassSpec `{PDA : ProgDefAcc} := {
     (* Δsdt preserves the wf_ty of σ *)
     Δsdt_wf: ∀ A k c, Δsdt A !! k = Some c -> wf_constraint c;
     Δsdt_m_wf: ∀ A m k c, Δsdt_m A m !! k = Some c -> wf_constraint c;
@@ -713,7 +715,6 @@ Section SubtypeFacts.
    * This implies some relations on all the inheritance substitution.
    *)
   Lemma has_method_ordered A B σAB m origA mdefA origB mdefB:
-    wf_no_cycle pdefs →
     wf_method_override pdefs →
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
@@ -741,7 +742,7 @@ Section SubtypeFacts.
              subst_ty σA <$> σ = σAB ∧
              mdef_incl oA.(constraints) mA (subst_mdef σ (subst_mdef σB mB)))).
   Proof.
-    move => hc ho hp hb hm hin hA hB.
+    move => ho hp hb hm hin hA hB.
     assert (hhA := hA).
     assert (hhB := hB).
     apply has_method_from_def in hA => //.
@@ -751,7 +752,7 @@ Section SubtypeFacts.
     exists oadef, obdef, σA, σB, oaorig, oborig.
     do 8 split => //.
     destruct (inherits_using_chain _ _ _ hp hin _ _ hiA) as [σ'' [ [<- h] | [<- h]]].
-    - destruct (has_method_below_orig _ _ _ _ hc hp hm hhA _ _ _ hin h) as
+    - destruct (has_method_below_orig _ _ _ _ hp hm hhA _ _ _ hin h) as
         (? & ? & mbdef & ? & ? & hbm & ->); simplify_eq.
       destruct (has_method_fun _ _ _ _ _ _ hhB hbm) as [-> ->].
       simplify_eq.
@@ -772,7 +773,7 @@ Section SubtypeFacts.
       repeat split => //.
       assert (hh : inherits_using A origA (subst_ty σAB <$> σB))
         by by eapply inherits_using_trans.
-      by rewrite (inherits_using_fun _ _ _ hc hp hiA _ hh).
+      by rewrite (inherits_using_fun _ _ _ hp hiA _ hh).
     - assert (mdef_bounded (length σB) oborig).
       { assert (hoB' := hoB).
         apply hm in hoB.
