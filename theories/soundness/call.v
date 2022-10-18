@@ -32,6 +32,7 @@ Section proofs.
     Forall wf_constraint Δ →
     expr_has_ty Δ Γ rigid kd recv (ClassT t σ) →
     has_method name t orig mdef →
+    mdef.(methodvisibility) = Public →
     dom (methodargs mdef) = dom args →
     (∀ (x : string) (ty : lang_ty) (arg : expr),
        methodargs mdef !! x = Some ty →
@@ -42,15 +43,16 @@ Section proofs.
     cmd_eval C st (CallC lhs recv name args) st' n →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
-    □ (▷ (∀ (a : tag) (a0 : list (lang_ty * lang_ty)) 
-            (a1 : subtype_kind) (a2 : nat) (a3 : local_tys) 
-            (a4 : cmd) (a5 : local_tys),
+    □ (▷ (∀ (a : tag) (a0 : list constraint) (a1 : subtype_kind)
+            (a2 : nat) (a3 : local_tys) (a4 : cmd)
+            (a5 : local_tys),
             ⌜wf_lty a3⌝ -∗
             ⌜bounded_lty a2 a3⌝ -∗
+            ⌜ok_ty a0 (this_type a3)⌝ -∗
             ⌜Forall wf_constraint a0⌝ -∗
             ⌜Forall (bounded_constraint a2) a0⌝ -∗
-            ∀ (_ : cmd_has_ty a a0 a1 a2 a3 a4 a5) 
-              (x0 : list (interp Θ)) (x1 x2 : local_env * heap) 
+            ∀ (_ : cmd_has_ty a a0 a1 a2 a3 a4 a5)
+              (x0 : list (interp Θ)) (x1 x2 : local_env * heap)
               (x3 : nat) (_ : length x0 = a2) (_ : cmd_eval a x1 a4 x2 x3),
               □ interp_env_as_mixed x0 -∗
               □ Σinterp x0 a0 -∗
@@ -60,7 +62,7 @@ Section proofs.
     |=▷^n heap_models st'.2 ∗
           interp_local_tys Σ (<[lhs:=subst_ty σ (methodrettype mdef)]> Γ) st'.1.
   Proof.
-    move => wfpdefs wflty hΔ hrecv hhasm hdom hi Σ st st' n hrigid hc.
+    move => wfpdefs wflty hΔ hrecv hhasm hpub hdom hi Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ #IH".
     inv hc; simpl.
     assert (wfpdefs0 := wfpdefs).
@@ -89,9 +91,10 @@ Section proofs.
     rewrite option_equivI prod_equivI /=.
     iDestruct "HΦ" as "[%Ht HΦ]".
     fold_leibniz; subst.
-    destruct (has_method_ordered _ _ _ _ _ _ _ _ wf_override wf_parent wf_constraints_bounded wf_methods_bounded hin_t1_t hhasm0 hhasm)
+    destruct (has_method_ordered _ _ _ _ _ _ _ _ wf_override wf_parent
+      wf_constraints_bounded wf_methods_bounded hin_t1_t hhasm0 hhasm (*hpub*))
     as (odef0 & odef & σt1_o0 & σt_o & omdef0 & omdef & hodef0 & hodef & homdef0 & homdef & hin_t1_o0
-    & hin_t_o & -> & -> & hincl0 & _).
+    & hin_t_o & -> & -> & (*hpub0 &*) hincl0 & _).
     assert (hwf0: wf_ty (ClassT orig0 (gen_targs (length odef0.(generics))))).
     { econstructor => //; last by apply gen_targs_wf.
       by rewrite length_gen_targs.
@@ -196,9 +199,9 @@ Section proofs.
       by iApply "hh".
     }
     assert (hconstraints:
-    ∀ (i : nat) (c : lang_ty * lang_ty),
-    subst_constraints σt1_o0 (constraints odef0) !! i = Some c →
-    constraints def1 ⊢ c.1 <D: c.2
+      ∀ (i : nat) (c : lang_ty * lang_ty),
+      subst_constraints σt1_o0 (constraints odef0) !! i = Some c →
+      constraints def1 ⊢ c.1 <D: c.2
     ).
     { move => i ? hc.
       apply list_lookup_fmap_inv in hc as [c [-> hc]].
@@ -210,7 +213,24 @@ Section proofs.
     iDestruct (neg_interp_variance with "hf") as "hf2".
     assert (hl0 : length (interp_list Σt σt1_o0) = length (generics odef0)).
     { by rewrite /interp_list fmap_length -heq0. }
-    iSpecialize ("IH" $! _ _ Plain _ _ _ _ hwf_lty0 hbounded hΔ0 hΔb0 hbody
+    assert (hwfthis: ok_ty odef0.(constraints)
+                (this_type {| type_of_this := (orig0, gen_targs (length (generics odef0)));
+                              ctxt := methodargs omdef0 |})).
+    { rewrite /this_type /=.
+      econstructor => //.
+      - move => k ty hty.
+        apply lookup_gen_targs in hty as ->.
+        by constructor.
+      - move => k [c0 c1] hc /=.
+        apply wf_constraints_bounded in hodef0.
+        rewrite /wf_cdef_constraints_bounded Forall_lookup in hodef0.
+        rewrite !subst_ty_id.
+        + apply SubConstraint.
+          by apply elem_of_list_lookup_2 in hc.
+        + by apply hodef0 in hc as [].
+        + by apply hodef0 in hc as [].
+    }
+    iSpecialize ("IH" $! _ _ Plain _ _ _ _ hwf_lty0 hbounded hwfthis hΔ0 hΔb0 hbody
     (interp_list Σt σt1_o0) _ _ _ hl0 heval_body with "hΣt0 hΣtΔ0"); simpl.
     iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
     { iClear "IH"; iSplit.
@@ -295,6 +315,7 @@ Section proofs.
           { apply mono_subst with (neg_variance <$> odef.(generics)) => //.
             + apply wf_methods_mono in hodef.
               apply hodef in homdef.
+              rewrite /wf_mdef_mono hpub in homdef.
               by apply homdef in htw.
             + rewrite map_length.
               apply wf_methods_bounded in hodef.
@@ -359,6 +380,7 @@ Section proofs.
     { apply mono_subst with odef.(generics) => //.
       + apply wf_methods_mono in hodef.
         apply hodef in homdef.
+        rewrite /wf_mdef_mono hpub in homdef.
         by apply homdef.
       + apply wf_methods_bounded in hodef.
         apply hodef in homdef.

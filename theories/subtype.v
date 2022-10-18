@@ -134,6 +134,38 @@ Section SubtypeFacts.
   Notation "Δ ⊢ s <D: t" := (subtype Δ Aware s t) (at level 70, s at next level, no associativity).
   Notation "Δ ⊢ lts <: vs :> rts" := (subtype_targs Δ Plain vs lts rts) (at level 70, lts, vs at next level).
 
+  Lemma subtype_to_Aware Δ kd s t : subtype Δ kd s t → subtype Δ Aware s t
+  with subtype_targs_to_Aware Δ kd lhs vs rhs :
+     subtype_targs Δ kd vs lhs rhs → subtype_targs Δ Aware vs lhs rhs.
+  Proof.
+    - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
+      | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
+      | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
+      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
+      | | | | | | kd A B hwf h]; try by econstructor.
+      + econstructor => //; by eapply subtype_targs_to_Aware.
+      + econstructor; by eapply subtype_to_Aware.
+      + econstructor; by eapply subtype_to_Aware.
+      + econstructor; by eapply subtype_to_Aware.
+      + eapply SubClassDyn => //.
+        * move => k s t hst.
+          eapply subtype_to_Aware.
+          by eapply hf0.
+        * move => k s t hc.
+          eapply subtype_to_Aware.
+          by eapply hf1.
+      + eapply SubFalse => //.
+        by eapply subtype_to_Aware.
+    - destruct 1 as [ | ???????? h | ??????? h | ??????? h ].
+      + by constructor.
+      + econstructor; [ by eapply subtype_to_Aware | by eapply subtype_to_Aware | ].
+        by eapply subtype_targs_to_Aware.
+      + econstructor; [ by eapply subtype_to_Aware | ].
+        by eapply subtype_targs_to_Aware.
+      + econstructor; [ by eapply subtype_to_Aware | ].
+        by eapply subtype_targs_to_Aware.
+  Qed.
+
   Lemma subtype_weaken Δ kd s t: subtype Δ kd s t → ∀ Δ', Δ ⊆ Δ' → subtype Δ' kd s t
    with subtype_targs_weaken Δ kd lhs vs rhs:
      subtype_targs Δ kd vs lhs rhs → ∀ Δ', Δ ⊆ Δ' → subtype_targs Δ' kd vs lhs rhs.
@@ -290,11 +322,15 @@ Section SubtypeFacts.
   .
 
   Definition wf_mdef_mono vs mdef : Prop :=
-    map_Forall (λ _argname, mono (neg_variance <$> vs)) mdef.(methodargs) ∧
-    mono vs mdef.(methodrettype).
+    match mdef.(methodvisibility) with
+    | Private => True
+    | Public =>
+        map_Forall (λ _argname, mono (neg_variance <$> vs)) mdef.(methodargs) ∧
+        mono vs mdef.(methodrettype)
+    end.
 
   Definition wf_cdef_methods_mono cdef : Prop :=
-    map_Forall (λ _mname, wf_mdef_mono cdef.(generics)) cdef.(classmethods)
+   map_Forall (λ _mname, wf_mdef_mono cdef.(generics)) cdef.(classmethods)
   .
 
   Definition invariant vs ty :=
@@ -640,6 +676,22 @@ Section SubtypeFacts.
     Δ ⊢ (InterT (InterT A B) C) <: (InterT A (InterT B C)).
   Proof. by eauto. Qed.
 
+  Lemma Δentails_app kd Δ0 Δ1:
+    Δentails kd Δ0 Δ1 → ∀ Δ, Δentails kd (Δ ++ Δ0) (Δ ++ Δ1).
+  Proof.
+    move => hΔ01 Δ k [s t] /=.
+    rewrite lookup_app.
+    destruct (Δ !! k) as [[s0 t0] | ] eqn:h0; rewrite h0 /=.
+    - case => <- <-.
+      eapply SubConstraint.
+      apply elem_of_list_lookup_2 in h0.
+      by set_solver.
+    - move => h1.
+      apply hΔ01 in h1.
+      eapply subtype_weaken with Δ0 => //.
+      by set_solver.
+  Qed.
+
   (* Typing contexts *)
   Record local_tys := {
     type_of_this: tag * list lang_ty;
@@ -661,6 +713,18 @@ Section SubtypeFacts.
     {| type_of_this := Γ.(type_of_this);
       ctxt := <[x := ty]>Γ.(ctxt);
     |}.
+
+  Lemma lty_sub_constraint_trans Δ kd Γ0 Γ1:
+    lty_sub Δ kd Γ0 Γ1 →
+    ∀ Δ', Δentails kd Δ' Δ →
+    lty_sub Δ' kd Γ0 Γ1.
+  Proof.
+    move => [hthis hΓ] Δ' hΔ.
+    split => // k A hA.
+    apply hΓ in hA as (B & hB & h).
+    exists B; split => //.
+    by eapply subtype_constraint_trans.
+  Qed.
 
   (* We allow method override: children can redeclare a method if types
    * are compatible:
@@ -699,7 +763,21 @@ Section SubtypeFacts.
     by eapply hargs.
   Qed.
 
-  (* any redeclared method must correctly override its parent methods *)
+  (* Any redeclared public method must correctly override its parent methods.
+   * Also, if a parent method is public, it can't be overrided with a private
+   * method.
+   *
+   *
+   * Also, a class cannot redeclare a _private_ method if it is already
+   *  present in any of its parents definition.
+   *
+   * This is a restriction we aim to lift later on. This first version
+   * is here to enable desugaring a private field into a private getter/setter
+   * pair of methods.
+   *
+   * TODO: remove this restriction and allow private methods to
+   * be redefined in sub classes.
+   *)
   Definition wf_method_override (prog: stringmap classDef) :=
     ∀ A B adef bdef m σ mA mB,
     prog !! A = Some adef →
@@ -707,11 +785,16 @@ Section SubtypeFacts.
     inherits_using A B σ →
     adef.(classmethods) !! m = Some mA →
     bdef.(classmethods) !! m = Some mB →
-    mdef_incl adef.(constraints) mA (subst_mdef σ mB).
+    match mB.(methodvisibility), mA.(methodvisibility) with
+    | Public, Public => mdef_incl adef.(constraints) mA (subst_mdef σ mB)
+    | Public, Private => False
+    | Private, _ => False (* TODO : lift this *)
+    end.
 
   (* Key lemma for soundness of method call:
-   * if A <: B and they both have a method m (from resp. origA, origB), then
-   * the origins must be ordered in the same way, meaning origA <: origB.
+   * if A <: B and they both have a method m (from resp. origA, origB) which
+   * is public in B, then the origins must be ordered in the same way,
+   * meaning origA <: origB.
    * This implies some relations on all the inheritance substitution.
    *)
   Lemma has_method_ordered A B σAB m origA mdefA origB mdefB:
@@ -722,6 +805,7 @@ Section SubtypeFacts.
     inherits_using A B σAB →
     has_method m A origA mdefA →
     has_method m B origB mdefB →
+    (* mdefB.(methodvisibility) = Public → *)
     ∃ oA oB σA σB mA mB,
       pdefs !! origA = Some oA ∧
       pdefs !! origB = Some oB ∧
@@ -731,6 +815,7 @@ Section SubtypeFacts.
       inherits_using B origB σB ∧
       mdefA = subst_mdef σA mA ∧
       mdefB = subst_mdef σB mB ∧
+      (* mA.(methodvisibility) = Public ∧ *)
       mdef_incl (subst_constraints σA oA.(constraints)) mdefA (subst_mdef σAB mdefB) ∧
       (* A <: B <: orig A = orig B *)
       ((inherits_using B origA σB ∧
@@ -742,7 +827,7 @@ Section SubtypeFacts.
              subst_ty σA <$> σ = σAB ∧
              mdef_incl oA.(constraints) mA (subst_mdef σ (subst_mdef σB mB)))).
   Proof.
-    move => ho hp hb hm hin hA hB.
+    move => ho hp hb hm hin hA hB (* hvB *).
     assert (hhA := hA).
     assert (hhB := hB).
     apply has_method_from_def in hA => //.
@@ -756,6 +841,7 @@ Section SubtypeFacts.
         (? & ? & mbdef & ? & ? & hbm & ->); simplify_eq.
       destruct (has_method_fun _ _ _ _ _ _ hhB hbm) as [-> ->].
       simplify_eq.
+      (* split; first done. *)
       assert (mdef_bounded (length σ'') oaorig).
       { assert (hoA' := hoA).
         apply hm in hoA.
@@ -792,11 +878,22 @@ Section SubtypeFacts.
         inv h; simplify_eq.
         by rewrite H8.
       }
-      assert ( mdef_incl (constraints oadef) oaorig (subst_mdef σ'' (subst_mdef σB oborig))).
+      assert (hh: oaorig.(methodvisibility) = Public ∧
+        mdef_incl (constraints oadef) oaorig (subst_mdef σ'' (subst_mdef σB oborig))).
       { rewrite subst_mdef_mdef //.
-        eapply ho => //.
-        by eapply inherits_using_trans.
+        assert (hino: inherits_using origA origB (subst_ty σ'' <$> σB))
+          by by eapply inherits_using_trans.
+        move: (ho _ _ _ _ _ _ _ _ hoA hoB hino hmA hmB).
+        (* rewrite hvB. *)
+        (* by destruct oaorig.(methodvisibility). *)
+        (**)
+        destruct oborig.(methodvisibility); last done.
+        destruct oaorig.(methodvisibility); last done.
+        done.
+        (**)
       }
+      destruct hh as [? ?].
+      (* split; first done. *)
       split.
       { rewrite -subst_mdef_mdef //.
         apply mdef_incl_subst => //.

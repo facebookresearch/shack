@@ -105,6 +105,26 @@ Section Typing.
       by set_solver.
   Qed.
 
+  Lemma ok_ty_constraint_trans kd Δ ty:
+    ok_ty Δ ty →
+    ∀ Δ', Δentails kd Δ' Δ →
+    ok_ty Δ' ty.
+  Proof.
+    induction 1 as [ | | | | t σt def hσt hi hdef hconstr
+      | | | s t hs his ht hit | s t hs his ht hit | n | | ]
+      => Δ' hΔ /=; try (constructor; by eauto).
+    econstructor; [ | done | ].
+    - move => k ty hty.
+      eapply hi; first by apply hty.
+      done.
+    - move => k c hc.
+      eapply subtype_constraint_trans.
+      + by eapply hconstr.
+      + move => l c' hc'.
+        apply subtype_to_Aware with (kd := kd).
+        by eapply hΔ.
+  Qed.
+
   Definition ok_constraint Δ (c: constraint) :=
     ok_ty Δ c.1 ∧ ok_ty Δ c.2.
 
@@ -400,6 +420,7 @@ Section Typing.
   Inductive cmd_has_ty (C : tag) : list constraint → subtype_kind → nat → local_tys → cmd → local_tys → Prop :=
     | SkipTy: ∀ Γ Δ kd rigid, cmd_has_ty C Δ kd rigid Γ SkipC Γ
     | ErrorTy: ∀ Δ kd rigid Γ0 Γ1,
+        this_type Γ0 = this_type Γ1 →
         wf_lty Γ1 → bounded_lty rigid Γ1 → cmd_has_ty C Δ kd rigid Γ0 ErrorC Γ1
     | SeqTy: ∀ Δ kd rigid Γ1 Γ2 Γ3 fstc sndc,
         cmd_has_ty C Δ kd rigid Γ1 fstc Γ2 →
@@ -446,15 +467,26 @@ Section Typing.
         args !! f = Some arg →
         expr_has_ty Δ Γ rigid kd arg (subst_ty targs fty.1.2)) →
         cmd_has_ty C Δ kd rigid Γ (NewC lhs t otargs args) (<[lhs := ClassT t targs]>Γ)
-    | CallTy: ∀ Δ kd rigid Γ lhs recv t targs name orig mdef args,
+    | CallPubTy: ∀ Δ kd rigid Γ lhs recv t targs name orig mdef args,
         expr_has_ty Δ Γ rigid kd recv (ClassT t targs) →
         has_method name t orig mdef →
+        mdef.(methodvisibility) = Public →
         dom mdef.(methodargs) = dom args →
         (∀ x ty arg,
         mdef.(methodargs) !! x = Some ty →
         args !! x = Some arg →
         expr_has_ty Δ Γ rigid kd arg (subst_ty targs ty)) →
         cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := subst_ty targs mdef.(methodrettype)]>Γ)
+    | CallPrivTy: ∀ Δ kd rigid Γ lhs t σ name mdef args,
+        type_of_this Γ = (t, σ) →
+        has_method name t C mdef →
+        mdef.(methodvisibility) = Private →
+        dom mdef.(methodargs) = dom args →
+        (∀ x ty arg,
+        mdef.(methodargs) !! x = Some ty →
+        args !! x = Some arg →
+        expr_has_ty Δ Γ rigid kd arg (subst_ty σ ty)) →
+        cmd_has_ty C Δ kd rigid Γ (CallC lhs ThisE name args) (<[lhs := subst_ty σ mdef.(methodrettype)]>Γ)
     | SubTy: ∀ Δ kd rigid Γ c Γ0 Γ1,
         lty_sub Δ kd Γ1 Γ0 →
         bounded_lty rigid Γ0 →
@@ -529,6 +561,7 @@ Section Typing.
          end) →
         cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := DynamicT]>Γ)
     | FalseCmdTy: ∀ Δ kd rigid Γ0 cmd Γ1,
+        this_type Γ0 = this_type Γ1 →
         wf_lty Γ1 →
         bounded_lty rigid Γ1 →
         subtype Δ kd IntT BoolT →
@@ -545,11 +578,12 @@ Section Typing.
     wf_lty Γ1.
   Proof.
     move => hp hfields hmethods hΔ [hthis hwf].
-    induction 1 as [ | ?????? | ???????? h1 hi1 h2 hi2 | ??????? he |
+    induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
       ???????? he h1 hi1 h2 hi2 | ????????? he hf | ??????????? he hf |
       ????????? he hf hr | ??????????? he hf hr |
       ?????????? _ ht hb hok hf hdom hargs |
-      ???????????? he hm hdom hargs |
+      ???????????? he hm hvis hdom hargs |
+      ?????????? ht hm hvis hdom hargs |
       ??????? hsub hb h hi | ??????????? hin hdef hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
@@ -581,6 +615,15 @@ Section Typing.
       apply wf_ty_subst => //.
       apply expr_has_ty_wf in he => //.
       by apply wf_ty_class_inv in he.
+    - split; first by apply hthis.
+      apply map_Forall_insert_2 => //.
+      apply has_method_wf in hm => //.
+      destruct hm as [hargs' hret'].
+      apply wf_ty_subst => //.
+      destruct Γ as [[? ?] Γ].
+      rewrite /this_type /= in hthis, ht.
+      simplify_eq.
+      by apply wf_ty_class_inv in hthis.
     - apply hi in hwf as [hthis' hwf] => //; clear hi h.
       destruct hsub as [h0 h1].
       split; first by rewrite -h0.
@@ -606,11 +649,12 @@ Section Typing.
     bounded_lty rigid Γ1.
   Proof.
     move => hp ?? hfields hmethods hΔ hwf [hthis hb].
-    induction 1 as [ | ?????? | ???????? h1 hi1 h2 hi2 | ??????? he |
+    induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
       ???????? he h1 hi1 h2 hi2 | ????????? he hf | ??????????? he hf |
       ????????? he hf hr | ??????????? he hf hr |
       ?????????? _ ht htb hok hf hdom hargs |
-      ???????????? he hm hdom hargs |
+      ???????????? he hm hvis hdom hargs |
+      ?????????? ht hm hvis hdom hargs |
       ??????? hsub hΓb h hi | ??????????? hin hdef hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
@@ -667,8 +711,51 @@ Section Typing.
           by destruct hin as (? & ? & h & ?); simplify_eq.
       + apply expr_has_ty_bounded in he => //.
         by inv he.
+    - split; first by apply hthis.
+      apply map_Forall_insert_2 => //.
+      apply has_method_from_def in hm => //.
+      destruct hm as (odef & m & hodef & hmdef & hm & [? [hin ->]]).
+      destruct Γ as [[tt σt] Γ].
+      injection ht; intros; subst; clear ht.
+      destruct hwf as [hwf ?].
+      rewrite /this_type /= in hwf, hthis.
+      inv hwf.
+      rewrite /subst_mdef /=.
+      apply bounded_subst with (length def.(generics)) => //.
+      + apply bounded_subst with (length odef.(generics)) => //.
+        * apply hmethods in hodef.
+          apply hodef in hmdef.
+          by apply hmdef.
+        * apply inherits_using_wf in hin => //.
+          destruct hin as (? & ? & ? & h); simplify_eq.
+          inv h; by simplify_eq.
+        * apply inherits_using_wf in hin => //.
+          by destruct hin as (? & ? & h & ?); simplify_eq.
+      + by inv hthis.
     - by apply insert_bounded_lty.
     - by apply insert_bounded_lty.
+  Qed.
+
+  Lemma cmd_has_ty_preserves_this C Δ kd rigid Γ0 cmd Γ1:
+    cmd_has_ty C Δ kd rigid Γ0 cmd Γ1 →
+    this_type Γ0 = this_type Γ1.
+  Proof.
+    induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
+      ???????? he h1 hi1 h2 hi2 | ????????? he hf | ??????????? he hf |
+      ????????? he hf hr | ??????????? he hf hr |
+      ?????????? _ ht htb hok hf hdom hargs |
+      ???????????? he hm hvis hdom hargs |
+      ?????????? ht hm hvis hdom hargs |
+      ??????? hsub hΓb h hi | ??????????? hin hdef hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
+      ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
+      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis |
+      ?????????
+      ] => //=.
+    - by rewrite hi1.
+    - rewrite hi.
+      by destruct hsub as [-> ?].
   Qed.
 
   (* Consider a class C<T0, ..., Tn>,

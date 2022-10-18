@@ -109,7 +109,7 @@ Section proofs.
     - inv he.
       iDestruct "Hlty" as "[Hthis Hv]".
       rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-      iDestruct "Hthis" as (?? thisdef tdef ????) "[%H [#hmixed [#hconstr [#hinst [hdyn hloc]]]]]".
+      iDestruct "Hthis" as (?? thisdef tdef ????) "[%H [#hmixed [#hconstr [%hinst [hdyn hloc]]]]]".
       destruct H as ([= <-] & hthisdef & htdef & hl & ? & hin & hfields & hdom).
       rewrite /this_type interp_class_unfold //=; last first.
       { by apply wflty. }
@@ -130,27 +130,24 @@ Section proofs.
       { rewrite /interp_list !fmap_length in hl.
         by rewrite hl.
       }
-      move : hl0 hl1.
+      move : hl0 hl1 hinst.
       generalize thisdef.(generics); clear.
-      move => l hl0 hl1.
-      iInduction l as [ | hd tl hi] "IH" forall (σ σthis hl0 hl1) "hinst".
+      move => l hl0 hl1 hinst.
+      iInduction l as [ | hd tl hi] "IH" forall (σ σthis hl0 hl1 hinst).
       { by destruct σ; destruct σthis. }
       destruct σ as [ | ty0 σ] => //=.
       destruct σthis as [ | ty1 σthis] => //=.
       case: hl0 => hl0.
       case: hl1 => hl1.
-      rewrite list_equivI.
+      rewrite /= cons_equiv_eq in hinst.
+      case : hinst => ? [? [h0 h1]].
+      case: h0 h1 => <- <- [h0 h1].
       iSplitL.
-      + iSpecialize ("hinst" $! 0).
-        rewrite /= option_equivI.
-        destruct hd; iIntros (w).
-        * iSplit; iIntros "h"; first by iRewrite -"hinst".
-          by iRewrite "hinst".
-        * iIntros "h"; by iRewrite -"hinst".
-        * iIntros "h"; by iRewrite "hinst".
-      + iApply "IH" => //.
-        iModIntro; rewrite /interp_list list_equivI; iIntros (k).
-        by iSpecialize ("hinst" $! (S k)).
+      + destruct hd; iIntros (w).
+        * iSplit; iIntros "h"; by rewrite h0.
+        * iIntros "h"; by rewrite h0.
+        * iIntros "h"; by rewrite h0.
+      + by iApply "IH".
     - apply hi in he.
       iApply subtype_is_inclusion => //.
       + by apply expr_has_ty_wf in hS.

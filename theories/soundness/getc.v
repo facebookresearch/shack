@@ -50,7 +50,7 @@ Section proofs.
     iDestruct "Hle" as "[Hthis Hle]".
     rewrite /this_type /=.
     rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-    iDestruct "Hthis" as (???? σ0 ???) "[%H [#hmixed [#? [#hinst [#hdyn H◯]]]]]".
+    iDestruct "Hthis" as (???? σ0 ???) "[%H [#hmixed [#? [%hinst [#hdyn H◯]]]]]".
     destruct H as ([= <-] & hdef & hdef1 & hlen & ? & hinherits & hidom & hfields).
     iAssert (⌜t0 = t1⌝ ∗ heap_models h ∗ ▷ interp_type (subst_ty σ fty) Σ v)%I with "[Hh]" as "[%Ht [Hh Hv]]".
     { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
@@ -79,7 +79,7 @@ Section proofs.
         inv wfthis; simplify_eq.
         by rewrite H10.
       }
-      iRewrite -"hinst".
+      rewrite -hinst.
       rewrite -interp_type_subst //.
       destruct wfpdefs.
       apply has_field_bounded in hf => //.

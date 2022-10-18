@@ -13,7 +13,6 @@ From iris.algebra.lib Require Import gmap_view.
 From shack Require Import lang progdef subtype typing eval heap modality interp soundness.
 
 Definition C := {|
-  classname := "C";
   superclass := None;
   generics := [Invariant];
   constraints := [(GenT 0, IntT)];
@@ -23,15 +22,14 @@ Definition C := {|
 
 (* function push(T $_) : void { } *)
 Definition Push := {|
-  methodname := "push";
   methodargs := {[ "$v" := GenT 0]};
   methodrettype := NullT;
   methodbody := SkipC;
   methodret := NullE;
+  methodvisibility := Public;
 |}.
 
 Definition V := {|
-  classname := "V";
   superclass := None;
   generics := [Covariant];
   constraints := [];
@@ -56,15 +54,14 @@ Definition f : cmd :=
        ).
 
 Definition F := {|
-  methodname := "f";
   methodargs := {[ "$c" := MixedT ]};
   methodrettype := NullT;
   methodbody := f;
   methodret := NullE;
+  methodvisibility := Public;
 |}.
 
 Definition Test := {|
-  classname := "Test";
   superclass := None;
   generics := [];
   constraints := [];
@@ -231,11 +228,12 @@ Proof.
             + by econstructor.
         }
         eapply SubTy; last first.
-        * eapply CallTy.
+        * eapply CallPubTy.
           { constructor.
             by rewrite /= lookup_insert_ne.
           }
           { by econstructor. }
+          { done. }
           { by set_solver. }
           { move => k ty arg hk0 hk1.
             apply lookup_singleton_Some in hk1 as [<- <-].

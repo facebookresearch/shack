@@ -22,15 +22,14 @@ Definition arraykey := UnionT IntT BoolT.
  *   function get(): T { $ret = $this->data; return $ret; }
  *)
 Definition Get := {|
-  methodname := "get";
   methodargs := ∅;
   methodrettype := GenT 0;
   methodbody := GetC "$ret" ThisE "$data";
   methodret := VarE "$ret";
+  methodvisibility := Public;
 |}.
 
 Definition ROBox := {|
-  classname := "ROBox";
   superclass := None;
   generics := [Covariant];
   constraints := [(GenT 0, arraykey)];
@@ -46,15 +45,14 @@ Definition ROBox := {|
  * }
  *)
 Definition BoxSet := {|
-  methodname := "set";
   methodargs := {["$data" := GenT 0 ]};
   methodrettype := NullT;
   methodbody := SetC ThisE "$data" (VarE "$data");
   methodret := NullE;
+  methodvisibility := Public;
 |}.
 
 Definition Box := {|
-  classname := "Box";
   superclass := None;
   generics := [Invariant];
   constraints := [];
@@ -70,15 +68,14 @@ Definition Box := {|
 Definition σ : list lang_ty := [IntT].
 
 Definition IntBoxSSet := {|
-  methodname := "set";
   methodargs := {["$data" := IntT ]};
   methodrettype := NullT;
   methodbody := SetC ThisE "$data" (BinOpE PlusO (VarE "$data") (IntE 1%Z));
   methodret := NullE;
+  methodvisibility := Public;
 |}.
 
 Definition IntBoxS := {|
-  classname := "IntBoxS";
   superclass := Some ("Box", σ);
   generics := [];
   constraints := [];
@@ -110,15 +107,14 @@ Definition ProgramBody :=
   ))))).
 
 Definition EntryPoint := {|
-  methodname := "entry_point";
   methodargs := ∅;
   methodrettype := BoolT;
   methodbody := ProgramBody;
   methodret := BinOpE EqO (VarE "$tmp") (IntE 43);
+  methodvisibility := Public;
 |}.
 
 Definition Main := {|
-  classname := "Main";
   superclass := None;
   generics := [];
   constraints := [];
@@ -468,10 +464,11 @@ Proof.
       by constructor.
   }
   eapply SeqTy.
-  { eapply CallTy.
+  { eapply CallPubTy.
     + constructor.
       by rewrite lookup_insert.
     + by apply has_method_get0.
+    + done.
     + by set_solver.
     + move => ????; by rewrite lookup_empty.
   }
@@ -490,10 +487,11 @@ Proof.
       by rewrite lookup_insert.
   }
   eapply SeqTy.
-  { eapply CallTy.
+  { eapply CallPubTy.
     + econstructor.
       by rewrite lookup_insert.
     + by apply has_method_get1.
+    + done.
     + by set_solver.
     + by move => x ty arg; rewrite /Get /= lookup_empty.
   }
@@ -504,11 +502,12 @@ Proof.
     + by constructor.
   }
   eapply SeqTy.
-  { eapply CallTy.
+  { eapply CallPubTy.
     + econstructor.
       rewrite lookup_insert_ne // lookup_insert_ne //.
       by rewrite lookup_insert.
     + by apply has_method_set.
+    + done.
     + by set_solver.
     + move => x ty arg; rewrite /Get /= !lookup_singleton_Some.
       case => <- <- [_ <-].
@@ -1714,7 +1713,7 @@ Proof.
       by econstructor.
     - by apply map_Forall_empty.
   }
-  assert (hinit: pdefs !! "Main" = Some (main_cdef "Main" {["entry_point" := EntryPoint ]})) by done.
+  assert (hinit: pdefs !! "Main" = Some (main_cdef {["entry_point" := EntryPoint ]})) by done.
   move => he ht v hin.
   apply (@step_updN_soundness sem_heapΘ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
@@ -1734,8 +1733,11 @@ Proof.
     constructor.
     by apply Forall_nil.
   }
+  assert (hokthis: ok_ty [] (this_type (main_lty "Main"))).
+  { by econstructor. }
   assert (hΔb : Forall (bounded_constraint 0) []) by by apply Forall_nil.
-  iDestruct ((cmd_soundness "Main" [] _ [] _ _ _ wf wfinit hbounded wfΔ hΔb ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
+  iDestruct ((cmd_soundness "Main" [] _ [] _ _ _ wf wfinit hokthis hbounded wfΔ hΔb ht _ _ _ he)
+    with "wfΣ Σcoherency Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [Hthis Hl]]".
@@ -1760,7 +1762,7 @@ Proof.
       by econstructor.
     - by apply map_Forall_empty.
   }
-  assert (hinit: pdefs !! "Main" = Some (main_cdef "Main" {["entry_point" := EntryPoint ]})) by done.
+  assert (hinit: pdefs !! "Main" = Some (main_cdef {["entry_point" := EntryPoint ]})) by done.
   move => he ht v T σ hin.
   apply (@step_updN_soundness sem_heapΘ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
@@ -1781,7 +1783,10 @@ Proof.
     by apply Forall_nil.
   }
   assert (hΔb : Forall (bounded_constraint 0) []) by by apply Forall_nil.
-  iDestruct ((cmd_soundness "Main" [] _ [] _ _ _ wf wfinit hbounded wfΔ hΔb ht _ _ _ he) with "wfΣ Σcoherency Hmain") as "H" => /=.
+  assert (hokthis: ok_ty [] (this_type (main_lty "Main"))).
+  { by econstructor. }
+  iDestruct ((cmd_soundness "Main" [] _ [] _ _ _ wf wfinit hokthis hbounded wfΔ hΔb ht _ _ _ he)
+     with "wfΣ Σcoherency Hmain") as "H" => /=.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [_ Hl]]".

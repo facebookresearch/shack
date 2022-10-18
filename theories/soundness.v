@@ -12,7 +12,7 @@ From iris.proofmode Require Import tactics.
 
 From shack Require Import lang progdef subtype typing eval heap modality interp.
 From shack.soundness Require Import expr defs.
-From shack.soundness Require Import getc setc newc call sub.
+From shack.soundness Require Import getc setc newc call priv_call sub.
 From shack.soundness Require Import rtc_tag rtc_prim.
 From shack.soundness Require Import dyn_getc dyn_setc dyn_call.
 
@@ -27,6 +27,7 @@ Section proofs.
     wf_cdefs pdefs →
     wf_lty Γ →
     bounded_lty rigid Γ →
+    ok_ty Δ (this_type Γ) →
     Forall wf_constraint Δ →
     Forall (bounded_constraint rigid) Δ →
     cmd_has_ty C Δ kd rigid Γ cmd Γ' →
@@ -38,11 +39,11 @@ Section proofs.
     heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗ |=▷^n
         heap_models st'.2 ∗ interp_local_tys Σ Γ' st'.1.
   Proof.
-    move => wfpdefs wflty blty hΔ hΔb.
-    iLöb as "IH" forall (C Δ kd rigid Γ cmd Γ' wflty blty hΔ hΔb).
+    move => wfpdefs wflty blty hokthis hΔ hΔb.
+    iLöb as "IH" forall (C Δ kd rigid Γ cmd Γ' wflty blty hokthis hΔ hΔb).
     iIntros "%hty" (Σ st st' n hrigid hc) "#hΣ #hΣΔ".
     iInduction hty as [ Γ Δ kd rigid |
-        Δ kd rigid Γ0 Γ1 hwf |
+        Δ kd rigid Γ0 Γ1 hthis hwf |
         Δ kd rigid Γ1 Γ2 Γ3 fstc sndc hfst hi1 hsnd hi2 |
         Δ kd rigid Γ lhs e ty he |
         Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
@@ -51,7 +52,8 @@ Section proofs.
         Δ kd rigid Γ fld rhs fty t σ hrecv hf hrhs |
         Δ kd rigid Γ recv fld rhs fty orig t σ hrecv hrhs hf |
         Δ kd rigid Γ lhs t otargs targs args fields htargs hwf hb hok hf hdom harg |
-        Δ kd rigid Γ lhs recv t targs name orig mdef args hrecv hhasm hdom hi |
+        Δ kd rigid Γ lhs recv t targs name orig mdef args hrecv hhasm hvis hdom hi |
+        Δ kd rigid Γ lhs t targs name mdef args hrecv hhasm hvis hdom hi |
         Δ kd rigid Γ c Γ0 Γ1 hsub hb h hi |
         Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hthn hi0 hels hi1 |
         Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
@@ -62,7 +64,7 @@ Section proofs.
         Δ kd rigid Γ lhs recv name he hnotthis |
         Δ kd rigid Γ recv fld rhs hrecv hrhs hnotthis |
         Δ kd rigid Γ lhs recv name args hrecv hi hnotthis |
-        Δ kd rigid Γ0 cmd Γ1 hwf hb hsub
+        Δ kd rigid Γ0 cmd Γ1 hthis hwf hb hsub
       ] "IHty" forall (Σ st st' n hrigid hc) "hΣ hΣΔ".
     - (* Skip *)
       inv hc.
@@ -71,13 +73,14 @@ Section proofs.
     - (* Error *) by inv hc.
     - (* Seq *)
       inv hc. iIntros "H".
-      iSpecialize ("IHty" $! wflty blty hΔ hΔb Σ _ _ _ refl_equal with "[//] hΣ hΣΔ H").
+      iSpecialize ("IHty" $! wflty blty hokthis hΔ hΔb Σ _ _ _ refl_equal with "[//] hΣ hΣΔ H").
       rewrite Nat.iter_add.
       iApply (updN_mono_I with "[] IHty").
       destruct wfpdefs.
       iApply "IHty1" => //.
       + by apply cmd_has_ty_wf in hfst.
       + by apply cmd_has_ty_bounded in hfst.
+      + by apply cmd_has_ty_preserves_this in hfst as <-.
     - (* Let *)
       inv hc.
       iIntros "[? #Hle]".
@@ -95,6 +98,7 @@ Section proofs.
     - by iApply set_pub_soundness.
     - by iApply new_soundness.
     - by iApply call_soundness.
+    - by iApply priv_call_soundness.
     - by iApply sub_soundness.
     - by iApply rtc_tag_soundness.
     - by iApply rtc_prim_soundness => //.
@@ -115,6 +119,7 @@ Section proofs.
   Lemma cmd_soundness C Δ kd Σ Γ cmd Γ' :
     wf_cdefs pdefs →
     wf_lty Γ →
+    ok_ty Δ (this_type Γ) →
     bounded_lty (length Σ) Γ →
     Forall wf_constraint Δ →
     Forall (bounded_constraint (length Σ)) Δ →
@@ -143,8 +148,7 @@ Definition main_le := {|
   lenv := ∅;
 |}.
 
-Definition main_cdef tag methods := {|
-  classname := tag;
+Definition main_cdef methods := {|
   generics := [];
   constraints := [];
   superclass := None;
@@ -164,7 +168,7 @@ Lemma sem_heap_init
   `{SDTCC: SDTClassConstraints}
   `{SDTCS: SDTClassSpec}
   `{!sem_heapGpreS Θ}:
-  ∀ MainTag methods, pdefs !! MainTag = Some (main_cdef MainTag methods) →
+  ∀ MainTag methods, pdefs !! MainTag = Some (main_cdef methods) →
   ⊢@{iPropI Θ} |==> ∃ _: sem_heapGS Θ, (heap_models (main_heap MainTag) ∗ interp_local_tys [] (main_lty MainTag) main_le).
 Proof.
   move => MainTag methods hpdefs.
@@ -190,7 +194,7 @@ Proof.
       by iIntros "?".
   - rewrite /main_lty /main_le; iSplit => /=.
     + rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-      iExists 1%positive, MainTag, _, _, (gen_targs (length (main_cdef MainTag methods).(generics))), [] , ∅, ∅; iSplitR.
+      iExists 1%positive, MainTag, _, _, (gen_targs (length (main_cdef methods).(generics))), [] , ∅, ∅; iSplitR.
       { iPureIntro.
         repeat split => //.
         * by eapply InheritsRefl.

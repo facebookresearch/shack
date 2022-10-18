@@ -116,7 +116,7 @@ Section proofs.
         + iApply (interp_with_mono with "hf0") => //.
           by rewrite -interp_type_subst.
       - rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-        iDestruct "hrecv" as (l' t' tdef tdef' σ' Σt fields ifields) "[%H [#hmixed [#? [#hinst [hdyn hl]]]]]".
+        iDestruct "hrecv" as (l' t' tdef tdef' σ' Σt fields ifields) "[%H [#hmixed [#? [%hinst [hdyn hl]]]]]".
         destruct H as ([= <-] & htdef & htdef' & hlen & ? & hinherits & hfields & hdom).
         assert (hl1: length σ' = length σt).
         { apply inherits_using_wf in hinherits => //.
@@ -136,8 +136,7 @@ Section proofs.
         iSplitR; first done.
         iSplitR; last by iSplit.
         iModIntro; iNext; iIntros (w).
-        rewrite interp_type_subst //.
-        iRewrite -"hinst".
+        rewrite interp_type_subst // -hinst.
         by iSplit; iIntros.
     }
     iDestruct "hrecv" as (t' σ' Σt fields ifields) "[%hpure [#hstatic [#hdyn hl]]]".
@@ -240,7 +239,7 @@ Section proofs.
         by apply hwfσ in hty0.
       }
       iAssert (□ Σinterp (interp_list Σt σ) adef.(constraints))%I as "#hΣ0".
-      { iModIntro. 
+      { iModIntro.
         apply inherits_using_ok in hin => //; try by apply wfpdefs.
         destruct hin as (? & ? & hok); simplify_eq.
         inv hok; simplify_eq.

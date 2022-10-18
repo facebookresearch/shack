@@ -560,8 +560,10 @@ Proof.
     by apply hi1.
 Qed.
 
+Inductive visibility := Public | Private.
+
 Record methodDef := {
-  methodname: string;
+  methodvisibility : visibility;
   methodargs: stringmap lang_ty;
   methodrettype: lang_ty;
   methodbody: cmd;
@@ -569,7 +571,7 @@ Record methodDef := {
 }.
 
 Definition subst_mdef targs mdef : methodDef := {|
-    methodname := mdef.(methodname);
+    methodvisibility := mdef.(methodvisibility);
     methodargs := subst_ty targs <$> mdef.(methodargs);
     methodrettype := subst_ty targs mdef.(methodrettype);
     methodbody := subst_cmd targs mdef.(methodbody);
@@ -654,8 +656,6 @@ Definition not_contra v :=
   end
 .
 
-Inductive visibility := Public | Private.
-
 (* S <: T *)
 Definition constraint := (lang_ty * lang_ty)%type.
 
@@ -672,7 +672,6 @@ Proof.
 Qed.
 
 Record classDef := {
-  classname: tag;
   (* variance of the generics *)
   generics: list variance;
   (* sets of constraints. All generics in this set must be bound
@@ -864,4 +863,13 @@ Proof.
   constructor.
   rewrite elem_of_seq /= in hk.
   by destruct hk.
+Qed.
+
+Lemma bounded_forall_ge n σ:
+  Forall (bounded n) σ →
+  ∀ m, m ≥ n → Forall (bounded m) σ.
+Proof.
+  move/Forall_lookup => h m hge.
+  rewrite Forall_lookup => k ty hk.
+  eapply bounded_ge; by eauto.
 Qed.

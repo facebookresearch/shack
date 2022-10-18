@@ -27,11 +27,12 @@ Section proofs.
   Lemma dyn_call_soundness C Δ kd rigid Γ lhs recv name args:
     wf_cdefs pdefs →
     wf_lty Γ →
+    ok_ty Δ (this_type Γ) →
     Forall wf_constraint Δ →
     expr_has_ty Δ Γ rigid kd recv DynamicT →
     (∀ (x : string) (arg : expr),
        args !! x = Some arg →
-       expr_has_ty Δ Γ rigid kd arg DynamicT) → 
+       expr_has_ty Δ Γ rigid kd arg DynamicT) →
     match recv with
     | ThisE => False
     | _ => True
@@ -41,15 +42,16 @@ Section proofs.
     cmd_eval C st (CallC lhs recv name args) st' n →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
-    □ (▷ (∀ (a : tag) (a0 : list (lang_ty * lang_ty)) 
-            (a1 : subtype_kind) (a2 : nat) (a3 : local_tys) 
-            (a4 : cmd) (a5 : local_tys),
+    □ (▷ (∀ (a : tag) (a0 : list constraint) (a1 : subtype_kind)
+            (a2 : nat) (a3 : local_tys) (a4 : cmd)
+            (a5 : local_tys),
             ⌜wf_lty a3⌝ -∗
             ⌜bounded_lty a2 a3⌝ -∗
+            ⌜ok_ty a0 (this_type a3)⌝ -∗
             ⌜Forall wf_constraint a0⌝ -∗
             ⌜Forall (bounded_constraint a2) a0⌝ -∗
-            ∀ (_ : cmd_has_ty a a0 a1 a2 a3 a4 a5) 
-              (x0 : list (interp Θ)) (x1 x2 : local_env * heap) 
+            ∀ (_ : cmd_has_ty a a0 a1 a2 a3 a4 a5)
+              (x0 : list (interp Θ)) (x1 x2 : local_env * heap)
               (x3 : nat) (_ : length x0 = a2) (_ : cmd_eval a x1 a4 x2 x3),
               □ interp_env_as_mixed x0 -∗
               □ Σinterp x0 a0 -∗
@@ -59,7 +61,7 @@ Section proofs.
     |=▷^n heap_models st'.2 ∗
           interp_local_tys Σ (<[lhs:=DynamicT]> Γ) st'.1.
   Proof.
-    move => wfpdefs wflty hΔ hrecv hi hnotthis Σ st st' n hrigid hc.
+    move => wfpdefs wflty hokthis hΔ hrecv hi hnotthis Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ #IH".
     inv hc; simpl.
     assert (wfpdefs0 := wfpdefs).
@@ -170,7 +172,7 @@ Section proofs.
         rewrite lookup_fmap_Some.
         by case => ty [<- ] hk.
     }
-    assert (hlty_bounded: bounded_lty (length odef.(generics)) 
+    assert (hlty_bounded: bounded_lty (length odef.(generics))
          {| type_of_this := (orig, gen_targs (length odef.(generics)));
             ctxt := to_dyn <$> methodargs omdef
          |}).
@@ -249,9 +251,29 @@ Section proofs.
     }
     assert (hl: length (interp_list Σt σ0) = length odef.(generics)).
     { by rewrite /interp_list map_length. }
+    assert (hokthis_ : ok_ty (constraints odef ++ Δsdt_m orig name)
+            (this_type {|
+              type_of_this := (orig, gen_targs (length (generics odef)));
+              ctxt := to_dyn <$> methodargs omdef
+            |})).
+    { rewrite /this_type /=.
+      econstructor => //.
+      - move => k ty hty.
+        apply lookup_gen_targs in hty as ->.
+        by constructor.
+      - move => k [c0 c1] hc /=.
+        apply wf_constraints_bounded in hodef.
+        rewrite /wf_cdef_constraints_bounded Forall_lookup in hodef.
+        rewrite !subst_ty_id.
+        + apply SubConstraint.
+          apply elem_of_list_lookup_2 in hc.
+          by set_solver.
+        + by apply hodef in hc as [].
+        + by apply hodef in hc as [].
+    }
     (* Use the Löb induction hypothesis *)
     iSpecialize ("IH" $! _ _ Aware _ _ _ _ hwf_lty hlty_bounded
-      hwfoΔsdt hΔ_bounded hbody (interp_list Σt σ0) _ _ _ hl heval_body with
+      hokthis_ hwfoΔsdt hΔ_bounded hbody (interp_list Σt σ0) _ _ _ hl heval_body with
       "hmixed0 hΣt_").
     iDestruct ("IH" with "[Hh Hle H●]") as "Hstep".
     { iClear "IH"; iSplit.

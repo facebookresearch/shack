@@ -25,23 +25,22 @@ From shack Require Import lang progdef subtype typing eval heap modality interp 
  * }
  *)
 Definition Get := {|
-  methodname := "get";
   methodargs := ∅;
   methodrettype := GenT 0;
   methodbody := GetC "$ret" ThisE "$x";
   methodret := VarE "$ret";
+  methodvisibility := Public;
 |}.
 
 Definition BoxSet := {|
-  methodname := "set";
   methodargs := {["$y" := GenT 0 ]};
   methodrettype := NullT;
   methodbody := SetC ThisE "$x" (VarE "$y");
   methodret := NullE;
+  methodvisibility := Public;
 |}.
 
 Definition Box := {|
-  classname := "Box";
   superclass := None;
   generics := [Invariant];
   constraints := [];
@@ -57,15 +56,14 @@ Definition Box := {|
  * }
  *)
 Definition ROBoxSet := {|
-  methodname := "set";
   methodargs := {["$y" := MixedT ]};
   methodrettype := NullT;
   methodbody := ErrorC;
   methodret := NullE;
+  methodvisibility := Public;
 |}.
 
 Definition ROBox := {|
-  classname := "ROBox";
   superclass := Some ("Box", [GenT 0]);
   generics := [Invariant];
   constraints := [];
@@ -459,7 +457,7 @@ Proof.
     }
     exists Γ; split; first done.
     split.
-    - constructor; first done.
+    - constructor => //.
       constructor; first by repeat constructor.
       apply map_Forall_lookup => i ty.
       rewrite lookup_fmap fmap_Some => [[ty0]].
@@ -620,11 +618,11 @@ Proof.
     rewrite !lookup_insert in hA, hB.
     simplify_eq.
     change [GenT 0] with (gen_targs 1).
-    rewrite subst_mdef_gen_targs; first by apply mdef_incl_reflexive.
     rewrite /Box /= in hmA.
     rewrite lookup_insert_Some in hmA.
     case: hmA => [[? <-] | ].
     - rewrite /Box /BoxSet /=.
+      rewrite subst_mdef_gen_targs; first by apply mdef_incl_reflexive.
       split => /=.
       { apply map_Forall_singleton.
         by repeat constructor.
@@ -634,6 +632,7 @@ Proof.
       by repeat constructor.
     - case => ?.
       rewrite lookup_singleton_Some => [[? <-]].
+      rewrite /= subst_mdef_gen_targs; first by apply mdef_incl_reflexive.
       split => /=; first by apply map_Forall_empty.
       split; first by repeat constructor.
       split; first by repeat constructor.
@@ -662,11 +661,11 @@ Proof.
   rewrite !lookup_insert in hA, hB.
   simplify_eq.
   change [GenT 0] with (gen_targs 1).
-  rewrite subst_mdef_gen_targs; first by apply mdef_incl_reflexive.
   rewrite /ROBox /= in hmA.
   rewrite lookup_insert_Some in hmA.
   case: hmA => [[? <-] | ].
   - rewrite /ROBoxSet /=.
+    rewrite subst_mdef_gen_targs; first by apply mdef_incl_reflexive.
     split => /=.
     { apply map_Forall_singleton.
       by repeat constructor.
@@ -844,7 +843,7 @@ Proof.
     }
     exists Γ; split; first done.
     split.
-    - constructor; first done.
+    - constructor => //.
       constructor; first by repeat constructor.
       by apply map_Forall_singleton.
     - by constructor.

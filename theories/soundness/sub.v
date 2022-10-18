@@ -26,6 +26,7 @@ Section proofs.
     wf_cdefs pdefs →
     wf_lty Γ →
     bounded_lty rigid Γ →
+    ok_ty Δ (this_type Γ) →
     Forall wf_constraint Δ →
     Forall (bounded_constraint rigid) Δ →
     lty_sub Δ kd Γ1 Γ0 →
@@ -36,24 +37,26 @@ Section proofs.
     cmd_eval C st c st' n →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
-    □ (⌜wf_lty Γ⌝ →
-       ⌜bounded_lty rigid Γ⌝ →
-       ⌜Forall wf_constraint Δ⌝ →
-       ⌜Forall (bounded_constraint rigid) Δ⌝ →
-       ∀ (a : list (interp Θ)) (a0 a1 : local_env * heap) (a2 : nat),
-         ⌜length a = rigid⌝ -∗
-         ⌜cmd_eval C a0 c a1 a2⌝ -∗
-         □ interp_env_as_mixed a -∗
-         □ Σinterp a Δ -∗
-         heap_models a0.2 ∗ interp_local_tys a Γ a0.1 -∗
-         |=▷^a2 heap_models a1.2 ∗ interp_local_tys a Γ1 a1.1) -∗
+    □ (⌜wf_lty Γ⌝
+         → ⌜bounded_lty rigid Γ⌝
+           → ⌜ok_ty Δ (this_type Γ)⌝
+             → ⌜Forall wf_constraint Δ⌝
+               → ⌜Forall (bounded_constraint rigid) Δ⌝
+                 → ∀ (a : list (interp Θ)) (a0 a1 : local_env * heap)
+                     (a2 : nat),
+                     ⌜length a = rigid⌝ -∗
+                     ⌜cmd_eval C a0 c a1 a2⌝ -∗
+                     □ interp_env_as_mixed a -∗
+                     □ Σinterp a Δ -∗
+                     heap_models a0.2 ∗ interp_local_tys a Γ a0.1 -∗
+                     |=▷^a2 heap_models a1.2 ∗ interp_local_tys a Γ1 a1.1) -∗
     heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗
     |=▷^n heap_models st'.2 ∗ interp_local_tys Σ Γ0 st'.1.
   Proof.
-    move => wfpdefs wflty blty hΔ hΔb hsub hb h Σ st st' n hrigid hc.
+    move => wfpdefs wflty blty hokthis hΔ hΔb hsub hb h Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ #HI".
     iIntros "H".
-    iSpecialize ("HI" $! wflty blty hΔ hΔb _ _ _ _ hrigid with "[//] hΣ hΣΔ H").
+    iSpecialize ("HI" $! wflty blty hokthis hΔ hΔb _ _ _ _ hrigid with "[//] hΣ hΣΔ H").
     iApply updN_mono_I; last done.
     iIntros "[Hh #Hrty]". iFrame.
     iDestruct (interp_local_tys_is_inclusion with "hΣ hΣΔ Hrty") as "Hrty'" => //; try by apply wfpdefs.
