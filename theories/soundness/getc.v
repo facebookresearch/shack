@@ -50,8 +50,8 @@ Section proofs.
     iDestruct "Hle" as "[Hthis Hle]".
     rewrite /this_type /=.
     rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-    iDestruct "Hthis" as (???? σ0 ???) "[%H [#hmixed [#? [%hinst [#hdyn H◯]]]]]".
-    destruct H as ([= <-] & hdef & hdef1 & hlen & ? & hinherits & hidom & hfields).
+    iDestruct "Hthis" as (??? σ0 ???) "(%H & #hmixed & #? & %hinst & #hdyn & H◯)".
+    destruct H as ([= <-] & hdef1 & ? & hinherits & hidom & hfields).
     iAssert (⌜t0 = t1⌝ ∗ heap_models h ∗ ▷ interp_type (subst_ty σ fty) Σ v)%I with "[Hh]" as "[%Ht [Hh Hv]]".
     { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
       iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
@@ -95,7 +95,7 @@ Section proofs.
     iApply interp_local_tys_update => //.
     iSplit; last done.
     rewrite /type_of_this /interp_this_type interp_this_unseal.
-    iExists l, t1, cdef, tdef, σ0, Σt, fields, ifields.
+    iExists l, t1, tdef, σ0, Σt, fields, ifields.
     by repeat iSplit.
   Qed.
 
@@ -122,8 +122,8 @@ Section proofs.
     rewrite interp_class_unfold //; first last.
     { by apply expr_has_ty_wf in hrecv. }
     { by apply wfpdefs. }
-    iDestruct "He" as (?? def def0 σ0 ???) "[%H [#hmixed [#? [#hf0 [#hdyn H◯]]]]]".
-    destruct H as ([= <-] & hdef & hdef0 & hlen & ? & hinherits & hfields & hidom).
+    iDestruct "He" as (?? def def0 σ0 ???) "(%H & #hmixed & #? & #hf0 & #hdyn & H◯)".
+    destruct H as ([= <-] & hdef & hdef0 & ? & hinherits & hfields & hidom).
     assert (hwf0: wf_ty (ClassT t σ)) by (by apply expr_has_ty_wf in hrecv).
     assert (hl0: length (generics def) = length σ0).
     { apply inherits_using_wf in hinherits; try (by apply wfpdefs).
@@ -132,8 +132,7 @@ Section proofs.
     }
     assert (hl1: length σ0 = length σ).
     { rewrite -hl0.
-      rewrite /interp_list fmap_length in hlen.
-      by rewrite hlen.
+      inv hwf0; by simplify_eq.
     }
     assert (hff: has_field name t1 Public (subst_ty σ0 fty) orig).
     { by apply has_field_inherits_using with (A := t1) (σB := σ0) in hf => //; try (by apply wfpdefs). }

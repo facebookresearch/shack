@@ -73,7 +73,6 @@ Section proofs.
       { iPureIntro.
         repeat split => //.
         + by rewrite /interp_list fmap_length.
-        + by rewrite /interp_list fmap_length.
         + by econstructor.
         + by rewrite /iFs /= !dom_fmap_L.
       }

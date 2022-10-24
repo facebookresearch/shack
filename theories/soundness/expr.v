@@ -109,29 +109,29 @@ Section proofs.
     - inv he.
       iDestruct "Hlty" as "[Hthis Hv]".
       rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-      iDestruct "Hthis" as (?? thisdef tdef ????) "[%H [#hmixed [#hconstr [%hinst [hdyn hloc]]]]]".
-      destruct H as ([= <-] & hthisdef & htdef & hl & ? & hin & hfields & hdom).
+      iDestruct "Hthis" as (?? tdef ????) "(%H & #hmixed & #hconstr & %hinst & hdyn & hloc)".
+      destruct H as ([= <-] & htdef & hl & hin & hfields & hdom).
       rewrite /this_type interp_class_unfold //=; last first.
       { by apply wflty. }
       destruct Γ as [[this σthis] Γ]; simpl in *.
-      iExists _,t,thisdef,tdef,_, _, _, _.
+      assert (hthis: wf_ty (ClassT this σthis)) by by apply wflty.
+      inv hthis.
+      iExists _,t,def,tdef,_, _, _, _.
       iSplit; first done.
       iSplit; first by iApply "hmixed".
       iSplit; first by iApply "hconstr".
       iSplit; last by iSplit.
       iModIntro; iNext.
       iClear "wfΣ Σcoherency hmixed hdyn hloc Hv".
-      assert (hl0 : length thisdef.(generics) = length σ).
+      assert (hl0 : length def.(generics) = length σ).
       { apply inherits_using_wf in hin => //.
         destruct hin as (?&?&?&h).
         by inv h; simplify_eq.
       }
       assert (hl1: length σ = length σthis).
-      { rewrite /interp_list !fmap_length in hl.
-        by rewrite hl.
-      }
+      { by rewrite H2. }
       move : hl0 hl1 hinst.
-      generalize thisdef.(generics); clear.
+      generalize def.(generics); clear.
       move => l hl0 hl1 hinst.
       iInduction l as [ | hd tl hi] "IH" forall (σ σthis hl0 hl1 hinst).
       { by destruct σ; destruct σthis. }

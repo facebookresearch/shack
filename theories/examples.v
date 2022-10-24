@@ -1751,8 +1751,8 @@ Qed.
 Theorem class_soundness cmd st lty n:
   cmd_eval "Main" (main_le, main_heap "Main") cmd st n →
   cmd_has_ty "Main" [] Plain 0 (main_lty "Main") cmd lty →
-  ∀ v T σ, lty.(ctxt) !! v = Some (ClassT T σ) →
-  ∃ l Tdyn vs, st.1.(lenv) !! v = Some (LocV l) ∧
+  ∀ x T σ, lty.(ctxt) !! x = Some (ClassT T σ) →
+  ∃ l Tdyn vs, st.1.(lenv) !! x = Some (LocV l) ∧
           st.2 !! l = Some (Tdyn, vs) ∧
           inherits Tdyn T.
 Proof.
@@ -1763,7 +1763,13 @@ Proof.
     - by apply map_Forall_empty.
   }
   assert (hinit: pdefs !! "Main" = Some (main_cdef {["entry_point" := EntryPoint ]})) by done.
-  move => he ht v T σ hin.
+  move => he ht x T σ hin.
+  assert (hwflty : wf_lty lty).
+  { apply cmd_has_ty_wf in ht => //.
+    + by apply wf_parent.
+    + by apply wf_fields_wf.
+    + by apply wf_methods_wf.
+  }
   apply (@step_updN_soundness sem_heapΘ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
   iModIntro.
@@ -1771,6 +1777,13 @@ Proof.
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
+  assert (hx: ∃ Tdef, pdefs !! T = Some Tdef ∧
+              length (go interp_type [] <$> σ) = length Tdef.(generics)).
+  { apply hwflty in hin.
+    inv hin.
+    exists def; by rewrite map_length.
+  }
+  destruct hx as (Tdef & hTdef & hlen).
   assert (wfΔ : Forall wf_constraint []) by by apply Forall_nil.
   iAssert (interp_env_as_mixed []) as "wfΣ".
   { iIntros (? ? h).
@@ -1790,12 +1803,12 @@ Proof.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [_ Hl]]".
-  iSpecialize ("Hl" $! v (ClassT T σ) hin).
+  iSpecialize ("Hl" $! x (ClassT T σ) hin).
   iDestruct "Hl" as (w hw) "Hw".
   rewrite interp_type_unfold /=.
-  rewrite interp_tag_equiv; last by apply wf_parent.
-  iDestruct "Hw" as (l t cdef tdef σ0 Σt fields ifields) "[%hpure [#hmixed [#hΣt [#hinst [#hdyn #Hl]]]]]".
-  destruct hpure as (-> & hcdef & htdef & hl0 & hl1 & hinherits & hfields & hidom).
+  rewrite interp_tag_equiv //; last by apply wf_parent.
+  iDestruct "Hw" as (l t cdef tdef σ0 Σt fields ifields) "(%hpure & #hmixed & #hΣt & #hinst & #hdyn & #Hl)".
+  destruct hpure as (-> & hcdef & htdef & hl1 & hinherits & hfields & hidom).
   destruct st as [le h]; simpl in *.
   iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
   iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".

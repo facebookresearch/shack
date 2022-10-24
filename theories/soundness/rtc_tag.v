@@ -151,10 +151,10 @@ Section proofs.
       { iDestruct "Hint" as "%Hint"; by destruct Hint. }
       iDestruct "Hl" as "[Hbool | Hl]".
       { iDestruct "Hbool" as "%Hbool"; by destruct Hbool. }
-      iDestruct "Hl" as (exTag exΣ) "Hl".
-      rewrite interp_tag_equiv; last (by apply wfpdefs).
-      iDestruct "Hl" as (k rt exdef rtdef σ Σt exfields ifields) "[%H [#hmixed [#hΣt [#hinst [#hdyn #Hl]]]]]".
-      destruct H as ([= <-] & hexdef & hrtdef & hlexΣ & hlΣt & hinherits' & hfields' & hidom'); simplify_eq.
+      iDestruct "Hl" as (exTag exΣ exdef [hexdef hlen]) "Hl".
+      rewrite interp_tag_equiv //; last (by apply wfpdefs).
+      iDestruct "Hl" as (k rt exdef' rtdef σ Σt exfields ifields) "(%H & #hmixed & #hΣt & #hinst & #hdyn & #Hl)".
+      destruct H as ([= <-] & hexdef' & hrtdef & hlΣt & hinherits' & hfields' & hidom'); simplify_eq.
       iDestruct "H" as (sh) "(H● & %hdom & #Hh)".
       iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
       iDestruct ("Hh" with "[//]") as (iFs) "[H H▷]".
@@ -185,14 +185,13 @@ Section proofs.
         destruct hσin as (? & ? & ? & h); simplify_eq.
         by apply wf_ty_class_inv in h.
       }
+      assert (hexlen: length (interp_list Σt σin) = length (generics def)).
+      { by rewrite /interp_list map_length. }
       iExists (interp_list Σt σin).
       iSplit.
-      { rewrite interp_tag_equiv; last (by apply wfpdefs).
+      { rewrite interp_tag_equiv //; last (by apply wfpdefs).
         iExists l, rt, def, rtdef, σin, Σt, exfields, ifields.
-        iSplit.
-        { iPureIntro; repeat split => //.
-          by rewrite /interp_list map_length heq.
-        }
+        iSplit; first done.
         iSplit => //.
         iSplit => //.
         iSplit; last by iSplit.

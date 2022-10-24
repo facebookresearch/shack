@@ -82,8 +82,8 @@ Section proofs.
     (* Get inherits relation between dynamic tag and static tag *)
     iDestruct (expr_soundness Δ (length Σ) Σ _ recv with "hΣ hΣΔ Hle") as "#Hrecv" => //.
     rewrite interp_class_unfold //.
-    iDestruct "Hrecv" as (? t1 def def1 σin Σt fields ifields) "[%Hpure [#hΣt [#hΣtΔ1 [#hf [#hdyn Hl]]]]]".
-    destruct Hpure as ([= <-] & hdef & hdef1 & hlen & ? & hin_t1_t & hfields & hidom).
+    iDestruct "Hrecv" as (? t1 def def1 σin Σt fields ifields) "(%Hpure & #hΣt & #hΣtΔ1 & #hf & #hdyn & Hl)".
+    destruct Hpure as ([= <-] & hdef & hdef1 & ? & hin_t1_t & hfields & hidom).
     iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
     iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
     iDestruct ("Hh" with "[//]") as (?) "[H H▷]".
@@ -239,11 +239,8 @@ Section proofs.
         by rewrite Hdom.
       - iSplit => /=.
         + rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-          iExists l, t1, odef0, def1, σt1_o0, Σt, fields, ifields.
-          iSplit.
-          { iPureIntro; repeat split => //.
-            by rewrite /interp_list fmap_length length_gen_targs.
-          }
+          iExists l, t1, def1, σt1_o0, Σt, fields, ifields.
+          iSplit; first done.
           iSplit; first done.
           iSplit; first done.
           iSplit; last by iSplit.

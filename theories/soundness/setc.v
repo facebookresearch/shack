@@ -49,9 +49,9 @@ Section proofs.
     iApply (heap_models_update Δ _ _ _ _ _ t σ) => //=; try (by apply wfpdefs).
     - iDestruct "Hle" as "[Hthis Hle]".
       rewrite /= /interp_this_type interp_this_unseal /interp_this_def /=.
-      iDestruct "Hthis" as (l' t1 def def1 σ0 σt fields ifields) "[%H [#hmixed [#? [#hinst [#hdyn #Hl]]]]]".
-      destruct H as ([= <-] & hdef & hdef1 & hlen & ? & hin & hfields & hidom).
-      iExists l, t1, def, def1, σ0, σt, fields, ifields.
+      iDestruct "Hthis" as (l' t1 def1 σ0 σt fields ifields) "(%H & #hmixed & #? & #hinst & #hdyn & #Hl)".
+      destruct H as ([= <-] & hdef1 & ? & hin & hfields & hidom).
+      iExists l, t1, def1, σ0, σt, fields, ifields.
       repeat iSplit => //.
       by inv H2.
     - iApply expr_soundness => //; by apply wfpdefs.

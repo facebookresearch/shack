@@ -61,9 +61,9 @@ Section proofs.
       discriminate H.
     }
     rewrite interp_sdt_equiv; last by apply wfpdefs.
-    iDestruct "He" as (dyntag Σdyn dyndef hdyndef) "(#HΣdyn & #hmixed1 & #hΣ1 & He)".
+    iDestruct "He" as (dyntag Σdyn dyndef [hdyndef hdynlen]) "(#HΣdyn & #hmixed1 & #hΣ1 & He)".
     iDestruct "He" as (?? def def0 ????) "(%H & #hmixed & #hconstr & #hf0 & #hdyn & H◯)".
-    destruct H as ([= <-] & hdef & hdef0 & hlen & ? & hinherits & hfields & hidom).
+    destruct H as ([= <-] & hdef & hdef0 & ? & hinherits & hfields & hidom).
     simplify_eq.
     assert (hl0: length (generics dyndef) = length σ).
     { apply inherits_using_wf in hinherits; try (by apply wfpdefs).

@@ -63,9 +63,9 @@ Section proofs.
       discriminate H.
     }
     rewrite interp_sdt_equiv; last by apply wfpdefs.
-    iDestruct "He" as (dyntag Σdyn dyndef hdyndef) "(#HΣdyn & #hmixed1 & #hΣ1 & He)".
+    iDestruct "He" as (dyntag Σdyn dyndef [hdyndef hdynlen]) "(#HΣdyn & #hmixed1 & #hΣ1 & He)".
     iDestruct "He" as (?? def def0 ????) "(%H & #hmixed & #hconstr & #hf0 & #hdyn & H◯)".
-    destruct H as ([= <-] & hdef & hdef0 & hlen & ? & hinherits & hfields & hidom).
+    destruct H as ([= <-] & hdef & hdef0 & ? & hinherits & hfields & hidom).
     simplify_eq.
     (* This is based on heap_models_update, but specialized for Dynamic *)
     destruct H10 as (vis & fty & orig & hf & hv).

@@ -107,8 +107,8 @@ Section proofs.
     (* Get inherits relation between dynamic tag and static tag *)
     iDestruct (expr_soundness Δ (length Σ) Σ _ ThisE with "hΣ hΣΔ Hle") as "#Hrecv" => //.
     rewrite interp_class_unfold //.
-    iDestruct "Hrecv" as (? t1 def def1 σin Σt fields ifields) "[%Hpure [_ [_ [_ [_ Hl]]]]]".
-    destruct Hpure as ([= <-] & hdef & hdef1 & hlen & ? & hin_t1_t & hfields & hidom).
+    iDestruct "Hrecv" as (? t1 def def1 σin Σt fields ifields) "(%Hpure & _ & _ & _ & _ & Hl)".
+    destruct Hpure as ([= <-] & hdef & hdef1 & ? & hin_t1_t & hfields & hidom).
     iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
     iDestruct (sem_heap_own_valid_2 with "H● Hl") as "#HΦ".
     iDestruct ("Hh" with "[//]") as (?) "[H H▷]".

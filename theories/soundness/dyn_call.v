@@ -92,9 +92,9 @@ Section proofs.
       discriminate Hn.
     }
     rewrite interp_sdt_equiv; last by apply wfpdefs.
-    iDestruct "He" as (dyntag Σdyn dyndef hdyndef) "(#HΣdyn & #hmixed1 & #hΣ1 & He)".
+    iDestruct "He" as (dyntag Σdyn dyndef [hdyndef hdynlen]) "(#HΣdyn & #hmixed1 & #hΣ1 & He)".
     iDestruct "He" as (?? def def0 ????) "(%H & #hmixed & #hconstr & #hf0 & #hdyn & H◯)".
-    destruct H as ([= <-] & hdef & hdef0 & hlen & ? & ht0_dyn_σ & hfields & hidom).
+    destruct H as ([= <-] & hdef & hdef0 & ? & ht0_dyn_σ & hfields & hidom).
     simplify_eq.
     iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
     iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
@@ -282,11 +282,8 @@ Section proofs.
         by rewrite Hdom.
       - iSplit => /=.
         + rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-          iExists l, t0, odef, def0, σ0, Σt, fields, ifields.
-          iSplit.
-          { iPureIntro; repeat split => //.
-            by rewrite /interp_list fmap_length length_gen_targs.
-          }
+          iExists l, t0, def0, σ0, Σt, fields, ifields.
+          iSplit; first done.
           iSplit; first done.
           iSplit; first done.
           iSplit; last by iSplit.

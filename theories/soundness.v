@@ -194,7 +194,7 @@ Proof.
       by iIntros "?".
   - rewrite /main_lty /main_le; iSplit => /=.
     + rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-      iExists 1%positive, MainTag, _, _, (gen_targs (length (main_cdef methods).(generics))), [] , ∅, ∅; iSplitR.
+      iExists 1%positive, MainTag, _, (gen_targs (length (main_cdef methods).(generics))), [] , ∅, ∅; iSplitR.
       { iPureIntro.
         repeat split => //.
         * by eapply InheritsRefl.

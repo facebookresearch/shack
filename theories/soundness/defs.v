@@ -84,8 +84,8 @@ Section proofs.
       l↦(t',ifields))%I with "[hrecv]" as "hrecv".
     { destruct vis.
       - rewrite interp_class_unfold //.
-        iDestruct "hrecv" as (l' t' def tdef' σ' Σt fields ifields) "[%H [#hmixed [#? [#hf0 [hdyn hl]]]]]".
-        destruct H as ([= <-] & hdef & htdef' & hlen & ? & hinherits & hfields & hdom).
+        iDestruct "hrecv" as (l' t' def tdef' σ' Σt fields ifields) "(%H & #hmixed & #? & #hf0 & hdyn & hl)".
+        destruct H as ([= <-] & hdef & htdef' & ? & hinherits & hfields & hdom).
         iExists t', σ', Σt, fields, ifields.
         iSplitR; first done.
         iSplitR; last by iSplit.
@@ -96,8 +96,8 @@ Section proofs.
           inv hhh; by simplify_eq.
         }
         assert (hl1: length σ' = length σt).
-        { rewrite /interp_list fmap_length in hlen.
-          by rewrite hlen.
+        { inv hwf; simplify_eq.
+          by rewrite -hl0.
         }
         assert (hwf_fty: wf_ty fty).
         { by apply has_field_wf in hfield. }
@@ -116,8 +116,8 @@ Section proofs.
         + iApply (interp_with_mono with "hf0") => //.
           by rewrite -interp_type_subst.
       - rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-        iDestruct "hrecv" as (l' t' tdef tdef' σ' Σt fields ifields) "[%H [#hmixed [#? [%hinst [hdyn hl]]]]]".
-        destruct H as ([= <-] & htdef & htdef' & hlen & ? & hinherits & hfields & hdom).
+        iDestruct "hrecv" as (l' t' tdef' σ' Σt fields ifields) "(%H & #hmixed & #? & %hinst & hdyn & hl)".
+        destruct H as ([= <-] & htdef' & ? & hinherits & hfields & hdom).
         assert (hl1: length σ' = length σt).
         { apply inherits_using_wf in hinherits => //.
           destruct hinherits as (? & ? & ? & hhh).
@@ -139,10 +139,10 @@ Section proofs.
         rewrite interp_type_subst // -hinst.
         by iSplit; iIntros.
     }
-    iDestruct "hrecv" as (t' σ' Σt fields ifields) "[%hpure [#hstatic [#hdyn hl]]]".
+    iDestruct "hrecv" as (t' σ' Σt fields ifields) "(%hpure & #hstatic & #hdyn & hl)".
     destruct hpure as (hinherits' & hfields & hdomfields).
     iIntros "#hv hmodels".
-    iDestruct "hmodels" as (sh) "[hown [%hdom #h]]".
+    iDestruct "hmodels" as (sh) "(hown & %hdom & #h)".
     iExists sh.
     iDestruct (sem_heap_own_valid_2 with "hown hl") as "#Hv".
     iSplitL "hown"; first by iFrame.
