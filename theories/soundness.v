@@ -10,7 +10,8 @@ From iris.base_logic.lib Require Import iprop own.
 From iris.algebra Require Import ofe cmra gmap_view.
 From iris.proofmode Require Import tactics.
 
-From shack Require Import lang progdef subtype typing eval heap modality interp.
+From shack Require Import lang progdef subtype ok typing.
+From shack Require Import eval heap modality interp.
 From shack.soundness Require Import expr defs.
 From shack.soundness Require Import getc setc newc call priv_call sub.
 From shack.soundness Require Import rtc_tag rtc_prim.

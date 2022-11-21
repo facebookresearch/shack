@@ -10,7 +10,8 @@ From iris.proofmode Require Import tactics.
 From iris.base_logic.lib Require Import iprop own wsat.
 From iris.algebra.lib Require Import gmap_view.
 
-From shack Require Import lang progdef subtype typing eval heap modality interp soundness.
+From shack Require Import lang progdef subtype ok typing.
+From shack Require Import eval heap modality interp soundness.
 
 Definition arraykey := UnionT IntT BoolT.
 

@@ -7,11 +7,12 @@ INSTALLDEFAULTROOT = shack-test
 theories/lang.v
 theories/progdef.v
 theories/subtype.v
-theories/typing.v
+theories/ok.v
 theories/eval.v
 theories/heap.v
 theories/modality.v
 theories/interp.v
+theories/typing.v
 theories/soundness/dyn_call.v
 theories/soundness/call.v
 theories/soundness/priv_call.v

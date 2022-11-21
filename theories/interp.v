@@ -11,7 +11,7 @@ From iris.base_logic.lib Require Import iprop own.
 From iris.algebra Require Import ofe cmra gmap_view.
 From iris.proofmode Require Import tactics.
 
-From shack Require Import lang progdef subtype typing eval heap modality.
+From shack Require Import lang progdef subtype eval heap modality.
 
 Section Helpers.
   Context { Θ: gFunctors }.

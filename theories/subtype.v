@@ -714,6 +714,23 @@ Section SubtypeFacts.
       ctxt := <[x := ty]>Γ.(ctxt);
     |}.
 
+  Definition wf_lty Γ :=
+    wf_ty (this_type Γ) ∧
+    map_Forall (λ _, wf_ty) Γ.(ctxt)
+  .
+
+  Lemma insert_wf_lty x ty Γ :
+    wf_ty ty → wf_lty Γ → wf_lty (<[x := ty]>Γ).
+  Proof.
+    destruct Γ as [[lt lσ] Γ].
+    rewrite /wf_lty /this_type /= => h [h0 hl]; split => //.
+    rewrite map_Forall_lookup => k tk.
+    rewrite lookup_insert_Some.
+    case => [[? <-] | [? hk]]; first done.
+    by apply hl in hk.
+  Qed.
+
+
   Lemma lty_sub_constraint_trans Δ kd Γ0 Γ1:
     lty_sub Δ kd Γ0 Γ1 →
     ∀ Δ', Δentails kd Δ' Δ →
@@ -725,6 +742,33 @@ Section SubtypeFacts.
     exists B; split => //.
     by eapply subtype_constraint_trans.
   Qed.
+
+  Definition bounded_lty n Γ :=
+    bounded n (this_type Γ) ∧
+    map_Forall (λ _, bounded n) Γ.(ctxt)
+  .
+
+  Lemma insert_bounded_lty n x ty Γ :
+    bounded n ty → bounded_lty n Γ → bounded_lty n (<[x := ty]>Γ).
+  Proof.
+    destruct Γ as [[lt lσ] Γ].
+    rewrite /bounded_lty /this_type /= => h [h0 hl]; split => //.
+    rewrite map_Forall_lookup => k tk.
+    rewrite lookup_insert_Some.
+    case => [[? <-] | [? hk]]; first done.
+    by apply hl in hk.
+  Qed.
+
+  Lemma bounded_lty_ge Γ n m:
+    bounded_lty n Γ → m ≥ n → bounded_lty m Γ.
+  Proof.
+    move => [h0 /map_Forall_lookup h1] hge; split.
+    - by eapply bounded_ge.
+    - rewrite map_Forall_lookup => k ty h.
+      apply h1 in h.
+      by eapply bounded_ge.
+  Qed.
+
 
   (* We allow method override: children can redeclare a method if types
    * are compatible:
