@@ -47,9 +47,9 @@ Section Typing.
         expr_has_ty Δ Γ rigid kd e BoolT →
         expr_has_ty Δ Γ rigid kd (UniOpE NotO e) BoolT
     | GenTy: ∀ kd v ty,
-        Γ.(ctxt) !! v = Some ty →
+        Γ !! v = Some ty →
         expr_has_ty Δ Γ rigid kd (VarE v) ty
-    | ThisTy kd: expr_has_ty Δ Γ rigid kd ThisE (this_type Γ)
+    | ThisTy kd: expr_has_ty Δ Γ rigid kd ThisE ThisT
     | ESubTy: ∀ kd e s t,
         expr_has_ty Δ Γ rigid kd e s →
         wf_ty t →
@@ -83,7 +83,6 @@ Section Typing.
       kd ????? ]
       => //=; subst; try (by constructor).
     - by apply hwf in h.
-    - by apply hwf.
   Qed.
 
   Lemma expr_has_ty_bounded Δ Γ n kd e ty:
@@ -98,9 +97,11 @@ Section Typing.
       kd ?????]
       => //=; subst; try (by constructor).
     - by apply hb in h.
-    - by apply hb.
   Qed.
 
+  Definition subst_fty exact_ t σ fty :=
+    subst_ty σ (subst_this (ClassT exact_ t (gen_targs (length σ))) fty)
+    .
   (* continuation-based typing for commands.
    * Δ is the set of constraints S <: T of the current class
    * and C is the tag of the current class (for `private` related checks)
@@ -115,7 +116,6 @@ Section Typing.
   Inductive cmd_has_ty (C : tag) : list constraint → subtype_kind → nat → local_tys → cmd → local_tys → Prop :=
     | SkipTy: ∀ Γ Δ kd rigid, cmd_has_ty C Δ kd rigid Γ SkipC Γ
     | ErrorTy: ∀ Δ kd rigid Γ0 Γ1,
-        this_type Γ0 = this_type Γ1 →
         wf_lty Γ1 → bounded_lty rigid Γ1 → cmd_has_ty C Δ kd rigid Γ0 ErrorC Γ1
     | SeqTy: ∀ Δ kd rigid Γ1 Γ2 Γ3 fstc sndc,
         cmd_has_ty C Δ kd rigid Γ1 fstc Γ2 →
@@ -129,23 +129,21 @@ Section Typing.
         cmd_has_ty C Δ kd rigid Γ1 thn Γ2 →
         cmd_has_ty C Δ kd rigid Γ1 els Γ2 →
         cmd_has_ty C Δ kd rigid Γ1 (IfC cond thn els) Γ2
-    | GetPrivTy: ∀ Δ kd rigid Γ lhs t σ name fty,
-        type_of_this Γ = (t, σ) →
-        has_field name t Private fty C →
-        cmd_has_ty C Δ kd rigid Γ (GetC lhs ThisE name) (<[lhs := subst_ty σ fty]>Γ)
+    | GetPrivTy: ∀ Δ kd rigid Γ lhs name fty,
+        has_field name C Private fty C →
+        cmd_has_ty C Δ kd rigid Γ (GetC lhs ThisE name) (<[lhs := fty]>Γ)
     | GetPubTy: ∀ Δ kd rigid Γ lhs recv exact_ t σ name fty orig,
         expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
         has_field name t Public fty orig →
-        cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := subst_ty σ fty]>Γ)
-    | SetPrivTy: ∀ Δ kd rigid Γ fld rhs fty t σ,
-        type_of_this Γ = (t, σ) →
-        has_field fld t Private fty C →
-        expr_has_ty Δ Γ rigid kd rhs (subst_ty σ fty) →
+        cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := subst_fty exact_ t σ fty]>Γ)
+    | SetPrivTy: ∀ Δ kd rigid Γ fld rhs fty,
+        has_field fld C Private fty C →
+        expr_has_ty Δ Γ rigid kd rhs fty →
         cmd_has_ty C Δ kd rigid Γ (SetC ThisE fld rhs) Γ
     | SetPubTy: ∀ Δ kd rigid Γ recv fld rhs fty orig exact_ t σ,
         expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
         has_field fld t Public fty orig →
-        expr_has_ty Δ Γ rigid kd rhs (subst_ty σ fty) →
+        expr_has_ty Δ Γ rigid kd rhs (subst_fty exact_ t σ fty) →
         cmd_has_ty C Δ kd rigid Γ (SetC recv fld rhs) Γ
     | NewTy: ∀ Δ kd rigid Γ lhs t otargs targs args fields,
         (match otargs with
@@ -160,8 +158,9 @@ Section Typing.
         (∀ f fty arg,
         fields !! f = Some fty →
         args !! f = Some arg →
-        expr_has_ty Δ Γ rigid kd arg (subst_ty targs fty.1.2)) →
+        expr_has_ty Δ Γ rigid kd arg (subst_fty true t targs fty.1.2)) →
         cmd_has_ty C Δ kd rigid Γ (NewC lhs t otargs args) (<[lhs := ClassT true t targs]>Γ)
+  (*
     | CallPubTy: ∀ Δ kd rigid Γ lhs recv exact_ t targs name orig mdef args,
         expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t targs) →
         has_method name t orig mdef →
@@ -173,6 +172,7 @@ Section Typing.
         expr_has_ty Δ Γ rigid kd arg (subst_ty targs ty)) →
         cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := subst_ty targs mdef.(methodrettype)]>Γ)
     | CallPrivTy: ∀ Δ kd rigid Γ lhs t σ name mdef args,
+        (* FIXME *)
         type_of_this Γ = (t, σ) →
         has_method name t C mdef →
         mdef.(methodvisibility) = Private →
@@ -256,11 +256,11 @@ Section Typing.
          end) →
         cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := DynamicT]>Γ)
     | FalseCmdTy: ∀ Δ kd rigid Γ0 cmd Γ1,
-        this_type Γ0 = this_type Γ1 →
         wf_lty Γ1 →
         bounded_lty rigid Γ1 →
         subtype Δ kd IntT BoolT →
         cmd_has_ty C Δ kd rigid Γ0 cmd Γ1
+   *)
   .
 
   Lemma cmd_has_ty_wf C Δ kd rigid Γ0 cmd Γ1:
@@ -272,62 +272,68 @@ Section Typing.
     cmd_has_ty C Δ kd rigid Γ0 cmd Γ1 →
     wf_lty Γ1.
   Proof.
-    move => hp hfields hmethods hΔ [hthis hwf].
-    induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he | |
-      ????????? he hf | ???????????? he hf |
-      ????????? he hf hr | ??????????? he hf hr |
-      ?????????? _ ht hb hok hf hdom hargs |
-      ????????????? he hm hvis hdom hargs |
+    move => hp hfields hmethods hΔ hwf.
+    induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
+      ???????? he h1 hi1 h2 hi2 | ??????? hf | ???????????? he hf |
+      ??????? hf hr | ??????????? he hf hr |
+      ?????????? _ ht hb hok hf hdom hargs(* |
+      ???????????? he hm hvis hdom hargs |
       ?????????? ht hm hvis hdom hargs |
-      ??????? hsub hb h hi | | | | | | |
-      ??????? he hnotthis | |
-      ???????? he hargs hnotthis | ] => //=; try (by eauto).
-    - apply hi2 => //.
-      + by apply hi1.
-      + by apply hi1.
+      ??????? hsub hb h hi | ??????????? hin hdef hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
+      ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
+      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis |
+      ????????? *)
+      ] => //=; try (by eauto).
+    (* - apply hi2 => //. *)
+    (*   + by apply hi1. *)
+    (*   + by apply hi1. *)
     - apply insert_wf_lty => //.
       by apply expr_has_ty_wf in he.
     - apply insert_wf_lty => //.
-      apply wf_ty_subst; last by apply has_field_wf in hf.
-      destruct Γ as [[? ?] Γ].
-      rewrite /this_type /= in hthis, he.
-      simplify_eq.
-      by apply wf_ty_classI in hthis.
-    - apply insert_wf_lty => //.
-      apply wf_ty_subst; last by apply has_field_wf in hf.
-      apply expr_has_ty_wf in he => //.
-      by apply wf_ty_classI in he.
-    - split; first by apply hthis.
-      by apply map_Forall_insert_2.
-    - split; first by apply hthis.
-      apply map_Forall_insert_2 => //.
-      apply has_method_wf in hm => //.
-      destruct hm as [hargs' hret'].
-      apply wf_ty_subst => //.
-      apply expr_has_ty_wf in he => //.
-      by apply wf_ty_classI in he.
-    - split; first by apply hthis.
-      apply map_Forall_insert_2 => //.
-      apply has_method_wf in hm => //.
-      destruct hm as [hargs' hret'].
-      apply wf_ty_subst => //.
-      destruct Γ as [[? ?] Γ].
-      rewrite /this_type /= in hthis, ht.
-      simplify_eq.
-      by apply wf_ty_classI in hthis.
-    - apply hi in hwf as [hthis' hwf] => //; clear hi h.
-      destruct hsub as [h0 h1].
-      split; first by rewrite -h0.
-      rewrite map_Forall_lookup => k ty hty.
-      apply h1 in hty.
-      destruct hty as [ty' [ hty' hsub']].
-      apply hwf in hty'.
-      by eapply subtype_wf.
-    - by apply insert_wf_lty.
-    - by apply insert_wf_lty.
+      by apply has_field_wf in hf.
+    - apply expr_has_ty_wf in he => //.
+      assert (he_ := he).
+      apply wf_tyI in he_ as (? & ? & ? & ?).
+      apply insert_wf_lty => //.
+      rewrite /subst_fty.
+      apply wf_ty_subst; first by apply wf_ty_classI in he.
+      apply wf_ty_subst_this.
+      { econstructor => //; last by apply gen_targs_wf_2.
+        by rewrite length_gen_targs.
+      }
+      by apply has_field_wf in hf.
+    - by apply map_Forall_insert_2.
+    (* - split; first by apply hthis. *)
+    (*   apply map_Forall_insert_2 => //. *)
+    (*   apply has_method_wf in hm => //. *)
+    (*   destruct hm as [hargs' hret']. *)
+    (*   apply wf_ty_subst => //. *)
+    (*   apply expr_has_ty_wf in he => //. *)
+    (*   by apply wf_ty_class_inv in he. *)
+    (* - split; first by apply hthis. *)
+    (*   apply map_Forall_insert_2 => //. *)
+    (*   apply has_method_wf in hm => //. *)
+    (*   destruct hm as [hargs' hret']. *)
+    (*   apply wf_ty_subst => //. *)
+    (*   destruct Γ as [[? ?] Γ]. *)
+    (*   rewrite /this_type /= in hthis, ht. *)
+    (*   simplify_eq. *)
+    (*   by apply wf_ty_class_inv in hthis. *)
+    (* - apply hi in hwf as [hthis' hwf] => //; clear hi h. *)
+    (*   destruct hsub as [h0 h1]. *)
+    (*   split; first by rewrite -h0. *)
+    (*   rewrite map_Forall_lookup => k ty hty. *)
+    (*   apply h1 in hty. *)
+    (*   destruct hty as [ty' [ hty' hsub']]. *)
+    (*   apply hwf in hty'. *)
+    (*   by eapply subtype_wf. *)
+    (* - by apply insert_wf_lty. *)
+    (* - by apply insert_wf_lty. *)
   Qed.
 
-  Lemma cmd_has_ty_bounded C Δ kd rigid Γ0 cmd Γ1:
+  Lemma cmd_has_ty_bounded C cdef Δ kd rigid Γ0 cmd Γ1:
     map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _ : string, wf_cdef_methods_wf) pdefs →
@@ -335,46 +341,54 @@ Section Typing.
     map_Forall (λ _ : string, cdef_methods_bounded) pdefs →
     Forall wf_constraint Δ →
     wf_lty Γ0 →
+    pdefs !! C = Some cdef →
+    rigid ≥ length cdef.(generics) →
     bounded_lty rigid Γ0 →
     cmd_has_ty C Δ kd rigid Γ0 cmd Γ1 →
     bounded_lty rigid Γ1.
   Proof.
-    move => hp ?? hfields hmethods hΔ hwf [hthis hb].
-    induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he | |
-      ????????? he hf | ???????????? he hf | | |
-      ?????????? _ ht htb hok hf hdom hargs |
-      ????????????? he hm hvis hdom hargs |
-      ?????????? ht hm hvis hdom hargs | | | | | | | |
-      ??????? he hnotthis | | ???????? he hargs hnotthis | ]
-      => //=; try (by eauto).
+    move => hp ?? hfields hmethods hΔ hwf hcdef hge hb.
+    induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
+      ???????? he h1 hi1 h2 hi2 | ??????? hf | ???????????? he hf |
+      ??????? hf hr | ??????????? he hf hr |
+      ?????????? _ ht htb hok hf hdom hargs (*|
+      ???????????? he hm hvis hdom hargs |
+      ?????????? ht hm hvis hdom hargs |
+      ??????? hsub hΓb h hi | ??????????? hin hdef hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
+      ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
+      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis |
+      ?????????*)
+      ] => //=; try (by eauto).
     - apply hi2 => //.
       + by apply cmd_has_ty_wf in h1.
-      + by apply hi1.
       + by apply hi1.
     - apply insert_bounded_lty => //.
       by apply expr_has_ty_bounded in he.
     - apply insert_bounded_lty => //.
       apply has_field_bounded in hf => //.
       destruct hf as (def & hdef & hbfty).
-      destruct Γ as [[tt σt] Γ].
-      injection he; intros; subst; clear he.
-      apply bounded_subst with (length def.(generics)) => //.
-      + destruct hwf as [hwf ?].
-        rewrite /this_type /= in hwf.
-        apply wf_tyI in hwf as (? & ? & ? & ?).
-        by simplify_eq.
-      + rewrite /this_type /= in hthis.
-        by apply boundedI in hthis.
+      simplify_eq.
+      by eapply bounded_ge.
     - apply insert_bounded_lty => //.
+      rewrite /subst_fty.
       apply has_field_bounded in hf => //.
       destruct hf as (def & hdef & hbfty).
       apply bounded_subst with (length def.(generics)) => //.
+      + apply bounded_subst_this => //.
+        constructor.
+        apply expr_has_ty_wf in he => //.
+        apply wf_tyI in he as (? & ? & hlen & ?); simplify_eq.
+        rewrite hlen.
+        by apply bounded_gen_targs.
       + apply expr_has_ty_wf in he => //.
         apply wf_tyI in he as (? & ? & ? & ?).
         by simplify_eq.
       + apply expr_has_ty_bounded in he => //.
         by apply boundedI in he.
     - by apply insert_bounded_lty.
+      (*
     - split; first by apply hthis.
       apply map_Forall_insert_2 => //.
       apply has_method_from_def in hm => //.
@@ -418,36 +432,23 @@ Section Typing.
       + by apply boundedI in hthis.
     - by apply insert_bounded_lty.
     - by apply insert_bounded_lty.
-  Qed.
-
-  Lemma cmd_has_ty_preserves_this C Δ kd rigid Γ0 cmd Γ1:
-    cmd_has_ty C Δ kd rigid Γ0 cmd Γ1 →
-    this_type Γ0 = this_type Γ1.
-  Proof.
-    induction 1 as [ | | ???????? h1 hi1 h2 hi2 | | | | | | | | | |
-      ??????? hsub hΓb h hi | | | | | | | | | | ] => //=.
-    - by rewrite hi1.
-    - rewrite hi.
-      by destruct hsub as [-> ?].
+       *)
   Qed.
 
   (* Consider a class C<T0, ..., Tn>,
    * method bodies must be well-formed under a generic substitution mapping
    * Ti -> Ti.
    *)
-  Definition wf_mdef_ty tag Δ rigid σ mdef :=
+  Definition wf_mdef_ty tag Δ rigid mdef :=
     ∃ Γ',
     wf_lty Γ' ∧
-    cmd_has_ty tag Δ Plain rigid
-      {| type_of_this := (tag, σ); ctxt := mdef.(methodargs) |}
-      mdef.(methodbody) Γ' ∧
+    cmd_has_ty tag Δ Plain rigid mdef.(methodargs) mdef.(methodbody) Γ' ∧
     expr_has_ty Δ Γ' rigid Plain mdef.(methodret) mdef.(methodrettype)
   .
 
   Definition cdef_wf_mdef_ty cname cdef :=
     let n := length cdef.(generics) in
-    let σ := gen_targs n in
-    map_Forall (λ _mname mdef, wf_mdef_ty cname cdef.(constraints) n σ mdef) cdef.(classmethods)
+    map_Forall (λ _mname mdef, wf_mdef_ty cname cdef.(constraints) n mdef) cdef.(classmethods)
   .
 
   (* Checks related to support dynamic *)
@@ -510,7 +511,7 @@ Section Typing.
     move => ? hwf hext.
     assert (hext0 := hext).
     apply extends_using_wf in hext0 => //.
-    destruct hext0 as (adef & hadef & ? & hwfb).
+    destruct hext0 as (adef & hadef & ? & hwfb & _).
     apply wf_tyI in hwfb as (? & ? & ? & ?).
     destruct hext as [A' B' adef' σ hadef' hsuper]; simplify_eq.
     exists adef'; repeat split => //.
@@ -543,7 +544,7 @@ Section Typing.
     - destruct hi as (bdef & hbdef & h1).
       assert (hσ : Forall wf_ty σ ∧ length bdef.(generics) = length σ).
       { apply extends_using_wf in hext => //.
-        destruct hext as (? & ? & ? & hh); simplify_eq.
+        destruct hext as (? & ? & ? & hh & _); simplify_eq.
         split; first by apply wf_ty_classI in hh.
         apply wf_tyI in hh as (? & ? & ? & ?); by simplify_eq.
       }
@@ -593,7 +594,7 @@ Section Typing.
       }
       rewrite -subst_constraints_subst; last first.
       { apply inherits_using_wf in h => //.
-        destruct h as (? & ? & ? & h).
+        destruct h as (? & ? & ? & h & _).
         apply wf_tyI in h as (? & ? & hlen & ?); simplify_eq.
         rewrite hlen.
         rewrite Forall_lookup => ??.
@@ -617,12 +618,10 @@ Section Typing.
     map_Forall (λ _fname vfty, wf_field_dyn_wf Δ vfty) fields
     .
 
-  Definition wf_mdef_dyn_ty tag Δ rigid σ mdef :=
+  Definition wf_mdef_dyn_ty tag Δ rigid mdef :=
     ∃ Γ',
     wf_lty Γ' ∧
-    cmd_has_ty tag Δ Aware rigid
-      {| type_of_this := (tag, σ); ctxt := to_dyn <$> mdef.(methodargs) |}
-      mdef.(methodbody) Γ' ∧
+    cmd_has_ty tag Δ Aware rigid (to_dyn <$> mdef.(methodargs)) mdef.(methodbody) Γ' ∧
     expr_has_ty Δ Γ' rigid Aware mdef.(methodret) (to_dyn mdef.(methodrettype))
   .
 
@@ -638,9 +637,8 @@ Section Typing.
 
   Definition cdef_wf_mdef_dyn_ty cname cdef :=
     let n := length cdef.(generics) in
-    let σ := gen_targs n in
     let Δ := λ mname, cdef.(constraints) ++ Δsdt_m cname mname in
-    map_Forall (λ mname mdef, wf_mdef_dyn_ty cname (Δ mname) n σ mdef) cdef.(classmethods)
+    map_Forall (λ mname mdef, wf_mdef_dyn_ty cname (Δ mname) n mdef) cdef.(classmethods)
   .
 
   (* Collection of all program invariant (at the source level):
@@ -655,6 +653,7 @@ Section Typing.
     wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) prog;
     wf_constraints_ok : map_Forall (λ _cname, wf_cdef_constraints_ok) prog;
     wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) prog;
+    wf_constraints_no_this : map_Forall (λ _cname, wf_cdef_constraints_no_this) prog;
     wf_override : wf_method_override prog;
     wf_fields : map_Forall (λ _cname, wf_cdef_fields) prog;
     wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) prog;

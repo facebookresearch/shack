@@ -51,6 +51,7 @@ Section nested_ind.
     | GenT (n: nat)
     | DynamicT
     | SupportDynT
+    | ThisT
   .
 
   Variable P : lang_ty -> Prop.
@@ -67,6 +68,7 @@ Section nested_ind.
   Hypothesis case_GenT: ∀ n, P (GenT n).
   Hypothesis case_DynamicT : P DynamicT.
   Hypothesis case_SupportDynT : P SupportDynT.
+  Hypothesis case_ThisT : P ThisT.
 
   Fixpoint lang_ty_ind (t : lang_ty) :=
     match t with
@@ -88,8 +90,18 @@ Section nested_ind.
     | GenT n => case_GenT n
     | DynamicT => case_DynamicT
     | SupportDynT => case_SupportDynT
+    | ThisT => case_ThisT
     end.
 End nested_ind.
+
+Fixpoint no_this ty : bool :=
+  match ty with
+  | ClassT _ _ σ => List.forallb no_this σ
+  | UnionT A B => no_this A && no_this B
+  | InterT A B => no_this A && no_this B
+  | ThisT => false
+  | _ => true
+  end.
 
 (* A type is bounded by n if any generic that might be
  * present in it is < n
@@ -111,6 +123,7 @@ Inductive bounded (n: nat) : lang_ty → Prop :=
   | NonNullIsBounded : bounded n NonNullT
   | DynamicIsBounded : bounded n DynamicT
   | SupportDynIsBounded : bounded n SupportDynT
+  | ThisIsBounded : bounded n ThisT
 .
 
 Global Hint Constructors bounded : core.
@@ -167,6 +180,15 @@ Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
   | UnionT s t => UnionT (subst_ty targs s) (subst_ty targs t)
   | InterT s t => InterT (subst_ty targs s) (subst_ty targs t)
   | GenT n => default ty (targs !! n)
+  | _ => ty
+  end.
+
+Fixpoint subst_this this ty :=
+  match ty with
+  | ClassT ex cname cargs => ClassT ex cname (subst_this this <$> cargs)
+  | UnionT s t => UnionT (subst_this this s) (subst_this this t)
+  | InterT s t => InterT (subst_this this s) (subst_this this t)
+  | ThisT => this
   | _ => ty
   end.
 
@@ -275,6 +297,26 @@ Proof.
     apply lookup_lt_is_Some_2 in hlt.
     destruct (σ0 !! k) as [ ty | ] eqn:hty => //.
     by elim: hlt.
+Qed.
+
+Lemma bounded_subst_this n ty this:
+  bounded n ty →
+  bounded n this →
+  bounded n (subst_this this ty).
+Proof.
+  elim : ty => //=.
+  - move => ? t σ hi /boundedI hb hthis.
+    constructor.
+    rewrite Forall_forall => ty /elem_of_list_fmap hin.
+    destruct hin as [ty' [-> hin]].
+    rewrite Forall_forall in hi.
+    apply hi in hin => //.
+    rewrite Forall_forall in hb.
+    by apply hb.
+  - move => s t hs ht /boundedI [??] hthis.
+    constructor; by eauto.
+  - move => s t hs ht /boundedI [??] hthis.
+    constructor; by eauto.
 Qed.
 
 Definition var := string.
@@ -751,6 +793,49 @@ Qed.
 
 Lemma length_gen_targs n : length (gen_targs n) = n.
 Proof. by rewrite /gen_targs map_length seq_length. Qed.
+
+Lemma gen_targs_has_no_this n: Forall no_this (gen_targs n).
+Proof.
+  rewrite Forall_lookup => k ty hty.
+  apply lookup_gen_targs in hty.
+  by rewrite hty.
+Qed.
+
+Lemma subst_ty_has_no_this σ ty:
+  no_this ty → Forall no_this σ → no_this (subst_ty σ ty).
+Proof.
+  elim: ty => //=.
+  - move => ?? σ0 hi h hσ0.
+    apply forallb_True in h.
+    apply forallb_True.
+    rewrite Forall_lookup => k ty hSome.
+    apply list_lookup_fmap_inv in hSome as [ty0 [-> hty0]].
+    rewrite Forall_lookup in h.
+    rewrite Forall_lookup in hi.
+    assert (hty0_ := hty0).
+    apply h in hty0_; clear h.
+    by apply hi in hty0.
+  - move => s t hs ht h hσ0.
+    apply andb_prop_elim in h as [h0 h1].
+    apply andb_prop_intro; split; by firstorder.
+  - move => s t hs ht h hσ0.
+    apply andb_prop_elim in h as [h0 h1].
+    apply andb_prop_intro; split; by firstorder.
+  - move => k _ hσ; rewrite Forall_lookup in hσ.
+    destruct (σ !! k) as [ ty0 | ] eqn:hty0; last done.
+    by apply hσ in hty0.
+Qed.
+
+Lemma subst_ty_has_no_this_map (σ σ0: list lang_ty):
+  Forall no_this σ → Forall no_this σ0 → Forall no_this (subst_ty σ <$> σ0).
+Proof.
+  move => h.
+  induction σ0 as [ | hd tl hi] => h0; first done.
+  apply Forall_cons in h0 as [hhd htl].
+  constructor.
+  { by apply subst_ty_has_no_this. }
+  by apply hi.
+Qed.
 
 Lemma subst_ty_id n ty:
   bounded n ty →

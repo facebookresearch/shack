@@ -21,10 +21,10 @@ Section proofs.
   Context `{!sem_heapGS Θ}.
   Notation γ := sem_heap_name.
 
-  Lemma interp_local_tys_update Σ v Γ Ω ty val :
-    interp_local_tys Σ Γ Ω -∗
-    interp_type ty Σ val -∗
-    interp_local_tys Σ (<[v:=ty]>Γ) (<[v:=val]>Ω).
+  Lemma interp_local_tys_update Σthis Σ v Γ Ω ty val :
+    interp_local_tys Σthis Σ Γ Ω -∗
+    interp_type ty Σthis Σ val -∗
+    interp_local_tys Σthis Σ (<[v:=ty]>Γ) (<[v:=val]>Ω).
   Proof.
     iIntros "#[Hthis Hi] #?".
     iSplit; first done.
@@ -51,8 +51,10 @@ Section proofs.
     ⌜h !! ℓ = Some (t, vs)⌝ -∗
     ∃ (iFs : gmapO string (sem_typeO Θ)),
     sh !! ℓ ≡ Some (t, Next iFs) ∗ ▷ heap_models_fields iFs vs.
-
-  Lemma heap_models_update Δ Σ h l rt vs exact_ t σt f vis fty orig v:
+ 
+  (*
+  Lemma heap_models_update Δ Σ h l rt vs t σt f vis fty orig v:
+>>>>>>> 12fbf50 ([this] introducing this, not finished, need exact types)
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     map_Forall (λ _cname, wf_cdef_fields) pdefs →
     map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
@@ -310,4 +312,5 @@ Section proofs.
     }
     iApply (subtype_is_inclusion with "hmt hconstr_ h") => //; by apply wfpdefs.
   Qed.
+  *)
 End proofs.

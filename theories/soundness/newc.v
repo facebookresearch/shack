@@ -38,17 +38,18 @@ Section proofs.
     (∀ (f : string) (fty : visibility * lang_ty * tag) (arg : expr),
        fields !! f = Some fty →
        args !! f = Some arg →
-       expr_has_ty Δ Γ rigid kd arg (subst_ty σ fty.1.2)) →
-    ∀ Σ st st' n,
+        expr_has_ty Δ Γ rigid kd arg (subst_fty true t σ fty.1.2)) →
+    ∀ Σthis Σ st st' n,
     length Σ = rigid →
     cmd_eval C st (NewC lhs t oσ args) st' n →
+    □ interp_as_mixed Σthis -∗
     □ interp_env_as_mixed Σ -∗
-    □ Σinterp Σ Δ -∗
-    heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗
-    |=▷^n heap_models st'.2 ∗ interp_local_tys Σ (<[lhs:=ClassT true t σ]> Γ) st'.1.
+    □ Σinterp Σthis Σ Δ -∗
+    heap_models st.2 ∗ interp_local_tys Σthis Σ Γ st.1 -∗
+    |=▷^n heap_models st'.2 ∗ interp_local_tys Σthis Σ (<[lhs:=ClassT true t σ]> Γ) st'.1.
   Proof.
-    move => wfpdefs wflty hΔ hwf hok hf hdom harg Σ st st' n hrigid hc.
-    iIntros "#hΣ #hΣΔ".
+    move => wfpdefs wflty hΔ hwf hok hf hdom harg Σthis Σ st st' n hrigid hc.
+    iIntros "#hΣthis #hΣ #hΣΔ".
     elim/cmd_eval_newI : hc => {n}.
     move => Ω h new vargs hheap hvargs.
     iIntros "[Hh #Hle]"; simpl.
@@ -58,19 +59,28 @@ Section proofs.
     { apply (not_elem_of_dom (D:=gset loc)).
       by rewrite Hdom not_elem_of_dom.
     }
+    pose (Σthis0 := interp_tag_exact t (interp_list Σthis Σ σ)).
+    iAssert (□ interp_as_mixed Σthis0)%I as "#hΣthis0".
+    { admit. }
     set (iFs :=
-      (λ(ty: lang_ty), (interp_car (interp_type ty Σ))) <$>
-      ((λ x, subst_ty σ x.1.2) <$>
-      fields)
-    ).
+        (λ x, (interp_car (interp_type x.1.2 Σthis0 (interp_list Σthis Σ σ)))) <$>
+      fields).
     iMod ((sem_heap_own_update new) with "H●") as "[H● #H◯]" => //;
     first by apply (sem_heap_view_alloc _ new t iFs).
     iIntros "!> !>". (* kill the modalities *)
-    iAssert (interp_type (ClassT true t σ) Σ (LocV new)) with "[]" as "#Hl".
-    { rewrite interp_class_unfold_exact //; last by apply wfpdefs.
+    iAssert (interp_type (ClassT true t σ) Σthis Σ (LocV new)) with "[]" as "#Hl".
+    { rewrite interp_exact_class_unfold //; last by apply wfpdefs.
       assert (hwf' := hwf).
       apply wf_tyI in hwf' as (def & hpdef & hlen & wf_σ).
-      iExists new, def, (interp_list Σ σ), fields, iFs.
+      iExists Σthis0.
+      iSplit.
+      { iModIntro; iNext; iIntros (v) "#hv".
+        rewrite interp_tag_exact_unfold interp_exact_tag_equiv //.
+        by apply wfpdefs.
+        by rewrite /interp_list fmap_length.
+      }
+      iSplit; first done.
+      iExists new, def, (interp_list Σthis Σ σ), fields, iFs.
       iSplit.
       { iPureIntro.
         repeat split => //.
@@ -85,8 +95,9 @@ Section proofs.
         assert (hsub: Δ ⊢ phi <: MixedT) by eauto.
         destruct wfpdefs.
         iDestruct (subtype_is_inclusion _ hΔ wf_parent wf_mono
-          wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub v
-          with "hΣ hΣΔ hphi") as "hsub".
+          wf_constraints_wf wf_constraints_no_this wf_constraints_bounded
+          _ _ _ _ _ hsub v
+          with "hΣthis hΣ hΣΔ hphi") as "hsub".
         + rewrite Forall_lookup in wf_σ.
           by eauto.
         + by rewrite interp_mixed_unfold.
@@ -120,11 +131,20 @@ Section proofs.
           apply elem_of_list_lookup_2 in heq.
           by rewrite (surjective_pairing c) in heq.
         }
+        assert (hno: no_this_constraint c).
+        { destruct wfpdefs.
+          apply wf_constraints_no_this in hpdef.
+          rewrite /wf_cdef_constraints_no_this Forall_lookup in hpdef.
+          by apply hpdef in heq.
+        }
+        destruct hno as [].
         destruct wfpdefs.
+        rewrite (interp_type_no_this _ _ _ Σthis0 Σthis); last done.
+        rewrite (interp_type_no_this _ _ _ Σthis0 Σthis); last done.
         rewrite -!interp_type_subst.
         { iApply (subtype_is_inclusion _ hΔ wf_parent wf_mono
-            wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub v
-            with "hΣ hΣΔ") => //.
+            wf_constraints_wf wf_constraints_no_this wf_constraints_bounded
+            _ _ _ _ _ hsub v with "hΣthis hΣ hΣΔ") => //.
           apply wf_ty_subst => //.
           apply wf_constraints_wf in hpdef.
           rewrite /wf_cdef_constraints_wf Forall_lookup in hpdef.
@@ -156,10 +176,7 @@ Section proofs.
         by rewrite hlen.
       }
       apply hf in hff.
-      rewrite !lookup_fmap hff /= option_equivI.
-      iPureIntro.
-      move => x.
-      by apply interp_type_subst.
+      by rewrite !lookup_fmap hff /= option_equivI.
     }
     iSplitL; last by iApply interp_local_tys_update.
     iExists _. iFrame. iSplit; first by rewrite !dom_insert_L Hdom.
@@ -207,11 +224,27 @@ Section proofs.
     { rewrite (map_args_lookup _ _ _ args vargs hvargs f) in hv0.
       by rewrite ha0 in hv0.
     }
-    assert (hty0: expr_has_ty Δ Γ rigid kd a0 (subst_ty σ fty.1.2)) by (by apply harg with f).
-    rewrite !lookup_fmap hty /= option_equivI.
-    rewrite discrete_fun_equivI.
-    iSpecialize ("hiF" $! v0).
-    iRewrite -"hiF".
-    iDestruct (expr_soundness Δ rigid Σ kd a0 with "hΣ hΣΔ Hle") as "#Ha0" => //; by apply wfpdefs.
+    assert (hty0: expr_has_ty Δ Γ rigid kd a0 (subst_fty true t σ fty.1.2)) by (by apply harg with f).
+    { rewrite hty /= option_equivI discrete_fun_equivI.
+      iSpecialize ("hiF" $! v0).
+      iRewrite -"hiF".
+      rewrite /subst_fty in hty0.
+      iDestruct (expr_soundness Δ rigid Σthis Σ kd a0 with "hΣthis hΣ hΣΔ Hle") as "#Ha0" => //; try by apply wfpdefs.
+      rewrite interp_type_subst; last admit.
+      iClear "hΣthis hΣ hΣΔ Hle Hh hΣthis0 H◯ Hl".
+      rewrite /Σthis0.
+      rewrite interp_type_subst.
+
+
+
+"Ha0" : interp_type (ClassT t (gen_targs (length σ))) Σthis (interp_list Σthis Σ σ) v0
+--------------------------------------□
+Σthis0 v0
+
+
+Σthis0 := interp_tag_exact t (interp_list Σthis Σ σ) : interpO Θ
+
+
+    => //; by apply wfpdefs.
   Qed.
 End proofs.

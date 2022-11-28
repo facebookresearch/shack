@@ -110,6 +110,11 @@ Section Subtype.
       pdefs !! A = Some adef →
       Δsdt_m A m !! k = Some c →
       bounded_constraint (length adef.(generics)) c;
+    (* Like normal constraints, Δsdt can't use the `this` type *)
+    Δsdt_no_this: ∀ A k c, Δsdt A !! k = Some c -> no_this_constraint c;
+    Δsdt_m_no_this: ∀ A m k c,
+      Δsdt_m A m !! k = Some c →
+      no_this_constraint c;
   }.
 End Subtype.
 
@@ -319,6 +324,7 @@ Section SubtypeFacts.
         mono vs (ClassT exact cname targs)
     | MonoDynamic : mono vs DynamicT
     | MonoSupportDyn : mono vs SupportDynT
+    | MonoThis : mono vs ThisT
   .
 
   Definition wf_cdef_mono cdef : Prop :=
@@ -367,7 +373,7 @@ Section SubtypeFacts.
   Proof.
     induction 1 as [ | | | | | | vs s t hs his ht hit
       | vs s t hs his ht hit | vs n hinv | vs n hco
-      | vs exact_ cname cdef targs hpdefs hcov hicov hcontra hicontra | | ]
+      | vs exact_ cname cdef targs hpdefs hcov hicov hcontra hicontra | | | ]
       => hb ws σ hlen h0 h1 //=; try by constructor.
     - apply boundedI in hb as [??].
       constructor.
@@ -462,7 +468,7 @@ Section SubtypeFacts.
       apply mono_subst with (generics bdef) => //.
       + by constructor.
       + apply extends_using_wf in hext => //.
-        destruct hext as (? & ? & ? & hwfB).
+        destruct hext as (? & ? & ? & hwfB & _).
         apply wf_tyI in hwfB as (? & ? & hlen & ?); simplify_eq.
         by rewrite hlen.
   Qed.
@@ -591,7 +597,7 @@ Section SubtypeFacts.
         * econstructor; [exact hadef | | by assumption].
           by rewrite map_length.
         * apply extends_using_wf in hext; last done.
-          destruct hext as (? & hadef' & hF & hwfB).
+          destruct hext as (? & hadef' & hF & hwfB & _).
           apply wf_tyI in hwfB as [? [? [??]]]; simplify_eq.
           by rewrite hA.
       + eapply SubExact => //.
@@ -711,66 +717,43 @@ Section SubtypeFacts.
   Qed.
 
   (* Typing contexts *)
-  Record local_tys := {
-    type_of_this: tag * list lang_ty;
-    ctxt: stringmap lang_ty;
-  }.
-
-  Definition this_type lty :=
-    ClassT false lty.(type_of_this).1 lty.(type_of_this).2.
+  Definition local_tys := stringmap lang_ty.
 
   (* Subtype / Inclusion of typing contexts *)
   Definition lty_sub Δ kd (Γ0 Γ1: local_tys) :=
-    this_type Γ0 = this_type Γ1 ∧
-    ∀ k A, Γ1.(ctxt) !! k = Some A → ∃ B, Γ0.(ctxt) !! k = Some B ∧ subtype Δ kd B A.
+    ∀ k A, Γ1 !! k = Some A → ∃ B, Γ0 !! k = Some B ∧ subtype Δ kd B A.
 
   Notation "Δ ⊢ Γ0 <:< Γ1" := (lty_sub Δ Plain Γ0 Γ1) (Γ0 at next level, at level 70, no associativity).
 
-  Global Instance local_tys_insert : Insert string lang_ty local_tys :=
-    λ x ty Γ,
-    {| type_of_this := Γ.(type_of_this);
-      ctxt := <[x := ty]>Γ.(ctxt);
-    |}.
-
-  Definition wf_lty Γ :=
-    wf_ty (this_type Γ) ∧
-    map_Forall (λ _, wf_ty) Γ.(ctxt)
-  .
+  Definition wf_lty (Γ: local_tys) := map_Forall (λ _, wf_ty) Γ.
 
   Lemma insert_wf_lty x ty Γ :
     wf_ty ty → wf_lty Γ → wf_lty (<[x := ty]>Γ).
   Proof.
-    destruct Γ as [[lt lσ] Γ].
-    rewrite /wf_lty /this_type /= => h [h0 hl]; split => //.
+    rewrite /wf_lty /= => h hl.
     rewrite map_Forall_lookup => k tk.
     rewrite lookup_insert_Some.
     case => [[? <-] | [? hk]]; first done.
     by apply hl in hk.
   Qed.
 
-
   Lemma lty_sub_constraint_trans Δ kd Γ0 Γ1:
     lty_sub Δ kd Γ0 Γ1 →
     ∀ Δ', Δentails kd Δ' Δ →
     lty_sub Δ' kd Γ0 Γ1.
   Proof.
-    move => [hthis hΓ] Δ' hΔ.
-    split => // k A hA.
+    move => hΓ Δ' hΔ k A hA.
     apply hΓ in hA as (B & hB & h).
     exists B; split => //.
     by eapply subtype_constraint_trans.
   Qed.
 
-  Definition bounded_lty n Γ :=
-    bounded n (this_type Γ) ∧
-    map_Forall (λ _, bounded n) Γ.(ctxt)
-  .
+  Definition bounded_lty n (Γ: local_tys) := map_Forall (λ _, bounded n) Γ.
 
   Lemma insert_bounded_lty n x ty Γ :
     bounded n ty → bounded_lty n Γ → bounded_lty n (<[x := ty]>Γ).
   Proof.
-    destruct Γ as [[lt lσ] Γ].
-    rewrite /bounded_lty /this_type /= => h [h0 hl]; split => //.
+    rewrite /bounded_lty /= => h hl.
     rewrite map_Forall_lookup => k tk.
     rewrite lookup_insert_Some.
     case => [[? <-] | [? hk]]; first done.
@@ -780,13 +763,10 @@ Section SubtypeFacts.
   Lemma bounded_lty_ge Γ n m:
     bounded_lty n Γ → m ≥ n → bounded_lty m Γ.
   Proof.
-    move => [h0 /map_Forall_lookup h1] hge; split.
-    - by eapply bounded_ge.
-    - rewrite map_Forall_lookup => k ty h.
-      apply h1 in h.
-      by eapply bounded_ge.
+    move => /map_Forall_lookup h1 hge k ty h.
+    apply h1 in h.
+    by eapply bounded_ge.
   Qed.
-
 
   (* We allow method override: children can redeclare a method if types
    * are compatible:
@@ -909,7 +889,7 @@ Section SubtypeFacts.
         apply hm in hoA.
         apply hoA in hmA.
         apply inherits_using_wf in h => //.
-        destruct h as (? & ? & ? & h).
+        destruct h as (? & ? & ? & h & _).
         apply wf_tyI in h as [? [? [hlen ?]]]; simplify_eq.
         by rewrite hlen.
       }
@@ -927,16 +907,16 @@ Section SubtypeFacts.
         apply hm in hoB.
         apply hoB in hmB.
         apply inherits_using_wf in hiB => //.
-        destruct hiB as (? & ? & ? & hiB).
+        destruct hiB as (? & ? & ? & hiB & _).
         apply wf_tyI in hiB as [? [? [hlen ?]]]; simplify_eq.
         by rewrite hlen.
       }
       assert (mdef_bounded (length σ'') (subst_mdef σB oborig)).
       { apply mdef_bounded_subst with (n := length σB) => //.
         apply inherits_using_wf in hiB => //.
-        destruct hiB as (bdef & ? & ? & ?).
+        destruct hiB as (bdef & ? & ? & ? & _).
         apply inherits_using_wf in h => //.
-        destruct h as (? & ? & ? & h).
+        destruct h as (? & ? & ? & h & _).
         apply wf_tyI in h as [? [? [hlen ?]]]; simplify_eq.
         by rewrite hlen.
       }
@@ -960,7 +940,7 @@ Section SubtypeFacts.
       { rewrite -subst_mdef_mdef //.
         apply mdef_incl_subst => //.
         apply inherits_using_wf in hiA => //.
-        destruct hiA as (? & ? & ? & hiA).
+        destruct hiA as (? & ? & ? & hiA & _).
         by apply wf_ty_classI in hiA.
       }
       right.

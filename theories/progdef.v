@@ -37,6 +37,7 @@ Section ProgDef.
     | WfGen k: wf_ty (GenT k)
     | WfDynamic : wf_ty DynamicT
     | WfSupportDyn : wf_ty SupportDynT
+    | WfThis : wf_ty ThisT
   .
 
   Hint Constructors wf_ty : core.
@@ -86,6 +87,23 @@ Section ProgDef.
       by rewrite Forall_lookup in hwf; apply hwf in hty.
   Qed.
 
+  Lemma wf_ty_subst_this this ty :
+    wf_ty this → wf_ty ty → wf_ty (subst_this this ty).
+  Proof.
+    move => hwf.
+    elim: ty => //=.
+    - move => ? t σ hi /wf_tyI [? [? [? hσ]]].
+      econstructor; [ done | by rewrite map_length | ].
+      rewrite Forall_lookup => k ty.
+      rewrite list_lookup_fmap.
+      destruct (σ !! k) as [ tk | ] eqn:htk => //=.
+      case => <-.
+      rewrite !Forall_lookup in hi, hσ.
+      by eauto.
+    - move => s t hs ht /wf_tyI [??]; by eauto.
+    - move => s t hs ht /wf_tyI [??]; by eauto.
+  Qed.
+
   Lemma wf_ty_subst_map σ σ':
     Forall wf_ty σ →
     Forall wf_ty σ' →
@@ -116,8 +134,13 @@ Section ProgDef.
    *)
   Definition wf_constraint c := wf_ty c.1 ∧ wf_ty c.2.
 
+  Definition no_this_constraint c := no_this c.1 ∧ no_this c.2.
+
   Definition wf_cdef_constraints_wf cdef :=
     Forall wf_constraint cdef.(constraints).
+
+  Definition wf_cdef_constraints_no_this cdef :=
+    Forall no_this_constraint cdef.(constraints).
 
   Definition wf_cdef_constraints_bounded cdef :=
     Forall (bounded_constraint (length cdef.(generics))) cdef.(constraints).
@@ -181,13 +204,15 @@ Section ProgDef.
    * - well-formed (tag exists, class is fully applied)
    * - bounded by the current class (must only mention generics of the current class)
    * - respect variance (see wf_cdef_mono)
+   * - the substitution doesn't refer to the `ThisT` type
    *)
   Definition wf_cdef_parent (prog: stringmap classDef) cdef : Prop :=
     match cdef.(superclass) with
     | None => True
     | Some (parent, σ) =>
         wf_ty (ClassT true parent σ) ∧
-        Forall (bounded (length cdef.(generics))) σ
+        Forall (bounded (length cdef.(generics))) σ ∧
+        Forall no_this σ
     end
   .
 
@@ -210,15 +235,16 @@ Section ProgDef.
     ∃ adef,
     pdefs !! A = Some adef ∧
     Forall (bounded (length adef.(generics))) σ ∧
-    wf_ty (ClassT true B σ).
+    wf_ty (ClassT true B σ) ∧
+    Forall no_this σ.
   Proof.
     move => /map_Forall_lookup hwf hext.
     destruct hext as [A B adef σB hadef hsuper].
     exists adef; split => //.
     apply hwf in hadef.
     rewrite /wf_cdef_parent hsuper in hadef.
-    destruct hadef as [hwfB hf].
-    by split.
+    destruct hadef as (? & ? & ?).
+    by repeat split.
   Qed.
 
   Inductive inherits_using : tag → tag → list lang_ty → Prop :=
@@ -242,7 +268,8 @@ Section ProgDef.
     ∃ adef,
     pdefs !! A = Some adef ∧
     Forall (bounded (length adef.(generics))) σ ∧
-    wf_ty (ClassT true B σ).
+    wf_ty (ClassT true B σ) ∧
+    Forall no_this σ.
   Proof.
     move => hwf.
     induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
@@ -251,10 +278,11 @@ Section ProgDef.
       + econstructor => //; first by rewrite length_gen_targs.
         rewrite Forall_lookup => x hx h.
         by apply gen_targs_wf in h.
+      + by apply gen_targs_has_no_this.
     - by apply extends_using_wf.
     - apply extends_using_wf in hext => //.
-      destruct hext as (adef & hadef & hF0 & hwfB).
-      destruct hi as (bdef & hbdef & hF1 & hwfC).
+      destruct hext as (adef & hadef & hF0 & hwfB & hnothisB).
+      destruct hi as (bdef & hbdef & hF1 & hwfC & hnothis).
       exists adef; repeat split => //.
       + rewrite Forall_lookup => ? ty hin.
         apply list_lookup_fmap_inv in hin as [ty' [-> hin]].
@@ -269,6 +297,7 @@ Section ProgDef.
         apply wf_ty_subst => //; first by apply wf_ty_classI in hwfB.
         rewrite Forall_lookup in hF.
         by eauto.
+      + by apply subst_ty_has_no_this_map.
   Qed.
 
   Lemma inherits_using_trans A B C σB σC:
@@ -290,8 +319,8 @@ Section ProgDef.
       rewrite -map_subst_ty_subst; first by eapply InheritsTrans.
       apply inherits_using_wf in h => //.
       apply inherits_using_wf in hCZ => //.
-      destruct h as (bdef & hbdef & hF0 & hwfC).
-      destruct hCZ as (cdef & hcdef & hF1 & hwfZ).
+      destruct h as (bdef & hbdef & hF0 & hwfC & _).
+      destruct hCZ as (cdef & hcdef & hF1 & hwfZ & _).
       apply wf_tyI in hwfC as (? & ? & hlen & _); simplify_eq.
       by rewrite hlen.
   Qed.
@@ -493,7 +522,7 @@ Section ProgDef2.
         apply subst_tys_id.
         apply hwf in hzdef.
         rewrite /wf_cdef_parent hsuper in hzdef.
-        by destruct hzdef as (_ & hF).
+        by destruct hzdef as (_ & hF & _).
       + case => {A}{Z}{σ'}.
         move => A Z adef' σ' hadef hsuper ? ?; simplify_eq.
         apply hwf in hadef.
@@ -505,7 +534,7 @@ Section ProgDef2.
       + move => B0 σB σC. case => {A}{B0}{σ'}{σB}.
         move => A B0 adef' σB hadef' hsuper0 hin hadef hsuper; simplify_eq.
         exists σC; by left.
-    - destruct (inherits_using_wf _ _ _ hwf hz) as (adef & hadef & hF0 & hwfZ).
+    - destruct (inherits_using_wf _ _ _ hwf hz) as (adef & hadef & hF0 & hwfZ & _).
       destruct hext as [A B adef' σ hadef' hsuper]; simplify_eq.
       elim/inherits_usingI: hz hadef' hsuper hF0 hwfZ.
       + move => zdef hzdef ? hsuper hF0 hwfZ; simplify_eq.
@@ -517,7 +546,7 @@ Section ProgDef2.
         apply list_lookup_fmap_inv in hty as [ty' [-> hty']].
         apply hwf in hzdef.
         rewrite /wf_cdef_parent hsuper in hzdef.
-        destruct hzdef as (hwfB & hF1).
+        destruct hzdef as (hwfB & hF1 & _).
         apply wf_tyI in hwfB as (bdef & ? & ? & ?).
         apply bounded_subst with (length (generics bdef)) => //.
         apply inherits_using_wf in h => //.
@@ -534,8 +563,8 @@ Section ProgDef2.
           rewrite map_subst_ty_subst //.
           apply inherits_using_wf in h => //.
           apply inherits_using_wf in hx => //.
-          destruct h as (bdef & hbdef & hF1 & hwfC).
-          destruct hx as (cdef & hcdef & hF2 & hwfZ').
+          destruct h as (bdef & hbdef & hF1 & hwfC & _).
+          destruct hx as (cdef & hcdef & hF2 & hwfZ' & _).
           simplify_eq.
           apply wf_tyI in hwfC as (? & ? & hlen & ?).
           simplify_eq.
@@ -544,8 +573,8 @@ Section ProgDef2.
           rewrite map_subst_ty_subst //.
           apply inherits_using_wf in h => //.
           apply inherits_using_wf in hx => //.
-          destruct h as (bdef & hbdef & hF1 & hwfC).
-          destruct hx as (zdef & hzdef & hF2 & hwfC').
+          destruct h as (bdef & hbdef & hF1 & hwfC & _).
+          destruct hx as (zdef & hzdef & hF2 & hwfC' & _).
           apply wf_tyI in hwfZ as (? & ? & hlen & ?); simplify_eq.
           rewrite map_length in hlen.
           by rewrite hlen.
@@ -756,7 +785,7 @@ Section ProgDef2.
       destruct hi as [pdef [ hp hb]].
       apply hwfparent in hpdefs.
       rewrite /wf_cdef_parent hs in hpdefs.
-      destruct hpdefs as [hwf hF].
+      destruct hpdefs as (hwf & hF & _).
       apply wf_tyI in hwf as (? & ? & ? & ?); simplify_eq.
       by eapply bounded_subst.
   Qed.
@@ -783,7 +812,7 @@ Section ProgDef2.
       apply has_field_extends_using with (A := A) (σB := σ) in hf => //.
       rewrite -subst_ty_subst //.
       apply inherits_using_wf in h => //.
-      destruct h as (bdef & hbdef & hF & hwfC).
+      destruct h as (bdef & hbdef & hF & hwfC & _).
       apply wf_tyI in hwfC as (? & ? & hlen & ?); simplify_eq.
       by rewrite hlen.
   Qed.
@@ -918,7 +947,7 @@ Section ProgDef2.
       assert (ho' := ho).
       apply hmb in ho.
       apply ho in hom.
-      apply inherits_using_wf in hin as (? & ? & hf & hwf0) => //.
+      apply inherits_using_wf in hin as (? & ? & hf & hwf0 & _) => //.
       apply wf_tyI in hwf0 as (? & ? & hlen & ?); simplify_eq.
       by rewrite hlen.
   Qed.
@@ -958,7 +987,7 @@ Section ProgDef2.
             by econstructor.
           }
           rewrite subst_mdef_mdef; first by rewrite hσ.
-          apply inherits_using_wf in hBO as (? & ? & hF & hwf0) => //.
+          apply inherits_using_wf in hBO as (? & ? & hF & hwf0 & _) => //.
           apply wf_tyI in hwf0 as (? & hodef & hlen & ?); simplify_eq.
           apply hb in hodef.
           apply hodef in hmo.
@@ -988,7 +1017,7 @@ Section ProgDef2.
     | InterT s t => InterT (lift_ty n s) (lift_ty n t)
     | GenT k => GenT (k + n)
     | IntT | BoolT | NothingT | MixedT | NullT |
-      NonNullT | DynamicT | SupportDynT => ty
+      NonNullT | DynamicT | SupportDynT | ThisT => ty
     end.
 
   Lemma lift_ty_O ty : lift_ty 0 ty = ty.

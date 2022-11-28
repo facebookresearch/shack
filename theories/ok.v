@@ -37,6 +37,7 @@ Section Ok.
     | OkGen n: ok_ty Δ (GenT n)
     | OkDynamic : ok_ty Δ DynamicT
     | OkSupportDyn : ok_ty Δ SupportDynT
+    | OkThis: ok_ty Δ ThisT
   .
 
   Lemma ok_tyI Δ ty:
@@ -59,7 +60,8 @@ Section Ok.
   Lemma ok_ty_weaken Δ t: ok_ty Δ t → ∀ Δ', Δ ⊆ Δ' → ok_ty Δ' t.
   Proof.
     induction 1 as [ | | | | ? t σ def hσ hi hdef hconstr
-    | | | s t hs hi ht hit | s t hs hi ht hit | n | | ] => Δ' hincl; try by constructor.
+      | | | s t hs hi ht hit | s t hs hi ht hit | n | | | ]
+      => Δ' hincl; try by constructor.
     - apply OkClass with def => //.
       + move => i ty h; by apply hi with i.
       + move => i c h.
@@ -87,8 +89,8 @@ Section Ok.
   Proof.
     move => hwp hcb.
     induction 1 as [ | | | | ? t σt def hσt hi hdef hconstr
-    | | | s t hs his ht hit | s t hs his ht hit | n | | ]
-    => hwf Δ' σ hwfσ hokσ /=; try (constructor; by eauto).
+      | | | s t hs his ht hit | s t hs his ht hit | n | | | ]
+      => hwf Δ' σ hwfσ hokσ /=; try (constructor; by eauto).
     - apply OkClass with def => //.
       + move => i ty h.
         apply list_lookup_fmap_inv in h as [ty' [-> h]].
@@ -128,7 +130,7 @@ Section Ok.
     ok_ty Δ' ty.
   Proof.
     induction 1 as [ | | | | ? t σt def hσt hi hdef hconstr
-      | | | s t hs his ht hit | s t hs his ht hit | n | | ]
+      | | | s t hs his ht hit | s t hs his ht hit | n | | | ]
       => Δ' hΔ /=; try (constructor; by eauto).
     econstructor; [ | done | ].
     - move => k ty hty.
@@ -184,7 +186,8 @@ Section Ok.
     ok_ty Δ' ty.
   Proof.
     induction 1 as [ | | | | ? t σ def hσ hi hdef hconstr
-    | | | s t hs hi ht hit | s t hs hi ht hit | n | | ] => Δ' hΔ; try by constructor.
+      | | | s t hs hi ht hit | s t hs hi ht hit | n | | | ]
+      => Δ' hΔ; try by constructor.
     - econstructor => //.
       + move => k ty hk; by eauto.
       + move => k c' hc'.
@@ -275,14 +278,14 @@ Section Ok.
         apply hcb in hC.
         rewrite /wf_cdef_constraints_bounded Forall_lookup in hC.
         apply hC in hc as [].
-        apply inherits_using_wf in h as (? & ? & ? & hwf)=> //.
+        apply inherits_using_wf in h as (? & ? & ? & hwf & _)=> //.
         apply wf_tyI in hwf as [? [? [hlen ?]]]; simplify_eq.
         by rewrite hlen.
       + assert (hC := hcdef).
         apply hcb in hC.
         rewrite /wf_cdef_constraints_bounded Forall_lookup in hC.
         apply hC in hc as [].
-        apply inherits_using_wf in h as (? & ? & ? & hwf)=> //.
+        apply inherits_using_wf in h as (? & ? & ? & hwf & _)=> //.
         apply wf_tyI in hwf as [? [? [hlen ?]]]; simplify_eq.
         by rewrite hlen.
   Qed.
