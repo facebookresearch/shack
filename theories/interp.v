@@ -478,8 +478,16 @@ Section proofs.
     Variable Σ : list (interpO Θ).
 
     (* Helper lemmas to control unfolding of some definitions *)
-    Lemma interp_type_unfold (ty : lang_ty) (v : value) :
-      interp_type ty Σ v ⊣⊢ interp_type_pre interp_type ty Σ v.
+
+    Lemma interp_type_unfold (ty : lang_ty) :
+      interp_type ty Σ ≡ interp_type_pre interp_type ty Σ.
+    Proof.
+      rewrite {1}/interp_type => v.
+      apply (fixpoint_unfold interp_type_pre ty Σ v).
+    Qed.
+
+    Lemma interp_type_unfold_v (ty : lang_ty) (v: value):
+      interp_type ty Σ v ≡ interp_type_pre interp_type ty Σ v.
     Proof.
       rewrite {1}/interp_type.
       apply (fixpoint_unfold interp_type_pre ty Σ v).
@@ -494,48 +502,38 @@ Section proofs.
       by apply _.
     Qed.
 
-    Lemma interp_nonnull_unfold v:
-      interp_type NonNullT Σ v ⊣⊢
-      (interp_int v) ∨ (interp_bool v) ∨
-      (∃ t Σ tdef, ⌜pdefs !! t = Some tdef ∧
-        length Σ = length tdef.(generics)⌝ ∗
-        interp_tag interp_type Σ t v)%I.
+    Lemma interp_nonnull_unfold: interp_type NonNullT Σ ≡ interp_nonnull interp_type.
     Proof. by rewrite interp_type_unfold /= /interp_nonnull /=. Qed.
 
-    Lemma interp_mixed_unfold v:
-      interp_type MixedT Σ v ⊣⊢ interp_nonnull interp_type v ∨ interp_null v.
+    Lemma interp_mixed_unfold: interp_type MixedT Σ ≡ interp_mixed interp_type.
     Proof. by rewrite interp_type_unfold /interp_mixed /=. Qed.
 
-    Lemma interp_union_unfold A B v:
-      interp_type (UnionT A B) Σ v ⊣⊢
-      interp_union (interp_type A Σ) (interp_type B Σ) v.
+    Lemma interp_union_unfold A B:
+      interp_type (UnionT A B) Σ ≡ interp_union (interp_type A Σ) (interp_type B Σ).
     Proof.
-      rewrite interp_type_unfold /=.
-    iSplit; iIntros "[H | H]".
-    - iLeft; by rewrite interp_type_unfold.
-    - iRight; by rewrite interp_type_unfold.
-    - iLeft; by rewrite interp_type_unfold.
-    - iRight; by rewrite interp_type_unfold.
+      rewrite interp_type_unfold /= => v.
+      iSplit; iIntros "[H | H]".
+      - iLeft; by rewrite interp_type_unfold.
+      - iRight; by rewrite interp_type_unfold.
+      - iLeft; by rewrite interp_type_unfold.
+      - iRight; by rewrite interp_type_unfold.
     Qed.
 
-    Lemma interp_inter_unfold A B v:
-      interp_type (InterT A B) Σ v ⊣⊢
-      interp_inter (interp_type A Σ) (interp_type B Σ) v.
+    Lemma interp_inter_unfold A B:
+      interp_type (InterT A B) Σ ≡ interp_inter (interp_type A Σ) (interp_type B Σ).
     Proof.
-      rewrite interp_type_unfold /=.
-    iSplit; iIntros "[HL HR]".
-    - rewrite !interp_type_unfold; by iSplit.
-    - rewrite !interp_type_unfold; by iSplit.
+      rewrite interp_type_unfold /interp_inter => v /=.
+      iSplit; iIntros "[HL HR]".
+      - rewrite !interp_type_unfold; by iSplit.
+      - rewrite !interp_type_unfold; by iSplit.
     Qed.
 
-    Lemma interp_support_dynamic_unfold v:
-      interp_type SupportDynT Σ v ⊣⊢
-      interp_support_dynamic interp_type v.
+    Lemma interp_support_dynamic_unfold:
+      interp_type SupportDynT Σ ≡ interp_support_dynamic interp_type.
     Proof.  by rewrite interp_type_unfold. Qed.
 
-    Lemma interp_dynamic_unfold v:
-      interp_type DynamicT Σ v ⊣⊢
-      interp_support_dynamic interp_type v.
+    Lemma interp_dynamic_unfold:
+      interp_type DynamicT Σ ≡ interp_support_dynamic interp_type.
     Proof.  by rewrite interp_type_unfold. Qed.
   End Unfold.
 
@@ -586,11 +584,7 @@ Section proofs.
       iSplit.
       { iModIntro; iNext; iIntros (i ii heq v) "hii".
         iSpecialize ("hmixed" $! i ii heq v with "hii").
-        assert (h :
-          interp_type MixedT Σ v ⊣⊢
-          interp_type_pre interp_type MixedT Σ v) by by rewrite interp_type_unfold.
-        rewrite /interp_fun !interp_car_simpl /= in h.
-        by rewrite h /interp_mixed.
+        by rewrite interp_mixed_unfold.
       }
       iSplit.
       { iModIntro; iNext; iIntros (i c heq v) "hc".
@@ -626,11 +620,7 @@ Section proofs.
       iSplit.
       { iModIntro; iNext; iIntros (i ii heq v) "hii".
         iSpecialize ("hmixed" $! i ii heq v with "hii").
-        assert (h :
-          interp_type MixedT Σ v ⊣⊢
-          interp_type_pre interp_type MixedT Σ v) by by rewrite interp_type_unfold.
-        rewrite /interp_fun !interp_car_simpl /= in h.
-        by rewrite h /interp_mixed.
+        by rewrite interp_mixed_unfold.
       }
       iSplit.
       { iModIntro; iNext; iIntros (i c heq v) "hc".
@@ -659,33 +649,9 @@ Section proofs.
       destruct k as [ | k].
       + case : heq => ->.
         rewrite /= !option_equivI.
-        iAssert (∀ w, interp_type t0 Σt w ≡ i0 w)%I as "hh0".
-        { by iIntros (w); iRewrite "h0". }
-        iAssert (∀ w, i w ≡ i1 w)%I as "hh1".
-        { by iIntros (w); iRewrite -"h1". }
-        destruct v; iIntros (w).
-        * iSpecialize ("hh0" $! w).
-          iRewrite -"hh0".
-          iSpecialize ("hh1" $! w).
-          iRewrite -"hh1".
-          simpl.
-          iDestruct ("h" $! w) as "[hl hr]".
-          iSplit; iIntros "hh".
-          { by iApply "hl". }
-          { by iApply "hr". }
-        * iSpecialize ("hh0" $! w).
-          iRewrite -"hh0".
-          iSpecialize ("hh1" $! w).
-          iRewrite -"hh1".
-          simpl.
-          iIntros "hh".
-          by iApply "h".
-        * iSpecialize ("hh0" $! w).
-          iRewrite -"hh0".
-          iSpecialize ("hh1" $! w).
-          iRewrite -"hh1".
-          simpl.
-          iIntros "hh".
+        destruct v; iIntros (w);
+          iRewrite -"h0";
+          iRewrite -"h1";
           by iApply "h".
       + by iApply ("HI" $! k).
   Qed.
@@ -793,14 +759,11 @@ Section proofs.
     inv hwf.
     assert (hlen: length (interp_list Σ σA) = length (generics def)).
     { by rewrite /interp_list map_length. }
-    move : (interp_tag_equiv A (interp_list Σ σA) v hwfp def H1 hlen) => heq.
-    rewrite -heq interp_type_unfold /=.
-    assert (h: go interp_type Σ <$> σA ≡ interp_list Σ σA).
-    { rewrite /interp_list.
-      apply list_fmap_equiv_ext => ? ty ? w.
-      by rewrite interp_type_unfold.
-    }
-    by apply interp_tag_equivI with (A := A) (v := v) in h.
+    rewrite -interp_tag_equiv // interp_type_unfold /=.
+    apply interp_tag_equivI.
+    rewrite /interp_list.
+    apply list_fmap_equiv_ext => ? ty ? w.
+    by rewrite interp_type_unfold.
   Qed.
 
   Lemma interp_generic_unfold Σ k v:
@@ -857,11 +820,7 @@ Section proofs.
     - rewrite !interp_tag_unseal /interp_tag_def /interp_fun !interp_car_simpl.
       do 18 f_equiv.
       { do 10 f_equiv.
-        assert (hm:
-          interp_type MixedT (go interp_type Σ0 <$> σ) a9 ⊣⊢
-          interp_type MixedT (go interp_type (Σ0 ++ Σ1) <$> σ) a9)
-        by by rewrite !interp_mixed_unfold.
-        done.
+        by rewrite !interp_mixed_unfold.
       }
       do 16 f_equiv.
       rewrite Forall_lookup in hi.
@@ -904,11 +863,7 @@ Section proofs.
     - rewrite !interp_tag_unseal /interp_tag_def /interp_fun !interp_car_simpl.
       do 18 f_equiv.
       { do 10 f_equiv.
-        assert (hm:
-          interp_type MixedT (go interp_type (Σ0 ++ Σ1) <$> (lift_ty (length Σ0) <$> σ)) a9 ⊣⊢
-          interp_type MixedT (go interp_type Σ1 <$> σ) a9)
-        by by rewrite !interp_mixed_unfold.
-        done.
+        by rewrite !interp_mixed_unfold.
       }
       do 16 f_equiv.
       rewrite Forall_lookup in hi.
@@ -1136,11 +1091,7 @@ Section proofs.
       iSplitR.
       { iModIntro; iNext; iIntros (i ii heq v) "hii".
         iSpecialize ("hmixed" $! i ii heq v with "hii").
-        iClear "IHty h hinst".
-        iDestruct (interp_mixed_unfold (go interp_type Σ0 <$> σC) v) as "[hm0 hm1]".
-        iDestruct (interp_mixed_unfold (go interp_type Σ1 <$> σC) v) as "[hm2 hm3]".
-        iDestruct ("hm0" with "hmixed") as "hm".
-        by iApply "hm3".
+        by rewrite !interp_mixed_unfold.
       }
       iSplitR.
       { iModIntro; iNext; iIntros (i c heq v) "hc".
@@ -1165,7 +1116,7 @@ Section proofs.
       }
       iAssert (Some (interp_type t0 Σt) ≡ Some (interp_type t0 Σt))%I as "heq0"; first done.
       iAssert (Some (go interp_type Σ0 t1) ≡ Some (go interp_type Σ0 t1))%I as "heq1"; first done.
-      iSpecialize ("hinst" $! k v (interp_type t0 Σt)  (go interp_type Σ0 t1) hk).
+      iSpecialize ("hinst" $! k v (interp_type t0 Σt) (go interp_type Σ0 t1) hk).
       rewrite !list_lookup_fmap /= ht0 ht1.
       iSpecialize ("hinst" with "heq0 heq1").
       destruct v.
@@ -1189,14 +1140,14 @@ Section proofs.
         iRewrite -"h0".
         iRewrite -"h1".
         iSplit; iIntros "#?".
-        * iAssert (interp_type t1 Σ1 w) as "hr"; last by rewrite !interp_type_unfold.
+        * iAssert (interp_type t1 Σ1 w) as "hr"; last by rewrite !interp_type_unfold_v.
           iApply "hc0".
-          iAssert (go interp_type Σ0 t1 w) as "hh"; last by rewrite !interp_type_unfold.
+          iAssert (go interp_type Σ0 t1 w) as "hh"; last by rewrite !interp_type_unfold_v.
           by iApply "hinst".
         * iApply "hinst".
-          iAssert (interp_type t1 Σ0 w) as "hr"; last by rewrite !interp_type_unfold.
+          iAssert (interp_type t1 Σ0 w) as "hr"; last by rewrite !interp_type_unfold_v.
           iApply "hc1".
-          by rewrite !interp_type_unfold.
+          by rewrite !interp_type_unfold_v.
       + assert (hmono0: mono vs t1).
         { inv hmono; simplify_eq.
           by apply H2 with k Covariant.
@@ -1209,9 +1160,9 @@ Section proofs.
         iRewrite -"h0".
         iRewrite -"h1".
         iIntros "#?".
-        iAssert (interp_type t1 Σ1 w) as "hr"; last by rewrite !interp_type_unfold.
+        iAssert (interp_type t1 Σ1 w) as "hr"; last by rewrite !interp_type_unfold_v.
         iApply "hc0".
-        iAssert (go interp_type Σ0 t1 w) as "hh"; last by rewrite !interp_type_unfold.
+        iAssert (go interp_type Σ0 t1 w) as "hh"; last by rewrite !interp_type_unfold_v.
         by iApply "hinst".
       + assert (hmono1: mono (neg_variance <$> vs) t1).
         { inv hmono; simplify_eq.
@@ -1226,9 +1177,9 @@ Section proofs.
         iRewrite -"h1".
         iIntros "#?".
         iApply "hinst".
-        iAssert (interp_type t1 Σ0 w) as "hr"; last by rewrite !interp_type_unfold.
+        iAssert (interp_type t1 Σ0 w) as "hr"; last by rewrite !interp_type_unfold_v.
         iApply "hc1".
-        by rewrite !interp_type_unfold.
+        by rewrite !interp_type_unfold_v.
     - iIntros "hh".
       iDestruct "hh" as "[hint | hh]"; first by iLeft.
       iDestruct "hh" as "[hbool | hh]"; first by (iRight; iLeft).
@@ -1238,16 +1189,16 @@ Section proofs.
       iIntros "hh".
       iDestruct "hh" as "[hh | hh]".
       + iLeft.
-        rewrite -!interp_type_unfold /=.
+        rewrite -!interp_type_unfold_v /=.
         by iApply "IHty".
       + iRight.
-        rewrite -!interp_type_unfold /=.
+        rewrite -!interp_type_unfold_v /=.
         by iApply "IHty1".
     - inv hmono.
       inv hwf.
       iIntros "hh".
       iDestruct "hh" as "[h0 h1]".
-      rewrite -!interp_type_unfold /=.
+      rewrite -!interp_type_unfold_v /=.
       iSplit; first by iApply "IHty".
       by iApply "IHty1".
     - iDestruct (iForall3_length with "h") as "%hl".
@@ -1619,9 +1570,8 @@ Section proofs.
         iRight; iRight.
         assert (h0 := hwfA).
         inv h0.
-        iExists A, (go interp_type Σ <$> targs), def; iSplit.
-        { by rewrite map_length. }
-        by rewrite -interp_type_unfold interp_class_unfold.
+        iExists A, (go interp_type Σ <$> targs), def; iSplit; last done.
+        by rewrite map_length.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.
         by iLeft.
       - clear subtype_is_inclusion_aux subtype_targs_is_inclusion_aux.

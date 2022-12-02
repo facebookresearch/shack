@@ -59,7 +59,6 @@ Section proofs.
       iDestruct "hv2" as (z2) "%hz2".
       rewrite hz2 in H0.
       case: H0 => <-.
-      rewrite interp_type_unfold /= /interp_int.
       move: hop; rewrite /is_bool_op; destruct op => //= _; by iExists _.
     - inv he.
       case heq1 : (expr_eval Ω e1) => [v1 | ]; rewrite heq1 in H0; last by done.
@@ -91,7 +90,6 @@ Section proofs.
       iDestruct "hv2" as (b2) "%hb2".
       rewrite hb2 in H0.
       case: H0 => <-.
-      rewrite interp_type_unfold /= /interp_bool.
       by iExists _.
     - inv he.
       case heq : (expr_eval Ω e0) => [v0 | ]; rewrite heq in H0; last by done.
@@ -101,7 +99,6 @@ Section proofs.
       iDestruct "hv" as (b) "%hb".
       rewrite hb in H0.
       case: H0 => <-.
-      rewrite interp_type_unfold /= /interp_bool.
       by iExists _.
     - inv he.
       iDestruct "Hlty" as "[? Hlty]".
