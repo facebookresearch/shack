@@ -138,8 +138,9 @@ Notation "|=▷^ n Q" := (Nat.iter n (λ P, |==> ▷ P) Q)%I
 Lemma step_updN_soundness Θ n φ: (⊢@{iPropI Θ} |==> |=▷^n ⌜ φ ⌝) → φ.
 Proof.
   move => Hiter.
-  apply (uPred.soundness (M:=iResUR Θ) _  (S n)); simpl.
-  apply uPred.bupd_plain_soundness.
+  eapply uPred.pure_soundness.
+  apply (uPred.laterN_soundness _ (S n)); simpl.
+  apply uPred.bupd_soundness.
   { rewrite -bi.later_laterN.
     apply laterN_plain.
     by apply pure_plain.

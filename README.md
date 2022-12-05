@@ -13,9 +13,9 @@ the [Iris](https://iris-project.org/) framework. Both dependencies can be
 installed via the Ocaml package manager [opam](https://opam.ocaml.org/).
 
 Shack requires or works with:
-* Coq 8.16.0
-* Iris dev.2022-11-09.1.c9b39944
-* Stdpp dev.2022-11-02.0.c59b6199
+* Coq: coq-8.16.1
+* Iris: coq-iris.dev.2022-12-04.0.002cb824
+* Stdpp: coq-stdpp.dev.2022-11-30.0.ffa862a8
 
 ## Building shack
 The whole project using Coq's Makefile setup to build. Everything can be built
