@@ -878,7 +878,7 @@ Section proofs.
     - f_equiv.
       + by apply hA with (Σ1 := Σ1).
       + by apply hB with (Σ1 := Σ1).
-    - rewrite /interp_generic lookup_app_r; last by apply le_plus_r.
+    - rewrite /interp_generic lookup_app_r; last by apply Nat.le_add_l.
       by rewrite Nat.add_sub.
   Qed.
 
