@@ -78,7 +78,7 @@ Section proofs.
         apply inherits_using_wf in hinherits => //.
         destruct hinherits as (? & ?& ? & hh).
         inv wfthis; simplify_eq.
-        by rewrite H10.
+        by rewrite H11.
       }
       rewrite -hinst.
       rewrite -interp_type_subst //.
@@ -88,7 +88,7 @@ Section proofs.
       apply inherits_using_wf in hinherits => //.
       destruct hinherits as (? & ?& ? & hh).
       inv hh; simplify_eq.
-      by rewrite H10.
+      by rewrite H11.
     }
     subst.
     iNext.
@@ -100,11 +100,11 @@ Section proofs.
     by repeat iSplit.
   Qed.
 
-  Lemma get_pub_soundness C Δ kd rigid Γ lhs recv t σ name fty orig:
+  Lemma get_pub_soundness C Δ kd rigid Γ lhs recv exact_ t σ name fty orig:
     wf_cdefs pdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
-    expr_has_ty Δ Γ rigid kd recv (ClassT t σ) →
+    expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
     has_field name t Public fty orig →
     ∀ Σ st st' n,
     length Σ = rigid →
@@ -119,13 +119,17 @@ Section proofs.
     inv hc.
     iIntros "[Hh #Hle]".
     iModIntro. (* keep the later *)
-    iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "#He" => //; try (by apply wfpdefs).
+    iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "He" => //; try (by apply wfpdefs).
+    iDestruct (exact_subtype_is_inclusion with "He") as "He".
     rewrite interp_class_unfold //; first last.
-    { by apply expr_has_ty_wf in hrecv. }
+    { apply expr_has_ty_wf in hrecv => //.
+      (* TODO *)
+      inv hrecv; simplify_eq; by econstructor.
+    }
     { by apply wfpdefs. }
-    iDestruct "He" as (?? def def0 σ0 ???) "(%H & #hmixed & #? & #hf0 & #hdyn & H◯)".
+    iDestruct "He" as (?? def def0 σ0 ???) "(%H & #hmixed & #? & #hf0 & #hdyn & #H◯)".
     destruct H as ([= <-] & hdef & hdef0 & ? & hinherits & hfields & hidom).
-    assert (hwf0: wf_ty (ClassT t σ)) by (by apply expr_has_ty_wf in hrecv).
+    assert (hwf0: wf_ty (ClassT exact_ t σ)) by (by apply expr_has_ty_wf in hrecv).
     assert (hl0: length (generics def) = length σ0).
     { apply inherits_using_wf in hinherits; try (by apply wfpdefs).
       destruct hinherits as (?&?&?&hh).

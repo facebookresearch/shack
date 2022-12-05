@@ -171,7 +171,7 @@ Lemma wf_mdef_ty_f: wf_mdef_ty "Test" [] 0 (gen_targs 0) F.
 Proof.
   rewrite /wf_mdef_ty.
   exists {| type_of_this := ("Test", gen_targs 0);
-    ctxt := <["$v" := ClassT "V" [IntT]]> F.(methodargs); |}.
+    ctxt := <["$v" := ClassT true "V" [IntT]]> F.(methodargs); |}.
   split.
   { split.
     - rewrite /this_type /=.

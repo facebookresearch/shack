@@ -119,13 +119,13 @@ Section proofs.
     destruct hwfdyn_m as (rty & wfrty & hbody & hret).
     clear h0.
     (* Helper facts *)
-    assert (hok0 : (ok_ty def0.(constraints)) (ClassT orig σ0)).
+    assert (hok0 : (ok_ty def0.(constraints)) (ClassT true orig σ0)).
     { apply inherits_using_ok in ht0_orig_σ0 => //.
       by destruct ht0_orig_σ0 as (? & ? & hok); simplify_eq.
     }
     assert (hokσ0 : Forall (ok_ty def0.(constraints)) σ0).
     { by apply ok_ty_class_inv in hok0. }
-    assert (hh: length σ0 = length (generics odef) ∧ wf_ty (ClassT orig σ0)).
+    assert (hh: length σ0 = length (generics odef) ∧ wf_ty (ClassT true orig σ0)).
     { apply inherits_using_wf in ht0_orig_σ0 => //.
       destruct ht0_orig_σ0 as (? & ? & ? & hwf); split => //.
       inv hwf; by simplify_eq.
@@ -141,7 +141,7 @@ Section proofs.
     { iIntros (k c hc v) "hv".
       inv hok0; simplify_eq.
       assert (hc' := hc).
-      apply H4 in hc'.
+      apply H5 in hc'.
       iDestruct (subtype_is_inclusion with "hmixed hconstr") as "hh"; try assumption.
       { by apply wf_constraints_wf in hdef0. }
       { by exact hc'. }

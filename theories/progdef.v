@@ -25,11 +25,11 @@ Section ProgDef.
     | WfBool : wf_ty BoolT
     | WfNothing : wf_ty NothingT
     | WfMixed : wf_ty MixedT
-    | WfClassT t σ def:
+    | WfClassT exact t σ def:
         pdefs !! t = Some def →
         length σ = length def.(generics) →
         (∀ k ty, σ !! k = Some ty → wf_ty ty) →
-        wf_ty (ClassT t σ)
+        wf_ty (ClassT exact t σ)
     | WfNull : wf_ty NullT
     | WfNonNull : wf_ty NonNullT
     | WfUnion s t : wf_ty s → wf_ty t → wf_ty (UnionT s t)
@@ -41,11 +41,11 @@ Section ProgDef.
 
   Hint Constructors wf_ty : core.
 
-  Lemma wf_ty_class t σ def:
+  Lemma wf_ty_class exact t σ def:
     pdefs !! t = Some def →
     length σ = length def.(generics) →
     Forall wf_ty σ →
-    wf_ty (ClassT t σ).
+    wf_ty (ClassT exact t σ).
   Proof.
     move => h hl hσ.
     econstructor => //.
@@ -53,8 +53,8 @@ Section ProgDef.
     by apply hσ in hk.
   Qed.
 
-  Lemma wf_ty_class_inv t σ:
-    wf_ty (ClassT t σ) →
+  Lemma wf_ty_class_inv exact t σ:
+    wf_ty (ClassT exact t σ) →
     Forall wf_ty σ.
   Proof.
     move => h.
@@ -68,7 +68,7 @@ Section ProgDef.
     wf_ty ty → wf_ty (subst_ty σ ty).
   Proof.
     move => hwf.
-    induction 1 as [ | | | | t targs def hdef hl h hi | | |
+    induction 1 as [ | | | | exact t targs def hdef hl h hi | | |
         s t hs his ht hit | s t hs his ht hit | | | ] => //=; try (by constructor).
     - econstructor; [ done | by rewrite map_length | ].
       move => k ty.
@@ -182,7 +182,7 @@ Section ProgDef.
     match cdef.(superclass) with
     | None => True
     | Some (parent, σ) =>
-        wf_ty (ClassT parent σ) ∧
+        wf_ty (ClassT true parent σ) ∧
         Forall (bounded (length cdef.(generics))) σ
     end
   .
@@ -205,7 +205,7 @@ Section ProgDef.
     ∃ adef,
     pdefs !! A = Some adef ∧
     Forall (bounded (length adef.(generics))) σ ∧
-    wf_ty (ClassT B σ).
+    wf_ty (ClassT true B σ).
   Proof.
     move => /map_Forall_lookup hwf hext.
     destruct hext as [A B adef σB hadef hsuper].
@@ -237,7 +237,7 @@ Section ProgDef.
     ∃ adef,
     pdefs !! A = Some adef ∧
     Forall (bounded (length adef.(generics))) σ ∧
-    wf_ty (ClassT B σ).
+    wf_ty (ClassT true B σ).
   Proof.
     move => hwf.
     induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
@@ -285,7 +285,7 @@ Section ProgDef.
       apply inherits_using_wf in hCZ => //.
       destruct h as (bdef & hbdef & hF0 & hwfC).
       destruct hCZ as (cdef & hcdef & hF1 & hwfZ).
-      inv hwfC; simplify_eq; by rewrite H2.
+      inv hwfC; simplify_eq; by rewrite H3.
   Qed.
 
   (* Stripped version of extends_using/inherits_using, mostly for
@@ -330,7 +330,7 @@ Section ProgDef.
       rewrite /wf_cdef_parent hsuper in hadef.
       destruct hadef as [hwfB ?].
       inv hwfB.
-      apply hi in H2 as [σC hC].
+      apply hi in H3 as [σC hC].
       exists (subst_ty σB <$> σC).
       eapply InheritsTrans => //.
       by econstructor.
@@ -523,7 +523,7 @@ Section ProgDef2.
           destruct hx as (cdef & hcdef & hF2 & hwfZ').
           simplify_eq.
           inv hwfC; simplify_eq.
-          by rewrite H3.
+          by rewrite H4.
         * exists σ''; right; split; last done.
           rewrite map_subst_ty_subst //.
           apply inherits_using_wf in h => //.
@@ -531,8 +531,8 @@ Section ProgDef2.
           destruct h as (bdef & hbdef & hF1 & hwfC).
           destruct hx as (zdef & hzdef & hF2 & hwfC').
           inv hwfZ; simplify_eq.
-          rewrite map_length in H3.
-          by rewrite H3.
+          rewrite map_length in H4.
+          by rewrite H4.
   Qed.
 
   Lemma inherits_using_refl A σ:
@@ -763,7 +763,7 @@ Section ProgDef2.
       destruct h as (bdef & hbdef & hF & hwfC).
       inv hwfC.
       simplify_eq.
-      by rewrite H2.
+      by rewrite H3.
   Qed.
 
   (* Helper predicate to collect all fields of a given class, as a map.
@@ -899,7 +899,7 @@ Section ProgDef2.
       apply ho in hom.
       apply inherits_using_wf in hin as (? & ? & hf & hwf0) => //.
       inv hwf0; simplify_eq.
-      by rewrite H3.
+      by rewrite H4.
   Qed.
 
   (* Helper lemma: If A inherits a method m from class orig, and
@@ -941,8 +941,8 @@ Section ProgDef2.
           inv hwf0; simplify_eq.
           apply hb in H.
           apply H in hmo.
-          rewrite map_length in H4.
-          by rewrite H4.
+          rewrite map_length in H5.
+          by rewrite H5.
       + inv H; simplify_eq; clear hi.
         destruct (has_method_from_def _ _ _ _ hp hb h) as (odef & modef & ? & hmo & _ & [σo [hin ->]]).
         exists odef, modef, (subst_mdef σo modef); repeat split => //.
@@ -959,7 +959,7 @@ Section ProgDef2.
    *)
   Fixpoint lift_ty n (ty: lang_ty) : lang_ty :=
     match ty with
-    | ClassT t σ => ClassT t (lift_ty n <$> σ)
+    | ClassT exact t σ => ClassT exact t (lift_ty n <$> σ)
     | UnionT s t => UnionT (lift_ty n s) (lift_ty n t)
     | InterT s t => InterT (lift_ty n s) (lift_ty n t)
     | GenT k => GenT (k + n)
@@ -969,7 +969,7 @@ Section ProgDef2.
 
   Lemma lift_ty_O ty : lift_ty 0 ty = ty.
   Proof.
-    induction ty as [ | | | | t σ hi | | | s t hs ht |
+    induction ty as [ | | | | exact t σ hi | | | s t hs ht |
         s t hs ht | k | | ] => //=.
     - f_equal.
       apply list_eq => k.
@@ -993,7 +993,7 @@ Section ProgDef2.
 
   Lemma lift_ty_wf ty: ∀ n, wf_ty ty → wf_ty (lift_ty n ty).
   Proof.
-    induction ty as [ | | | | t σ hi | | | s t hs ht |
+    induction ty as [ | | | | exact t σ hi | | | s t hs ht |
         s t hs ht | k | | ] => n h //=.
     - inv h.
       econstructor => //.
@@ -1008,7 +1008,7 @@ Section ProgDef2.
 
   Lemma lift_ty_bounded ty: ∀ n m, bounded m ty → bounded (n + m) (lift_ty n ty).
   Proof.
-    induction ty as [ | | | | t σ hi | | | s t hs ht |
+    induction ty as [ | | | | exact t σ hi | | | s t hs ht |
         s t hs ht | k | | ] => n m h //=.
     - inv h.
       constructor => //.
@@ -1029,7 +1029,7 @@ Section ProgDef2.
     lift_ty n ty.
   Proof.
     move => hb.
-    induction ty as [ | | | | t σ hi | | | s t hs ht | s t hs ht | k | | ] => //=.
+    induction ty as [ | | | | exact t σ hi | | | s t hs ht | s t hs ht | k | | ] => //=.
     - f_equal.
       apply list_eq => k.
       rewrite Forall_lookup in hi.

@@ -431,9 +431,9 @@ Qed.
 Definition final_lty lty : local_tys :=
    <["$tmp"   := IntT]>
   (<["$_"     := NullT]>
-  (<["$box"   := ClassT "IntBoxS" []]>
+  (<["$box"   := ClassT true "IntBoxS" []]>
   (<["$init"  := IntT]>
-  (<["$robox" := ClassT "ROBox" [IntT]]> lty)))).
+  (<["$robox" := ClassT true "ROBox" [IntT]]> lty)))).
 
 Lemma Main_ty n lty :
   bounded_lty n lty →
@@ -1749,13 +1749,16 @@ Proof.
   by eauto.
 Qed.
 
+(* Don't distinguish between exact and inexact classes.
+ * We could state a stronger lemma if the type's exact !
+ *)
 Theorem class_soundness cmd st lty n:
   cmd_eval "Main" (main_le, main_heap "Main") cmd st n →
   cmd_has_ty "Main" [] Plain 0 (main_lty "Main") cmd lty →
-  ∀ x T σ, lty.(ctxt) !! x = Some (ClassT T σ) →
+  ∀ x exact_ t σ, lty.(ctxt) !! x = Some (ClassT exact_ t σ) →
   ∃ l Tdyn vs, st.1.(lenv) !! x = Some (LocV l) ∧
           st.2 !! l = Some (Tdyn, vs) ∧
-          inherits Tdyn T.
+          inherits Tdyn t.
 Proof.
   assert (wfinit : wf_lty (main_lty "Main")).
   { rewrite /main_lty; split => /=.
@@ -1764,7 +1767,7 @@ Proof.
     - by apply map_Forall_empty.
   }
   assert (hinit: pdefs !! "Main" = Some (main_cdef {["entry_point" := EntryPoint ]})) by done.
-  move => he ht x T σ hin.
+  move => he ht x exact_ t σ hin.
   assert (hwflty : wf_lty lty).
   { apply cmd_has_ty_wf in ht => //.
     + by apply wf_parent.
@@ -1778,7 +1781,7 @@ Proof.
   { iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
-  assert (hx: ∃ Tdef, pdefs !! T = Some Tdef ∧
+  assert (hx: ∃ Tdef, pdefs !! t = Some Tdef ∧
               length (go interp_type [] <$> σ) = length Tdef.(generics)).
   { apply hwflty in hin.
     inv hin.
@@ -1804,11 +1807,12 @@ Proof.
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [_ Hl]]".
-  iSpecialize ("Hl" $! x (ClassT T σ) hin).
+  iSpecialize ("Hl" $! x (ClassT exact_ t σ) hin).
   iDestruct "Hl" as (w hw) "Hw".
+  iDestruct (exact_subtype_is_inclusion with "Hw") as "Hw".
   rewrite interp_type_unfold /=.
   rewrite interp_tag_equiv //; last by apply wf_parent.
-  iDestruct "Hw" as (l t cdef tdef σ0 Σt fields ifields) "(%hpure & #hmixed & #hΣt & #hinst & #hdyn & #Hl)".
+  iDestruct "Hw" as (l dynt cdef tdef σ0 Σt fields ifields) "(%hpure & #hmixed & #hΣt & #hinst & #hdyn & #Hl)".
   destruct hpure as (-> & hcdef & htdef & hl1 & hinherits & hfields & hidom).
   destruct st as [le h]; simpl in *.
   iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
@@ -1827,7 +1831,7 @@ Proof.
   iDestruct "HΦ" as "[%Ht HΦ]".
   fold_leibniz; subst.
   iPureIntro.
-  exists l, t, vs; repeat split => //.
+  exists l, dynt, vs; repeat split => //.
   by apply inherits_using_erase in hinherits.
 Qed.
 

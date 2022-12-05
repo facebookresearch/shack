@@ -31,8 +31,8 @@ Section proofs.
     wf_cdefs pdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
-    wf_ty (ClassT t σ) →
-    ok_ty Δ (ClassT t σ) →
+    wf_ty (ClassT true t σ) →
+    ok_ty Δ (ClassT true t σ) →
     has_fields t fields →
     dom fields = dom args →
     (∀ (f : string) (fty : visibility * lang_ty * tag) (arg : expr),
@@ -45,7 +45,7 @@ Section proofs.
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
     heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗
-    |=▷^n heap_models st'.2 ∗ interp_local_tys Σ (<[lhs:=ClassT t σ]> Γ) st'.1.
+    |=▷^n heap_models st'.2 ∗ interp_local_tys Σ (<[lhs:=ClassT true t σ]> Γ) st'.1.
   Proof.
     move => wfpdefs wflty hΔ hwf hok hf hdom harg Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ".
@@ -65,16 +65,15 @@ Section proofs.
     iMod ((sem_heap_own_update new) with "H●") as "[H● #H◯]" => //;
     first by apply (sem_heap_view_alloc _ new t iFs).
     iIntros "!> !>". (* kill the modalities *)
-    iAssert (interp_type (ClassT t σ) Σ (LocV new)) with "[]" as "#Hl".
-    { rewrite interp_class_unfold //; last by apply wfpdefs.
+    iAssert (interp_type (ClassT true t σ) Σ (LocV new)) with "[]" as "#Hl".
+    { rewrite interp_class_unfold_exact //; last by apply wfpdefs.
       assert (hwf' := hwf).
       inv hwf'.
-      iExists new, t, def, def, (gen_targs (length def.(generics))), (interp_list Σ σ), fields, iFs.
+      iExists new, def, (interp_list Σ σ), fields, iFs.
       iSplit.
       { iPureIntro.
         repeat split => //.
         + by rewrite /interp_list fmap_length.
-        + by econstructor.
         + by rewrite /iFs /= !dom_fmap_L.
       }
       assert (wf_σ : Forall wf_ty σ) by by apply wf_ty_class_inv in hwf.
@@ -85,18 +84,20 @@ Section proofs.
         apply list_lookup_fmap_inv in heq as [phi [-> heq]].
         assert (hsub: Δ ⊢ phi <: MixedT) by eauto.
         destruct wfpdefs.
-        iDestruct (subtype_is_inclusion _ hΔ wf_parent wf_mono wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub v with "hΣ hΣΔ hphi") as "hsub".
+        iDestruct (subtype_is_inclusion _ hΔ wf_parent wf_mono
+          wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub v
+          with "hΣ hΣΔ hphi") as "hsub".
         + by eauto.
         + by rewrite interp_mixed_unfold.
       }
       assert (hconstraints: ∀ i c,
-      subst_constraints σ def.(constraints) !! i = Some c → Δ ⊢ c.1 <D: c.2
+        subst_constraints σ def.(constraints) !! i = Some c → Δ ⊢ c.1 <D: c.2
       ).
       { rewrite /subst_constraints => i ? hin.
         apply list_lookup_fmap_inv in hin as [c [-> hin]].
         rewrite /subst_constraint /=.
         inv hok; simplify_eq.
-        apply H6 in hin.
+        apply H9 in hin.
         apply subtype_weaken with (Δ' := (Δ ++ subst_constraints σ def.(constraints))) in hin => //;
         last by set_solver.
         apply subtype_constraint_elim in hin => //.
@@ -122,25 +123,25 @@ Section proofs.
         rewrite -!interp_type_subst.
         { iApply (subtype_is_inclusion _ hΔ wf_parent wf_mono wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub v with "hΣ hΣΔ") => //.
           apply wf_ty_subst => //.
-          apply wf_constraints_wf in H1.
-          rewrite /wf_cdef_constraints_wf Forall_lookup in H1.
-          apply H1 in heq.
+          apply wf_constraints_wf in H2.
+          rewrite /wf_cdef_constraints_wf Forall_lookup in H2.
+          apply H2 in heq.
           by apply heq.
         }
-        { apply wf_constraints_bounded in H1.
-          rewrite /wf_cdef_constraints_bounded Forall_lookup -H2 in H1.
-          apply H1 in heq.
+        { apply wf_constraints_bounded in H2.
+          rewrite /wf_cdef_constraints_bounded Forall_lookup -H3 in H2.
+          apply H2 in heq.
           by apply heq.
         }
-        { apply wf_constraints_bounded in H1.
-          rewrite /wf_cdef_constraints_bounded Forall_lookup -H2 in H1.
-          apply H1 in heq.
+        { apply wf_constraints_bounded in H2.
+          rewrite /wf_cdef_constraints_bounded Forall_lookup -H3 in H2.
+          apply H2 in heq.
           by apply heq.
         }
       }
       iSplit.
       { iModIntro; iNext.
-        iApply iForall3_interp_gen_targs => //.
+        iApply iForall3_interp_reflexive.
         by rewrite /interp_list fmap_length.
       }
       iSplit; last done.
@@ -149,7 +150,7 @@ Section proofs.
       assert (hbσ: bounded (length σ) ty).
       { apply has_field_bounded in hff; try (by apply wfpdefs).
         destruct hff as (?&?&hh); simplify_eq.
-        by rewrite H2.
+        by rewrite H3.
       }
       apply hf in hff.
       rewrite !lookup_fmap hff /= option_equivI.

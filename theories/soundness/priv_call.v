@@ -84,15 +84,19 @@ Section proofs.
     rename H9 into hmdom.
     rename H13 into heval_body.
     rename H14 into heval_ret.
-    assert (ht0: this_type Γ = ClassT t σ).
+    assert (ht0: this_type Γ = ClassT false t σ).
     { destruct Γ as [[] Γ].
       rewrite /this_type /type_of_this /= in ht.
       rewrite /this_type /type_of_this /=.
       by injection ht; intros; subst; clear ht.
     }
-    assert (hwfthis : wf_ty (ClassT t σ)).
+    assert (hwfthis_ : wf_ty (ClassT false t σ)).
     { rewrite -ht0.
       by apply wflty.
+    }
+    assert (hwfthis: wf_ty (ClassT true t σ)).
+    { (* TODO *)
+      inv hwfthis_; simplify_eq; by econstructor.
     }
     assert (hwfσ : Forall wf_ty σ) by by apply wf_ty_class_inv in hwfthis.
     assert (hcdef : ∃ cdef, pdefs !! C = Some cdef).
@@ -101,7 +105,7 @@ Section proofs.
       by exists cdef.
     }
     destruct hcdef as [cdef hcdef].
-    assert (hrecv: expr_has_ty Δ Γ (length Σ) kd ThisE (ClassT t σ)).
+    assert (hrecv: expr_has_ty Δ Γ (length Σ) kd ThisE (ClassT false t σ)).
     { rewrite -ht0.
       by apply ThisTy.
     }
@@ -138,7 +142,7 @@ Section proofs.
       inv hh; by simplify_eq.
     }
     destruct hh as [hFσt_o heq1].
-    assert (hokc: ok_ty cdef.(constraints) (ClassT C (gen_targs (length cdef.(generics))))).
+    assert (hokc: ok_ty cdef.(constraints) (ClassT false C (gen_targs (length cdef.(generics))))).
     { econstructor => //.
       - move => k ty hty.
         apply lookup_gen_targs in hty as ->.
@@ -158,7 +162,7 @@ Section proofs.
     { apply inherits_using_wf in hin_t_o => //.
       destruct hin_t_o as (? & ? & ? & ?); simplify_eq.
       inv hwfthis; simplify_eq.
-      by rewrite H5.
+      by rewrite H6.
     }
     assert (hh: wf_mdef_ty C cdef.(constraints) (length cdef.(generics)) (gen_targs (length cdef.(generics))) omdef).
     { apply wf_mdefs in hcdef.
@@ -208,13 +212,14 @@ Section proofs.
         rewrite Forall_lookup in hFσt_o; by eapply hFσt_o.
       - by rewrite interp_mixed_unfold.
     }
-    assert (hokt: ok_ty Δ (ClassT t σ)).
+    assert (hokt: ok_ty Δ (ClassT true t σ)).
     { destruct Γ as [[] ?].
       rewrite /this_type /= in ht, hokthis.
       injection ht; intros; subst; clear ht.
-      done.
+      (* TODO *)
+      inv hokthis; simplify_eq; by econstructor.
     }
-    assert (hok0: ok_ty (Δ ++ subst_constraints σ (constraints def)) (ClassT C (subst_ty σ <$> σt_o))).
+    assert (hok0: ok_ty (Δ ++ subst_constraints σ (constraints def)) (ClassT true C (subst_ty σ <$> σt_o))).
     { econstructor => //.
       - move => k ty hk.
         apply list_lookup_fmap_inv in hk as [ty0 [-> h0]].
@@ -222,11 +227,11 @@ Section proofs.
         + apply inherits_using_ok in hin_t_o => //.
           destruct hin_t_o as (tdef & htdef & hokC); simplify_eq.
           inv hokC.
-          by apply H2 in h0.
+          by apply H3 in h0.
         + rewrite Forall_lookup in hFσt_o; by eapply hFσt_o.
         + inv hokt.
           apply Forall_lookup => ? ty hl.
-          by apply H2 in hl.
+          by apply H3 in hl.
       - move => k [c0 c1] hc /=.
         assert (h0 := hcdef).
         apply wf_constraints_bounded in h0.
@@ -237,11 +242,11 @@ Section proofs.
           apply inherits_using_ok in hin_t_o => //.
           destruct hin_t_o as (tdef & htdef & hokC); simplify_eq.
           inv hokC; simplify_eq.
-          by apply H4 in hc.
+          by apply H5 in hc.
         + rewrite -heq1; by apply h0 in hc as [].
         + rewrite -heq1; by apply h0 in hc as [].
     }
-    assert (hok0_: ok_ty Δ (ClassT C (subst_ty σ <$> σt_o))).
+    assert (hok0_: ok_ty Δ (ClassT true C (subst_ty σ <$> σt_o))).
     { eapply ok_ty_constraint_trans with (kd := Aware); first by apply hok0.
       move => k c hc /=.
       rewrite lookup_app in hc.
@@ -253,14 +258,14 @@ Section proofs.
       - apply list_lookup_fmap_inv in hc as [c1 [-> hc1]].
         rewrite /subst_constraint /=.
         inv hokt; simplify_eq.
-        by apply H4 in hc1.
+        by apply H5 in hc1.
     }
     iAssert (□ Σinterp (interp_list Σ (subst_ty σ <$> σt_o)) (constraints cdef))%I as "#hΣΔc".
     { iModIntro.
       iIntros (k c hc v) "hv".
       inv hok0_; simplify_eq.
       assert (hc' := hc).
-      apply H4 in hc'.
+      apply H5 in hc'.
       iDestruct ((subtype_is_inclusion _ hΔ wf_parent wf_mono wf_constraints_wf
         wf_constraints_bounded _ _ _ _ hc') with "hΣ hΣΔ") as "hh"; try assumption.
       { apply wf_ty_subst; first by apply wf_ty_subst_map.
@@ -370,7 +375,7 @@ Section proofs.
           rewrite Forall_lookup in hB.
           apply hB in hty.
           inv hwfthis; simplify_eq.
-          by rewrite H4.
+          by rewrite H5.
     }
     iRevert "Hstep".
     iApply updN_mono_I.

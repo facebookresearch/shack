@@ -46,8 +46,12 @@ Section proofs.
     destruct Γ as [[tthis σthis]  Γ].
     destruct Ω as [vthis Ω].
     injection hthis; intros; subst; clear hthis.
-    assert (ht: wf_ty (ClassT t σ)) by apply wflty.
-    iApply (heap_models_update Δ _ _ _ _ _ t σ) => //=; try (by apply wfpdefs).
+    assert (ht: wf_ty (ClassT true t σ)).
+    { destruct wflty as (hh & _).
+      (* TODO *)
+      inv hh; simplify_eq; by econstructor.
+    }
+    iApply (heap_models_update Δ _ _ _ _ _ false t σ) => //=; try (by apply wfpdefs).
     - iDestruct "Hle" as "[Hthis Hle]".
       rewrite /= /interp_this_type interp_this_unseal /interp_this_def /=.
       iDestruct "Hthis" as (l' t1 def1 σ0 σt fields ifields) "(%H & #hmixed & #? & #hinst & #hdyn & #Hl)".
@@ -58,11 +62,11 @@ Section proofs.
     - iApply expr_soundness => //; by apply wfpdefs.
   Qed.
 
-  Lemma set_pub_soundness C Δ kd rigid Γ recv fld rhs fty t σ orig:
+  Lemma set_pub_soundness C Δ kd rigid Γ recv fld rhs fty exact_ t σ orig:
     wf_cdefs pdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
-    expr_has_ty Δ Γ rigid kd recv (ClassT t σ) →
+    expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
     has_field fld t Public fty orig →
     expr_has_ty Δ Γ rigid kd rhs (subst_ty σ fty) →
     ∀ Σ st st' n,
@@ -78,8 +82,12 @@ Section proofs.
     iIntros "#hΣ #hΣΔ".
     iIntros "[Hh #Hle]" => /=.
     iSplitL; last done.
-    assert (ht: wf_ty (ClassT t σ)) by (by apply expr_has_ty_wf in hrecv).
-    iApply (heap_models_update _ _ _ _ _ _ t σ) => //=; try (by apply wfpdefs).
+    assert (ht: wf_ty (ClassT exact_ t σ)) by (by apply expr_has_ty_wf in hrecv).
+    assert (htt: wf_ty (ClassT true t σ)).
+    { (* TODO *)
+      inv ht; simplify_eq; by econstructor.
+    }
+    iApply (heap_models_update _ _ _ _ _ _ exact_ t σ) => //=; try (by apply wfpdefs).
     - iApply expr_soundness => //; by apply wfpdefs.
     - iApply expr_soundness => //; by apply wfpdefs.
   Qed.

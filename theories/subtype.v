@@ -35,17 +35,21 @@ Section Subtype.
         pdefs !! A = Some adef →
         length σA = length adef.(generics) →
         extends_using A B σB →
-        subtype Δ kd (ClassT A σA) (ClassT B (subst_ty σA <$> σB))
-    | SubVariance: ∀ kd A adef σ0 σ1,
+        subtype Δ kd (ClassT false A σA) (ClassT false B (subst_ty σA <$> σB))
+    | SubExact: ∀ kd A σA adef,
+        pdefs !! A = Some adef →
+        length σA = length adef.(generics) →
+        subtype Δ kd (ClassT true A σA) (ClassT false A σA)
+    | SubVariance: ∀ kd exact_ A adef σ0 σ1,
         pdefs !! A = Some adef →
         Forall wf_ty σ1 →
         subtype_targs Δ kd adef.(generics) σ0 σ1 →
-        subtype Δ kd (ClassT A σ0) (ClassT A σ1)
+        subtype Δ kd (ClassT exact_ A σ0) (ClassT exact_ A σ1)
     | SubMixed2 kd: subtype Δ kd MixedT (UnionT NonNullT NullT)
     | SubIntNonNull kd: subtype Δ kd IntT NonNullT
     | SubBoolNonNull kd: subtype Δ kd BoolT NonNullT
     | SubIntBoolDisj kd: subtype Δ kd (InterT IntT BoolT) NothingT
-    | SubClassNonNull: ∀ kd A targs, subtype Δ kd (ClassT A targs) NonNullT
+    | SubClassNonNull: ∀ kd exact A targs, subtype Δ kd (ClassT exact A targs) NonNullT
     | SubUnionUpper1: ∀ kd s t, wf_ty t → subtype Δ kd s (UnionT s t)
     | SubUnionUpper2: ∀ kd s t, wf_ty s → subtype Δ kd t (UnionT s t)
     | SubUnionLower : ∀ kd s t u, subtype Δ kd s u → subtype Δ kd t u → subtype Δ kd (UnionT s t) u
@@ -55,14 +59,14 @@ Section Subtype.
     | SubRefl: ∀ kd s, subtype Δ kd s s
     | SubTrans: ∀ kd s t u, subtype Δ kd s t → subtype Δ kd t u → subtype Δ kd s u
     | SubConstraint: ∀ kd s t, (s, t) ∈ Δ → subtype Δ kd s t
-    | SubClassDyn: ∀ kd A adef σA,
+    | SubClassDyn: ∀ kd exact A adef σA,
         pdefs !! A = Some adef →
-        wf_ty (ClassT A σA) →
+        wf_ty (ClassT exact A σA) →
         (* Δ => Δsdt,A[σA] *)
         (∀ k s t, (subst_constraints σA (Δsdt A)) !! k = Some (s, t) → subtype Δ kd s t) →
         (* Δ => ΔA[σA] *)
         (∀ k s t, adef.(constraints) !! k = Some (s, t) → subtype Δ kd (subst_ty σA s) (subst_ty σA t)) →
-        subtype Δ kd (ClassT A σA) SupportDynT
+        subtype Δ kd (ClassT exact A σA) SupportDynT
     | SubIntDyn kd: subtype Δ kd IntT SupportDynT
     | SubBoolDyn kd: subtype Δ kd BoolT SupportDynT
     | SubNullDyn kd: subtype Δ kd NullT SupportDynT
@@ -139,9 +143,10 @@ Section SubtypeFacts.
      subtype_targs Δ kd vs lhs rhs → subtype_targs Δ Aware vs lhs rhs.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
-      | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
+      | kd A σA adef hadef hL
+      | kd ? A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
+      | kd s | kd s t u hs ht | kd s t hin | kd ? A adef σA hpdefs hwfA hf0 hf1
       | | | | | | kd A B hwf h]; try by econstructor.
       + econstructor => //; by eapply subtype_targs_to_Aware.
       + econstructor; by eapply subtype_to_Aware.
@@ -171,9 +176,10 @@ Section SubtypeFacts.
      subtype_targs Δ kd vs lhs rhs → ∀ Δ', Δ ⊆ Δ' → subtype_targs Δ' kd vs lhs rhs.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
-      | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
+      | kd A adef σA hadef hL
+      | kd ? A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
+      | kd s | kd s t u hs ht | kd s t hin | kd ? A adef σA hpdefs hwfA hf0 hf1
       | | | | | | kd A B hwf h] => Δ' hΔ; try by econstructor.
       + econstructor; [ done | done | ].
         by eapply subtype_targs_weaken.
@@ -211,9 +217,10 @@ Section SubtypeFacts.
     subtype_targs Δ kd vs lhs rhs.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
-      | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd |  kd A targs
+      | kd A adef σA hadef hL
+      | kd ? A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd |  kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
-      | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
+      | kd s t u hs ht | kd s t hin | kd ? A adef σA hpdefs hwfA hf0 hf1
       | | | | | | kd A B hwf h ]
       => Δ Δ' heq hΔ; subst; try by econstructor.
       + econstructor; [done | done | ].
@@ -256,9 +263,10 @@ Section SubtypeFacts.
     subtype_targs Δ' kd vs lhs rhs.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
-      | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
+      | kd A σA adef hadef hL
+      | kd ? A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
-      | kd s | kd s t u hs ht | kd s t hin | kd A adef σA hpdefs hwfA hf0 hf1
+      | kd s | kd s t u hs ht | kd s t hin | kd ? A adef σA hpdefs hwfA hf0 hf1
       | | | | | | kd A B hwf h] => Δ' hΔ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
         eapply subtype_targs_constraint_trans.
@@ -298,7 +306,7 @@ Section SubtypeFacts.
     | MonoInter s t : mono vs s → mono vs t → mono vs (InterT s t)
     | MonoVInvGen n: vs !! n = Some Invariant → mono vs (GenT n)
     | MonoVCoGen n: vs !! n = Some Covariant → mono vs (GenT n)
-    | MonoClass cname cdef targs:
+    | MonoClass exact cname cdef targs:
         pdefs !! cname = Some cdef →
         (∀ i wi ti, cdef.(generics) !! i = Some wi →
                     targs !! i = Some ti →
@@ -308,7 +316,7 @@ Section SubtypeFacts.
                     targs !! i = Some ti →
                     not_cov wi →
                     mono (neg_variance <$> vs) ti) →
-        mono vs (ClassT cname targs)
+        mono vs (ClassT exact cname targs)
     | MonoDynamic : mono vs DynamicT
     | MonoSupportDyn : mono vs SupportDynT
   .
@@ -317,7 +325,7 @@ Section SubtypeFacts.
     match cdef.(superclass) with
     | None => True
     | Some (parent, σ) =>
-        mono cdef.(generics) (ClassT parent σ)
+        mono cdef.(generics) (ClassT true parent σ)
     end
   .
 
@@ -359,7 +367,7 @@ Section SubtypeFacts.
   Proof.
     induction 1 as [ | | | | | | vs s t hs his ht hit
       | vs s t hs his ht hit | vs n hinv | vs n hco
-      | vs cname cdef targs hpdefs hcov hicov hcontra hicontra | | ]
+      | vs exact_ cname cdef targs hpdefs hcov hicov hcontra hicontra | | ]
       => hb ws σ hlen h0 h1 //=; try by constructor.
     - inv hb.
       constructor.
@@ -412,7 +420,7 @@ Section SubtypeFacts.
     map_Forall (λ _cname, wf_cdef_mono) pdefs →
     extends_using A B σ →
     ∀ def, pdefs !! A = Some def →
-    mono def.(generics) (ClassT B σ).
+    mono def.(generics) (ClassT true B σ).
   Proof.
     move => hmono h def hdef.
     inv h; simplify_eq.
@@ -425,7 +433,7 @@ Section SubtypeFacts.
     map_Forall (λ _cname, wf_cdef_mono) pdefs →
     inherits_using A B σ →
     ∀ def, pdefs !! A = Some def →
-    mono def.(generics) (ClassT B σ).
+    mono def.(generics) (ClassT true B σ).
   Proof.
     move => ? hmono.
     induction 1 as [A adef h | A B σ h | A B σ C σC hext h hi ] => def hdef.
@@ -448,13 +456,13 @@ Section SubtypeFacts.
       apply extends_using_mono with (def := def) in hext' => //.
       inv hext'.
       simplify_eq.
-      change (ClassT C (subst_ty σ <$> σC)) with (subst_ty σ (ClassT C σC)).
+      change (ClassT true C (subst_ty σ <$> σC)) with (subst_ty σ (ClassT true C σC)).
       apply mono_subst with (generics bdef) => //.
       + by constructor.
       + apply extends_using_wf in hext => //.
         destruct hext as (? & ? & ? & hwfB).
         inv hwfB; simplify_eq.
-        by rewrite H6.
+        by rewrite H7.
   Qed.
 
   Lemma has_field_mono f t vis ty orig:
@@ -500,12 +508,12 @@ Section SubtypeFacts.
             move => i vi ti hvi hti hc.
             apply list_lookup_fmap_inv in hvi.
             destruct hvi as [wi [-> hwi]].
-            eapply H6 => //.
+            eapply H7 => //.
             by destruct wi.
           * move => i vi ti hvi hti hc.
             apply list_lookup_fmap_inv in hvi.
             destruct hvi as [wi [-> hwi]].
-            eapply H7 => //.
+            eapply H8 => //.
             by destruct wi.
   Qed.
 
@@ -516,9 +524,10 @@ Section SubtypeFacts.
   Proof.
     move => hp hΔ hwf.
     induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
-      | kd A adef σ0 σ1 hpdefs hwfσ hσ | | | | | kd A args | kd s t h
+      | kd A σA adef hadef hL
+      | kd ? A adef σ0 σ1 hpdefs hwfσ hσ | | | | | kd A args | kd s t h
       | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
-      | kd s t u hst hist htu hitu | kd s t hin | kd A adef σA hwfA hpdefs hf hi
+      | kd s t u hst hist htu hitu | kd s t hin | kd ? A adef σA hwfA hpdefs hf hi
       | | | | | | kd A B ? h hi ]
       => //=; try (by constructor).
     - inv hext; simplify_eq.
@@ -535,6 +544,7 @@ Section SubtypeFacts.
         case => <-.
         apply wf_ty_subst; first by apply wf_ty_class_inv in hwf.
         by eauto.
+    - inv hwf; simplify_eq; by econstructor.
     - apply length_subtype_targs_v1 in hσ.
       inv hwf; simplify_eq; econstructor.
       + exact hpdefs.
@@ -565,9 +575,10 @@ Section SubtypeFacts.
   Proof.
     - move => hp hb.
       destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hadef hA hext
-      | kd A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | | kd A args
+      | kd A σA adef hadef hL
+      | kd ? A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | | kd A args
       | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
-      | kd s t u hst htu | kd s t hin | kd A adef σA hadef hwfA hf0 hf1
+      | kd s t u hst htu | kd s t hin | kd ? A adef σA hadef hwfA hf0 hf1
       | | | | | | kd A B hwf h ]
       => σ hσ => /=; try (by constructor).
       + constructor.
@@ -579,6 +590,8 @@ Section SubtypeFacts.
           destruct hext as (? & hadef' & hF & hwfB).
           inv hwfB; simplify_eq.
           by rewrite hA.
+      + eapply SubExact => //.
+        by rewrite fmap_length.
       + eapply SubVariance.
         * exact hpdefs.
         * rewrite Forall_forall => ty /elem_of_list_fmap [ty' [-> hin]].
@@ -608,7 +621,7 @@ Section SubtypeFacts.
           apply list_lookup_fmap_inv in hst as [[u v] [[= -> ->] h]].
           assert (hbst: bounded_constraint (length σA) (u, v)).
           { inv hwfA; simplify_eq.
-            rewrite H2; by eapply Δsdt_bounded in h.
+            rewrite H3; by eapply Δsdt_bounded in h.
           }
           destruct hbst as [].
           rewrite -!subst_ty_subst //.
@@ -621,7 +634,7 @@ Section SubtypeFacts.
             apply hb in hadef.
             rewrite /wf_cdef_constraints_bounded Forall_lookup in hadef.
             apply hadef in hst.
-            by rewrite H2.
+            by rewrite H3.
           }
           destruct hbst as [].
           rewrite -!subst_ty_subst //.
@@ -699,7 +712,7 @@ Section SubtypeFacts.
   }.
 
   Definition this_type lty :=
-    ClassT lty.(type_of_this).1 lty.(type_of_this).2.
+    ClassT false lty.(type_of_this).1 lty.(type_of_this).2.
 
   (* Subtype / Inclusion of typing contexts *)
   Definition lty_sub Δ kd (Γ0 Γ1: local_tys) :=
@@ -893,7 +906,7 @@ Section SubtypeFacts.
         apply inherits_using_wf in h => //.
         destruct h as (? & ? & ? & h).
         inv h; simplify_eq.
-        by rewrite H4.
+        by rewrite H5.
       }
       split.
       { rewrite subst_mdef_mdef //.
@@ -911,7 +924,7 @@ Section SubtypeFacts.
         apply inherits_using_wf in hiB => //.
         destruct hiB as (? & ? & ? & hiB).
         inv hiB; simplify_eq.
-        by rewrite H4.
+        by rewrite H5.
       }
       assert (mdef_bounded (length σ'') (subst_mdef σB oborig)).
       { apply mdef_bounded_subst with (n := length σB) => //.
@@ -920,7 +933,7 @@ Section SubtypeFacts.
         apply inherits_using_wf in h => //.
         destruct h as (? & ? & ? & h).
         inv h; simplify_eq.
-        by rewrite H8.
+        by rewrite H9.
       }
       assert (hh: oaorig.(methodvisibility) = Public ∧
         mdef_incl (constraints oadef) oaorig (subst_mdef σ'' (subst_mdef σB oborig))).

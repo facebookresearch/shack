@@ -110,9 +110,16 @@ Section proofs.
       iDestruct "Hthis" as (?? tdef ????) "(%H & #hmixed & #hconstr & %hinst & hdyn & hloc)".
       destruct H as ([= <-] & htdef & hl & hin & hfields & hdom).
       rewrite /this_type interp_class_unfold //=; last first.
-      { by apply wflty. }
+      { (* TODO: make a lemma that wf don't depend on exact *)
+        destruct wflty as [wflty ?].
+        inv wflty; simplify_eq; by econstructor.
+      }
       destruct Γ as [[this σthis] Γ]; simpl in *.
-      assert (hthis: wf_ty (ClassT this σthis)) by by apply wflty.
+      assert (hthis: wf_ty (ClassT true this σthis)).
+      { (* TODO: make a lemma that wf don't depend on exact *)
+        destruct wflty as [wflty ?].
+        inv wflty; simplify_eq; by econstructor.
+      }
       inv hthis.
       iExists _,t,def,tdef,_, _, _, _.
       iSplit; first done.
@@ -127,7 +134,7 @@ Section proofs.
         by inv h; simplify_eq.
       }
       assert (hl1: length σ = length σthis).
-      { by rewrite H2. }
+      { by rewrite H3. }
       move : hl0 hl1 hinst.
       generalize def.(generics); clear.
       move => l hl0 hl1 hinst.

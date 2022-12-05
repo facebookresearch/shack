@@ -43,7 +43,7 @@ Section nested_ind.
     | BoolT
     | NothingT
     | MixedT
-    | ClassT (cname: tag) (targs: list lang_ty)
+    | ClassT (exact: bool) (cname: tag) (targs: list lang_ty)
     | NullT
     | NonNullT
     | UnionT (s t: lang_ty)
@@ -58,7 +58,8 @@ Section nested_ind.
   Hypothesis case_BoolT : P BoolT.
   Hypothesis case_NothingT : P NothingT.
   Hypothesis case_MixedT : P MixedT.
-  Hypothesis case_ClassT : ∀ cname targs, Forall P targs → P (ClassT cname targs).
+  Hypothesis case_ClassT : ∀ exact cname targs,
+    Forall P targs → P (ClassT exact cname targs).
   Hypothesis case_NullT : P NullT.
   Hypothesis case_NonNullT : P NonNullT.
   Hypothesis case_UnionT :  ∀ s t, P s → P t → P (UnionT s t).
@@ -73,13 +74,13 @@ Section nested_ind.
     | BoolT => case_BoolT
     | NothingT => case_NothingT
     | MixedT => case_MixedT
-    | ClassT cname targs =>
+    | ClassT exact cname targs =>
         let H := (fix fold (xs : list lang_ty) : Forall P xs :=
           match xs with
           | nil => List.Forall_nil _
           | x :: xs => List.Forall_cons _ x xs (lang_ty_ind x) (fold xs)
           end) targs in
-        case_ClassT cname targs H
+        case_ClassT exact cname targs H
     | NullT => case_NullT
     | NonNullT => case_NonNullT
     | UnionT s t => case_UnionT s t (lang_ty_ind s) (lang_ty_ind t)
@@ -94,8 +95,8 @@ End nested_ind.
  * present in it is < n
  *)
 Inductive bounded (n: nat) : lang_ty → Prop :=
-  | ClassIsBounded cname targs :
-      Forall (bounded n) targs → bounded n (ClassT cname targs)
+  | ClassIsBounded exact cname targs :
+      Forall (bounded n) targs → bounded n (ClassT exact cname targs)
   | UnionIsBounded s t :
       bounded n s → bounded n t → bounded n (UnionT s t)
   | InterIsBounded s t :
@@ -117,7 +118,7 @@ Global Hint Constructors bounded : core.
 Lemma bounded_ge ty n:
   bounded n ty → ∀ m, m ≥ n → bounded m ty.
 Proof.
-  induction ty as [ | | | | t σ hi | | | s t hs ht |
+  induction ty as [ | | | | ? t σ hi | | | s t hs ht |
       s t hs ht | k | | ] => h m hge //=.
   - constructor.
     inv h.
@@ -135,8 +136,8 @@ Proof.
     by lia.
 Qed.
 
-Lemma bounded_rigid t start len:
-  bounded (start + len) (ClassT t (map GenT (seq start len))).
+Lemma bounded_rigid exact t start len:
+  bounded (start + len) (ClassT exact t (map GenT (seq start len))).
 Proof.
   constructor.
   rewrite Forall_lookup => i ty h.
@@ -150,7 +151,7 @@ Qed.
 (* To be used with `bounded`: Generics must be always bound *)
 Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
   match ty with
-  | ClassT cname cargs => ClassT cname (subst_ty targs <$> cargs)
+  | ClassT exact cname cargs => ClassT exact cname (subst_ty targs <$> cargs)
   | UnionT s t => UnionT (subst_ty targs s) (subst_ty targs t)
   | InterT s t => InterT (subst_ty targs s) (subst_ty targs t)
   | GenT n => default ty (targs !! n)
@@ -159,7 +160,7 @@ Fixpoint subst_ty (targs:list lang_ty) (ty: lang_ty):  lang_ty :=
 
 Corollary subst_ty_nil ty : subst_ty [] ty = ty.
 Proof.
-  induction ty as [ | | | | cname targs hi | | | s t hs ht |
+  induction ty as [ | | | | ? cname targs hi | | | s t hs ht |
       s t hs ht | n | | ] => //=.
   - f_equal.
     rewrite Forall_forall in hi.
@@ -190,7 +191,7 @@ Lemma subst_ty_subst ty l k:
   subst_ty l (subst_ty k ty) = subst_ty (subst_ty l <$> k) ty.
 Proof.
   move => hbounded.
-  induction ty as [ | | | | cname targs hi | | | s t hs ht |
+  induction ty as [ | | | | ? cname targs hi | | | s t hs ht |
       s t hs ht | n | | ] => //=.
   - f_equal.
     rewrite -list_fmap_compose.
@@ -245,7 +246,7 @@ Lemma bounded_subst n ty:
   Forall (bounded m) targs →
   bounded m (subst_ty targs ty).
 Proof.
-  induction ty as [ | | | | cname targs hi | | | s t hs ht |
+  induction ty as [ | | | | ? cname targs hi | | | s t hs ht |
       s t hs ht | k | | ] => //= hb m σ hlen hσ.
   - constructor.
     rewrite Forall_forall => ty /elem_of_list_fmap hin.
@@ -719,7 +720,7 @@ Lemma subst_ty_id n ty:
   subst_ty (gen_targs n) ty = ty.
 Proof.
   move => h.
-  induction ty as [ | | | | cname targs hi | | | s t hs ht |
+  induction ty as [ | | | | ? cname targs hi | | | s t hs ht |
       s t hs ht | k | | ] => //=.
   - f_equal.
     rewrite Forall_forall in hi.

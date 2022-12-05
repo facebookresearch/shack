@@ -29,7 +29,7 @@ Section proofs.
 
   Definition typ_of_rtk k :=
     match k with
-    | RCTag t => ClassT t [] (* not used *)
+    | RCTag t => ClassT false t [] (* not used *)
     | RCInt => IntT
     | RCBool => BoolT
     | RCNull => NullT

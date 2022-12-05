@@ -49,11 +49,11 @@ Section proofs.
         Δ kd rigid Γ lhs e ty he |
         Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
         Δ kd rigid Γ lhs t targs name fty hrecv hf |
-        Δ kd rigid Γ lhs recv t targs name fty orig hrecv hf |
+        Δ kd rigid Γ lhs recv exact_ t targs name fty orig hrecv hf |
         Δ kd rigid Γ fld rhs fty t σ hrecv hf hrhs |
-        Δ kd rigid Γ recv fld rhs fty orig t σ hrecv hrhs hf |
+        Δ kd rigid Γ recv fld rhs fty orig exact_ t σ hrecv hrhs hf |
         Δ kd rigid Γ lhs t otargs targs args fields htargs hwf hb hok hf hdom harg |
-        Δ kd rigid Γ lhs recv t targs name orig mdef args hrecv hhasm hvis hdom hi |
+        Δ kd rigid Γ lhs recv exact_ t targs name orig mdef args hrecv hhasm hvis hdom hi |
         Δ kd rigid Γ lhs t targs name mdef args hrecv hhasm hvis hdom hi |
         Δ kd rigid Γ c Γ0 Γ1 hsub hb h hi |
         Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hthn hi0 hels hi1 |

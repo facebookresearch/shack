@@ -52,7 +52,7 @@ Section proofs.
     ∃ (iFs : gmapO string (sem_typeO Θ)),
     sh !! ℓ ≡ Some (t, Next iFs) ∗ ▷ heap_models_fields iFs vs.
 
-  Lemma heap_models_update Δ Σ h l rt vs t σt f vis fty orig v:
+  Lemma heap_models_update Δ Σ h l rt vs exact_ t σt f vis fty orig v:
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     map_Forall (λ _cname, wf_cdef_fields) pdefs →
     map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
@@ -62,11 +62,11 @@ Section proofs.
     Forall wf_constraint Δ →
     h !! l = Some (rt, vs) →
     has_field f t vis fty orig →
-    wf_ty (ClassT t σt) →
+    wf_ty (ClassT true t σt) →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
     match vis with
-    | Public => interp_type (ClassT t σt) Σ (LocV l)
+    | Public => interp_type (ClassT exact_ t σt) Σ (LocV l)
     | Private => interp_this_type t σt Σ (LocV l)
     end -∗
     interp_type (subst_ty σt fty) Σ v -∗
@@ -84,7 +84,8 @@ Section proofs.
        (▷ ∀ f vis ty orig, ⌜has_field f t' vis ty orig⌝ -∗ (ifields !! f ≡ Some (interp_car (interp_type ty Σt)))) ∗
       l↦(t',ifields))%I with "[hrecv]" as "hrecv".
     { destruct vis.
-      - rewrite interp_class_unfold //.
+      - iDestruct (exact_subtype_is_inclusion with "hrecv") as "hrecv".
+        rewrite interp_class_unfold //.
         iDestruct "hrecv" as (l' t' def tdef' σ' Σt fields ifields) "(%H & #hmixed & #? & #hf0 & hdyn & hl)".
         destruct H as ([= <-] & hdef & htdef' & ? & hinherits & hfields & hdom).
         iExists t', σ', Σt, fields, ifields.
@@ -123,7 +124,7 @@ Section proofs.
         { apply inherits_using_wf in hinherits => //.
           destruct hinherits as (? & ? & ? & hhh).
           inv hhh; inv hwf; simplify_eq.
-          by rewrite H5 H8.
+          by rewrite H6 H9.
         }
         assert (hb: bounded (length σ') fty).
         { apply has_field_bounded in hfield => //.
@@ -131,7 +132,7 @@ Section proofs.
           apply inherits_using_wf in hinherits => //.
           destruct hinherits as (? & ? & ? & hh).
           inv hh; simplify_eq.
-          by rewrite H6.
+          by rewrite H7.
         }
         iExists t', σ', Σt, fields, ifields.
         iSplitR; first done.
@@ -194,7 +195,7 @@ Section proofs.
     { apply has_field_bounded in hfield => //.
       destruct hfield as (def' & hdef' & hfty).
       inv hwf; simplify_eq.
-      by rewrite H2.
+      by rewrite H3.
     }
     by iApply "hstatic".
   Qed.
@@ -259,7 +260,7 @@ Section proofs.
           apply hadef in hc.
           by destruct hc.
         }
-        apply H3 in hc.
+        apply H4 in hc.
         rewrite -!interp_type_subst //.
         iApply (subtype_is_inclusion tdef.(constraints)) => //; by apply wfpdefs.
       }

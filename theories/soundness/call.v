@@ -27,11 +27,11 @@ Section proofs.
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
 
-  Lemma call_soundness C Δ kd rigid Γ lhs recv t σ name orig mdef args:
+  Lemma call_soundness C Δ kd rigid Γ lhs recv exact_ t σ name orig mdef args:
     wf_cdefs pdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
-    expr_has_ty Δ Γ rigid kd recv (ClassT t σ) →
+    expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
     has_method name t orig mdef →
     mdef.(methodvisibility) = Public →
     dom (methodargs mdef) = dom args →
@@ -79,9 +79,14 @@ Section proofs.
     rename H9 into hmdom.
     rename H13 into heval_body.
     rename H14 into heval_ret.
-    assert (hwfr : wf_ty (ClassT t σ)) by by apply expr_has_ty_wf in hrecv.
+    assert (hwfr : wf_ty (ClassT true t σ)).
+    { apply expr_has_ty_wf in hrecv => //.
+      (* TODO *)
+      inv hrecv; simplify_eq; by econstructor.
+    }
     (* Get inherits relation between dynamic tag and static tag *)
-    iDestruct (expr_soundness Δ (length Σ) Σ _ recv with "hΣ hΣΔ Hle") as "#Hrecv" => //.
+    iDestruct (expr_soundness Δ (length Σ) Σ _ recv with "hΣ hΣΔ Hle") as "#Hrecv_" => //.
+    iDestruct (exact_subtype_is_inclusion with "Hrecv_") as "Hrecv"; iClear "Hrecv_".
     rewrite interp_class_unfold //.
     iDestruct "Hrecv" as (? t1 def def1 σin Σt fields ifields) "(%Hpure & #hΣt & #hΣtΔ1 & #hf & #hdyn & Hl)".
     destruct Hpure as ([= <-] & hdef & hdef1 & ? & hin_t1_t & hfields & hidom).
@@ -96,7 +101,7 @@ Section proofs.
       wf_constraints_bounded wf_methods_bounded hin_t1_t hhasm0 hhasm (*hpub*))
     as (odef0 & odef & σt1_o0 & σt_o & omdef0 & omdef & hodef0 & hodef & homdef0 & homdef & hin_t1_o0
     & hin_t_o & -> & -> & (*hpub0 &*) hincl0 & _).
-    assert (hwf0: wf_ty (ClassT orig0 (gen_targs (length odef0.(generics))))).
+    assert (hwf0: wf_ty (ClassT false orig0 (gen_targs (length odef0.(generics))))).
     { econstructor => //; last by apply gen_targs_wf.
       by rewrite length_gen_targs.
     }
@@ -107,7 +112,7 @@ Section proofs.
       inv hh; by simplify_eq.
     }
     destruct hh as [hFσt_o heq1].
-    assert (hok0: ok_ty (constraints def1) (ClassT orig0 σt1_o0)).
+    assert (hok0: ok_ty (constraints def1) (ClassT true orig0 σt1_o0)).
     { apply inherits_using_ok in hin_t1_o0 => //.
       destruct hin_t1_o0 as (? & ? & ?).
       by simplify_eq.
@@ -180,7 +185,7 @@ Section proofs.
     { iIntros (k c hc v) "hv".
       inv hok0; simplify_eq.
       assert (hc' := hc).
-      apply H4 in hc'.
+      apply H5 in hc'.
       iDestruct (subtype_is_inclusion with "hΣt hΣtΔ1") as "hh"; try assumption.
       { by exact hc'. }
       { apply wf_ty_subst => //.

@@ -25,11 +25,11 @@ Section Ok.
     | OkBool: ok_ty Δ BoolT
     | OkNothing: ok_ty Δ NothingT
     | OkMixed: ok_ty Δ MixedT
-    | OkClass t σ def:
+    | OkClass exact_ t σ def:
         (∀ i ty, σ !! i = Some ty → ok_ty Δ ty) →
         pdefs !! t = Some def →
         (∀ i c, def.(constraints) !! i = Some c → Δ ⊢ (subst_ty σ c.1) <D: (subst_ty σ c.2)) →
-        ok_ty Δ (ClassT t σ)
+        ok_ty Δ (ClassT exact_ t σ)
     | OkNull: ok_ty Δ NullT
     | OkNonNull: ok_ty Δ NonNullT
     | OkUnion s t: ok_ty Δ s → ok_ty Δ t → ok_ty Δ (UnionT s t)
@@ -41,7 +41,7 @@ Section Ok.
 
   Lemma ok_ty_weaken Δ t: ok_ty Δ t → ∀ Δ', Δ ⊆ Δ' → ok_ty Δ' t.
   Proof.
-    induction 1 as [ | | | | t σ def hσ hi hdef hconstr
+    induction 1 as [ | | | | ? t σ def hσ hi hdef hconstr
     | | | s t hs hi ht hit | s t hs hi ht hit | n | | ] => Δ' hincl; try by constructor.
     - apply OkClass with def => //.
       + move => i ty h; by apply hi with i.
@@ -51,7 +51,8 @@ Section Ok.
     - constructor; by eauto.
   Qed.
 
-  Lemma ok_ty_class_inv Δ t σ: ok_ty Δ (ClassT t σ) → Forall (ok_ty Δ) σ.
+  Lemma ok_ty_class_inv Δ exact_ t σ:
+    ok_ty Δ (ClassT exact_ t σ) → Forall (ok_ty Δ) σ.
   Proof.
     move => h; inv h.
     apply Forall_lookup => ? x hin.
@@ -68,7 +69,7 @@ Section Ok.
          ok_ty (Δ' ++ (subst_constraints σ Δ)) (subst_ty σ t).
   Proof.
     move => hwp hcb.
-    induction 1 as [ | | | | t σt def hσt hi hdef hconstr
+    induction 1 as [ | | | | ? t σt def hσt hi hdef hconstr
     | | | s t hs his ht hit | s t hs his ht hit | n | | ]
     => hwf Δ' σ hwfσ hokσ /=; try (constructor; by eauto).
     - apply OkClass with def => //.
@@ -89,9 +90,9 @@ Section Ok.
         * apply subtype_subst => //.
           by apply hconstr with i.
         * inv hwf; simplify_eq.
-          by rewrite H4.
+          by rewrite H5.
         * inv hwf; simplify_eq.
-          by rewrite H4.
+          by rewrite H5.
     - inv hwf.
       constructor; by eauto.
     - inv hwf.
@@ -109,7 +110,7 @@ Section Ok.
     ∀ Δ', Δentails kd Δ' Δ →
     ok_ty Δ' ty.
   Proof.
-    induction 1 as [ | | | | t σt def hσt hi hdef hconstr
+    induction 1 as [ | | | | ? t σt def hσt hi hdef hconstr
       | | | s t hs his ht hit | s t hs his ht hit | n | | ]
       => Δ' hΔ /=; try (constructor; by eauto).
     econstructor; [ | done | ].
@@ -133,7 +134,7 @@ Section Ok.
     match cdef.(superclass) with
     | None => True
     | Some (parent, σ) =>
-        ok_ty cdef.(constraints) (ClassT parent σ)
+        ok_ty cdef.(constraints) (ClassT true parent σ)
     end
   .
 
@@ -142,7 +143,7 @@ Section Ok.
     extends_using A B σ →
     ∃ adef,
     pdefs !! A = Some adef ∧
-    ok_ty adef.(constraints) (ClassT B σ).
+    ok_ty adef.(constraints) (ClassT true B σ).
   Proof.
     move => hok h.
     destruct h as [A B adef σ hpdefs hsuper].
@@ -165,7 +166,7 @@ Section Ok.
     (∀ i c, Δ !! i = Some c → Δ' ⊢ c.1 <D: c.2) →
     ok_ty Δ' ty.
   Proof.
-    induction 1 as [ | | | | t σ def hσ hi hdef hconstr
+    induction 1 as [ | | | | ? t σ def hσ hi hdef hconstr
     | | | s t hs hi ht hit | s t hs hi ht hit | n | | ] => Δ' hΔ; try by constructor.
     - econstructor => //.
       + move => k ty hk; by eauto.
@@ -183,7 +184,7 @@ Section Ok.
     inherits_using A B σ →
     ∃ adef,
     pdefs !! A = Some adef ∧
-    ok_ty adef.(constraints) (ClassT B σ).
+    ok_ty adef.(constraints) (ClassT true B σ).
   Proof.
     move => hp hok hcb.
     induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
@@ -203,11 +204,11 @@ Section Ok.
           by apply hpdefs in hc as [].
     - by apply extends_using_ok in hext.
     - destruct hi as (bdef & hB & hokB).
-      assert (hwfB: wf_ty (ClassT B σ)).
+      assert (hwfB: wf_ty (ClassT true B σ)).
       { apply extends_using_wf in hext => //.
         by repeat destruct hext as [? hext].
       }
-      assert (hwfC: wf_ty (ClassT C σC)).
+      assert (hwfC: wf_ty (ClassT true C σC)).
       { apply inherits_using_wf in h => //.
         by repeat destruct h as [? h].
       }
@@ -252,20 +253,20 @@ Section Ok.
           rewrite /wf_cdef_parent_ok hsuper in hpdefs.
           inv hpdefs; simplify_eq.
           by eauto.
-      + assert (hC := H1).
+      + assert (hC := H2).
         apply hcb in hC.
         rewrite /wf_cdef_constraints_bounded Forall_lookup in hC.
         apply hC in hc as [].
         apply inherits_using_wf in h as (? & ? & ? & hwf)=> //.
         inv hwf; simplify_eq.
-        by rewrite H9.
-      + assert (hC := H1).
+        by rewrite H10.
+      + assert (hC := H2).
         apply hcb in hC.
         rewrite /wf_cdef_constraints_bounded Forall_lookup in hC.
         apply hC in hc as [].
         apply inherits_using_wf in h as (? & ? & ? & hwf)=> //.
         inv hwf; simplify_eq.
-        by rewrite H9.
+        by rewrite H10.
   Qed.
 
   Definition wf_cdef_constraints_ok cdef :=

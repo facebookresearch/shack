@@ -39,7 +39,7 @@ Section proofs.
     cmd_has_ty C (lift_constraints rigid (constraints def) ++ Δ) kd
          (rigid + length (generics def))
          (<[v:=InterT tv
-                 (ClassT t (map GenT (seq rigid (length (generics def)))))]>
+                 (ClassT false t (map GenT (seq rigid (length (generics def)))))]>
             Γ0) thn Γ1 →
     cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
     ∀ Σ st st' n,
@@ -49,16 +49,16 @@ Section proofs.
     □ Σinterp Σ Δ -∗
     □ ( ⌜wf_lty
             (<[v:=InterT tv
-                    (ClassT t (map GenT (seq rigid (length (generics def)))))]>
+                    (ClassT false t (map GenT (seq rigid (length (generics def)))))]>
                Γ0)⌝
          → ⌜bounded_lty (rigid + length (generics def))
               (<[v:=InterT tv
-                      (ClassT t
+                      (ClassT false t
                          (map GenT (seq rigid (length (generics def)))))]> Γ0)⌝
            → ⌜ok_ty (lift_constraints rigid (constraints def) ++ Δ)
                 (this_type
                    (<[v:=InterT tv
-                           (ClassT t
+                           (ClassT false t
                               (map GenT (seq rigid (length (generics def)))))]>
                       Γ0))⌝
              → ⌜Forall wf_constraint
@@ -75,7 +75,7 @@ Section proofs.
                      heap_models a0.2 ∗
                      interp_local_tys a
                        (<[v:=InterT tv
-                               (ClassT t
+                               (ClassT false t
                                   (map GenT
                                      (seq rigid (length (generics def)))))]>
                           Γ0) a0.1 -∗
@@ -107,7 +107,7 @@ Section proofs.
     iIntros "H".
     pose (rigid := length Σ).
     pose (Δthn := lift_constraints rigid def.(constraints) ++ Δ).
-    pose (tc := ClassT t (map GenT (seq rigid (length def.(generics))))).
+    pose (tc := ClassT false t (map GenT (seq rigid (length def.(generics))))).
     assert (hwf: wf_lty (<[v:=InterT tv tc]> Γ0)).
     { apply insert_wf_lty => //.
       constructor; first by apply wflty in hv.
@@ -232,7 +232,7 @@ Section proofs.
         destruct hh as (? & ? & hok); simplify_eq.
         inv hok; simplify_eq.
         assert (hc' := hc).
-        apply H3 in hc'.
+        apply H4 in hc'.
         iApply (subtype_is_inclusion with "hmixed hΣt") => //.
         + by apply wf_constraints_wf in hrtdef.
         + apply wf_constraints_wf in hdef.
@@ -295,7 +295,9 @@ Section proofs.
         - iFrame.
           iSplit.
           + rewrite /= -interp_this_type_app; first done.
-            by apply blty.
+            (* TODO *)
+            destruct blty as [blty _].
+            inv blty; simplify_eq; by econstructor.
           + rewrite /=.
             iIntros (w tw).
             rewrite lookup_insert_Some.
