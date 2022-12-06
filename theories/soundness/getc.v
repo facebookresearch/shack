@@ -38,7 +38,9 @@ Section proofs.
   Proof.
     move => wfpdefs wflty hthis hf Σ st st' n hrigid hc.
     iIntros "hΣ hΣΔ".
-    inv hc.
+    elim/cmd_eval_getI: hc.
+    move => {n}.
+    move => Ω h l t0 vs v heval hheap hvs hvis.
     iIntros "[Hh #Hle]".
     iModIntro. (* keep the later *)
     destruct Γ as [[this thisσ] Γ].
@@ -46,7 +48,7 @@ Section proofs.
     destruct wflty as [wfthis wflty].
     rewrite /this_type /= in wfthis, hthis.
     injection hthis; intros; subst; clear hthis.
-    inv H2.
+    case: heval => ->.
     simpl in *.
     iDestruct "Hle" as "[Hthis Hle]".
     rewrite /this_type /=.
@@ -77,8 +79,8 @@ Section proofs.
         destruct hf as (? & ? & ?).
         apply inherits_using_wf in hinherits => //.
         destruct hinherits as (? & ?& ? & hh).
-        inv wfthis; simplify_eq.
-        by rewrite H11.
+        apply wf_tyI in wfthis as (? & ? & hlen & ?); simplify_eq.
+        by rewrite hlen.
       }
       rewrite -hinst.
       rewrite -interp_type_subst //.
@@ -87,8 +89,8 @@ Section proofs.
       destruct hf as (? & ? & ?).
       apply inherits_using_wf in hinherits => //.
       destruct hinherits as (? & ?& ? & hh).
-      inv hh; simplify_eq.
-      by rewrite H11.
+      apply wf_tyI in hh as (? & ? & hlen & ?); simplify_eq.
+      by rewrite hlen.
     }
     subst.
     iNext.
@@ -116,15 +118,16 @@ Section proofs.
   Proof.
     move => wfpdefs ?? hrecv hf Σ st st' n hrigid hc.
     iIntros "hΣ hΣΔ".
-    inv hc.
+    elim/cmd_eval_getI: hc.
+    move => {n}.
+    move => Ω h l t0 vs v heval hheap hvs hvis.
     iIntros "[Hh #Hle]".
     iModIntro. (* keep the later *)
     iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "He" => //; try (by apply wfpdefs).
     iDestruct (exact_subtype_is_inclusion with "He") as "He".
     rewrite interp_class_unfold //; first last.
     { apply expr_has_ty_wf in hrecv => //.
-      (* TODO *)
-      inv hrecv; simplify_eq; by econstructor.
+      by eapply wf_ty_exact.
     }
     { by apply wfpdefs. }
     iDestruct "He" as (?? def def0 σ0 ???) "(%H & #hmixed & #? & #hf0 & #hdyn & #H◯)".
@@ -133,11 +136,11 @@ Section proofs.
     assert (hl0: length (generics def) = length σ0).
     { apply inherits_using_wf in hinherits; try (by apply wfpdefs).
       destruct hinherits as (?&?&?&hh).
-      inv hh; by simplify_eq.
+      apply wf_tyI in hh as (? & ? & ? & ?); by simplify_eq.
     }
     assert (hl1: length σ0 = length σ).
     { rewrite -hl0.
-      inv hwf0; by simplify_eq.
+      apply wf_tyI in hwf0 as (? & ? & ? & ?); by simplify_eq.
     }
     assert (hff: has_field name t1 Public (subst_ty σ0 fty) orig).
     { by apply has_field_inherits_using with (A := t1) (σB := σ0) in hf => //; try (by apply wfpdefs). }

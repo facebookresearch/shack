@@ -369,11 +369,11 @@ Section SubtypeFacts.
       | vs s t hs his ht hit | vs n hinv | vs n hco
       | vs exact_ cname cdef targs hpdefs hcov hicov hcontra hicontra | | ]
       => hb ws σ hlen h0 h1 //=; try by constructor.
-    - inv hb.
+    - apply boundedI in hb as [??].
       constructor.
       + eapply his; by eauto.
       + eapply hit; by eauto.
-    - inv hb.
+    - apply boundedI in hb as [??].
       constructor.
       + eapply his; by eauto.
       + eapply hit; by eauto.
@@ -391,19 +391,18 @@ Section SubtypeFacts.
         apply lookup_lt_is_Some_2 in hco.
         rewrite hty in hco.
         by elim hco.
-    - inv hb.
+    - apply boundedI in hb as hb.
+      rewrite Forall_lookup in hb.
       econstructor; first done.
       + move => i ci ti hci hi hc.
         apply list_lookup_fmap_inv in hi as [ty [-> hi]].
         eapply hicov => //.
-        rewrite Forall_lookup in H0.
-        by apply H0 in hi.
+        by apply hb in hi.
       + move => i ci ti hci hi hc.
         apply list_lookup_fmap_inv in hi as [ty [-> hi]].
         eapply hicontra => //.
-        * rewrite Forall_lookup in H0.
           rewrite map_length.
-          by apply H0 in hi.
+          by apply hb in hi.
         * by rewrite map_length.
         * move => j vj tj hj htj hcj.
           apply list_lookup_fmap_inv in hj as [vj' [-> hj]].
@@ -423,10 +422,13 @@ Section SubtypeFacts.
     mono def.(generics) (ClassT true B σ).
   Proof.
     move => hmono h def hdef.
-    inv h; simplify_eq.
-    apply hmono in hdef.
-    by rewrite /wf_cdef_mono H0 in hdef.
+    destruct h as [A B adef σ hadef hsuper]; simplify_eq.
+    apply hmono in hadef.
+    by rewrite /wf_cdef_mono hsuper in hadef.
   Qed.
+
+  Derive Inversion_clear mono_classI with
+    (∀ vs ex t σ, mono vs (ClassT ex t σ)) Sort Prop.
 
   Lemma inherits_using_mono A B σ :
     map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
@@ -454,15 +456,15 @@ Section SubtypeFacts.
       assert (hext' := hext).
       apply hi in hbdef.
       apply extends_using_mono with (def := def) in hext' => //.
-      inv hext'.
-      simplify_eq.
+      elim/mono_classI : hext'.
+      move => ?? hnotcontra hnotcov; simplify_eq.
       change (ClassT true C (subst_ty σ <$> σC)) with (subst_ty σ (ClassT true C σC)).
       apply mono_subst with (generics bdef) => //.
       + by constructor.
       + apply extends_using_wf in hext => //.
         destruct hext as (? & ? & ? & hwfB).
-        inv hwfB; simplify_eq.
-        by rewrite H7.
+        apply wf_tyI in hwfB as (? & ? & hlen & ?); simplify_eq.
+        by rewrite hlen.
   Qed.
 
   Lemma has_field_mono f t vis ty orig:
@@ -478,42 +480,42 @@ Section SubtypeFacts.
     end.
   Proof.
     move => hwfpdefs hmono hp hfb.
-    induction 1 as [ tag cdef [vis typ] hpdefs hf
-      | tag targs parent cdef vis typ orig hpdefs hf hs h hi ].
-      - exists cdef; split => //.
-        apply hwfpdefs in hpdefs.
-        by apply hpdefs in hf.
+    induction 1 as [ tag tdef [vis typ] htdef hf
+      | tag targs parent tdef vis typ orig htdef hf hs h hi ].
+      - exists tdef; split => //.
+        apply hwfpdefs in htdef.
+        by apply htdef in hf.
       - destruct hi as [def [hdef hvis]].
-        exists cdef; split => //.
+        exists tdef; split => //.
         destruct vis; last done.
         destruct hvis as [h0 h1].
-        assert (htag := hpdefs).
+        assert (htag := htdef).
         apply hp in htag.
         rewrite /wf_cdef_parent hs in htag.
         destruct htag as (hwf & hf0); simplify_eq.
-        inv hwf.
+        apply wf_tyI in hwf as (def' & hdef' & ? & ?); simplify_eq.
         apply has_field_bounded in h => //.
-        destruct h as (? & ? & hbt).
-        assert (htag := hpdefs).
+        destruct h as (pdef & ? & hbt).
+        assert (htag := htdef).
         apply hmono in htag.
         rewrite /wf_cdef_mono hs in htag.
-        inv htag.
-        simplify_eq.
+        elim/mono_classI: htag.
+        move => ?? hnotcontra hnotcov; simplify_eq.
         split.
-        + by apply mono_subst with (generics x).
-        + apply mono_subst with (neg_variance <$> generics x) => //.
+        + by apply mono_subst with (generics pdef).
+        + apply mono_subst with (neg_variance <$> generics pdef) => //.
           * by rewrite map_length.
           * by rewrite map_length.
           * rewrite !neg_variance_fmap_idem.
             move => i vi ti hvi hti hc.
             apply list_lookup_fmap_inv in hvi.
             destruct hvi as [wi [-> hwi]].
-            eapply H7 => //.
+            eapply hnotcontra => //.
             by destruct wi.
           * move => i vi ti hvi hti hc.
             apply list_lookup_fmap_inv in hvi.
             destruct hvi as [wi [-> hwi]].
-            eapply H8 => //.
+            eapply hnotcov => //.
             by destruct wi.
   Qed.
 
@@ -523,37 +525,39 @@ Section SubtypeFacts.
     wf_ty A → subtype Δ kd A B → wf_ty B.
   Proof.
     move => hp hΔ hwf.
-    induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hpdefs hA hext
+    induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hadef hA hext
       | kd A σA adef hadef hL
-      | kd ? A adef σ0 σ1 hpdefs hwfσ hσ | | | | | kd A args | kd s t h
+      | kd ? A adef σ0 σ1 hadef hwfσ hσ | | | | | kd A args | kd s t h
       | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
-      | kd s t u hst hist htu hitu | kd s t hin | kd ? A adef σA hwfA hpdefs hf hi
+      | kd s t u hst hist htu hitu | kd s t hin | kd ? A adef σA hwfA hadef hf hi
       | | | | | | kd A B ? h hi ]
       => //=; try (by constructor).
-    - inv hext; simplify_eq.
+    - destruct hext as [A B adef' σB hadef' hsuper]; simplify_eq.
       rewrite /map_Forall_lookup in hp.
-      apply hp in hpdefs.
-      rewrite /wf_cdef_parent H0 in hpdefs.
-      destruct hpdefs as (hwfB & hF).
-      inv hwfB.
+      apply hp in hadef.
+      rewrite /wf_cdef_parent hsuper in hadef.
+      destruct hadef as (hwfB & hF).
+      apply wf_tyI in hwfB as (? & ? & ? & hwfB).
       econstructor; first done.
       + by rewrite map_length.
-      + move => k ty.
+      + rewrite Forall_lookup => k ty.
         rewrite list_lookup_fmap.
         destruct (σB !! k) as [ tyk | ] eqn:hty => //=.
         case => <-.
-        apply wf_ty_subst; first by apply wf_ty_class_inv in hwf.
+        apply wf_ty_subst; first by apply wf_ty_classI in hwf.
+        rewrite Forall_lookup in hwfB.
         by eauto.
-    - inv hwf; simplify_eq; by econstructor.
+    - apply wf_tyI in hwf as [? [? [??]]]; simplify_eq; by econstructor.
     - apply length_subtype_targs_v1 in hσ.
-      inv hwf; simplify_eq; econstructor.
-      + exact hpdefs.
+      apply wf_tyI in hwf as [? [hadef' [? hwf0]]]; simplify_eq; econstructor.
+      + exact hadef'.
       + by rewrite hσ.
-      + rewrite Forall_lookup in hwfσ => k ty hty.
+      + rewrite Forall_lookup => k ty hty.
+        rewrite !Forall_lookup in hwfσ, hwf0.
         by eauto.
-    - inv hwf; by eauto.
-    - inv hwf; by eauto.
-    - inv hwf; by eauto.
+    - apply wf_tyI in hwf as [??]; by eauto.
+    - apply wf_tyI in hwf as [??]; by eauto.
+    - apply wf_tyI in hwf as [??]; by eauto.
     - constructor; by eauto.
     - by eauto.
     - rewrite Forall_forall in hΔ.
@@ -576,7 +580,7 @@ Section SubtypeFacts.
     - move => hp hb.
       destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hadef hA hext
       | kd A σA adef hadef hL
-      | kd ? A adef σ0 σ1 hpdefs hwfσ hσ01 | | | | | kd A args
+      | kd ? A adef σ0 σ1 hadef hwfσ hσ01 | | | | | kd A args
       | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
       | kd s t u hst htu | kd s t hin | kd ? A adef σA hadef hwfA hf0 hf1
       | | | | | | kd A B hwf h ]
@@ -588,12 +592,12 @@ Section SubtypeFacts.
           by rewrite map_length.
         * apply extends_using_wf in hext; last done.
           destruct hext as (? & hadef' & hF & hwfB).
-          inv hwfB; simplify_eq.
+          apply wf_tyI in hwfB as [? [? [??]]]; simplify_eq.
           by rewrite hA.
       + eapply SubExact => //.
         by rewrite fmap_length.
       + eapply SubVariance.
-        * exact hpdefs.
+        * exact hadef.
         * rewrite Forall_forall => ty /elem_of_list_fmap [ty' [-> hin]].
           apply wf_ty_subst => //.
           rewrite Forall_forall in hwfσ; by apply hwfσ in hin.
@@ -610,18 +614,19 @@ Section SubtypeFacts.
         apply elem_of_list_lookup; exists i.
         by rewrite /subst_constraints list_lookup_fmap hin.
       + eapply SubClassDyn => //.
-        * inv hwfA; simplify_eq.
+        * apply wf_tyI in hwfA as [? [? [? hwf]]]; simplify_eq.
+          rewrite Forall_lookup in hwf.
           econstructor => //.
           { by rewrite fmap_length. }
-          move => k ty h.
+          rewrite Forall_lookup  => k ty h.
           apply list_lookup_fmap_inv in h as [? [-> h]].
           apply wf_ty_subst => //.
           by eauto.
         * move => k s t hst.
           apply list_lookup_fmap_inv in hst as [[u v] [[= -> ->] h]].
           assert (hbst: bounded_constraint (length σA) (u, v)).
-          { inv hwfA; simplify_eq.
-            rewrite H3; by eapply Δsdt_bounded in h.
+          { apply wf_tyI in hwfA as [? [? [hlen ?]]]; simplify_eq.
+            rewrite hlen; by eapply Δsdt_bounded in h.
           }
           destruct hbst as [].
           rewrite -!subst_ty_subst //.
@@ -630,11 +635,11 @@ Section SubtypeFacts.
           by rewrite /subst_constraints list_lookup_fmap h.
         * move => k s t hst.
           assert (hbst: bounded_constraint (length σA) (s, t)).
-          { inv hwfA; simplify_eq.
+          { apply wf_tyI in hwfA as [? [? [hlen ?]]]; simplify_eq.
             apply hb in hadef.
             rewrite /wf_cdef_constraints_bounded Forall_lookup in hadef.
             apply hadef in hst.
-            by rewrite H3.
+            by rewrite hlen.
           }
           destruct hbst as [].
           rewrite -!subst_ty_subst //.
@@ -905,8 +910,8 @@ Section SubtypeFacts.
         apply hoA in hmA.
         apply inherits_using_wf in h => //.
         destruct h as (? & ? & ? & h).
-        inv h; simplify_eq.
-        by rewrite H5.
+        apply wf_tyI in h as [? [? [hlen ?]]]; simplify_eq.
+        by rewrite hlen.
       }
       split.
       { rewrite subst_mdef_mdef //.
@@ -923,8 +928,8 @@ Section SubtypeFacts.
         apply hoB in hmB.
         apply inherits_using_wf in hiB => //.
         destruct hiB as (? & ? & ? & hiB).
-        inv hiB; simplify_eq.
-        by rewrite H5.
+        apply wf_tyI in hiB as [? [? [hlen ?]]]; simplify_eq.
+        by rewrite hlen.
       }
       assert (mdef_bounded (length σ'') (subst_mdef σB oborig)).
       { apply mdef_bounded_subst with (n := length σB) => //.
@@ -932,8 +937,8 @@ Section SubtypeFacts.
         destruct hiB as (bdef & ? & ? & ?).
         apply inherits_using_wf in h => //.
         destruct h as (? & ? & ? & h).
-        inv h; simplify_eq.
-        by rewrite H9.
+        apply wf_tyI in h as [? [? [hlen ?]]]; simplify_eq.
+        by rewrite hlen.
       }
       assert (hh: oaorig.(methodvisibility) = Public ∧
         mdef_incl (constraints oadef) oaorig (subst_mdef σ'' (subst_mdef σB oborig))).
@@ -956,7 +961,7 @@ Section SubtypeFacts.
         apply mdef_incl_subst => //.
         apply inherits_using_wf in hiA => //.
         destruct hiA as (? & ? & ? & hiA).
-        by apply wf_ty_class_inv in hiA.
+        by apply wf_ty_classI in hiA.
       }
       right.
       exists σ''.

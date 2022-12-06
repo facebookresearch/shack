@@ -49,7 +49,8 @@ Section proofs.
   Proof.
     move => wfpdefs wflty hΔ hwf hok hf hdom harg Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ".
-    inv hc.
+    elim/cmd_eval_newI : hc => {n}.
+    move => Ω h new vargs hheap hvargs.
     iIntros "[Hh #Hle]"; simpl.
     (* we need one modality to semantic heap *)
     iDestruct "Hh" as (sh) "(H● & %Hdom & #Hh)".
@@ -68,7 +69,7 @@ Section proofs.
     iAssert (interp_type (ClassT true t σ) Σ (LocV new)) with "[]" as "#Hl".
     { rewrite interp_class_unfold_exact //; last by apply wfpdefs.
       assert (hwf' := hwf).
-      inv hwf'.
+      apply wf_tyI in hwf' as (def & hpdef & hlen & wf_σ).
       iExists new, def, (interp_list Σ σ), fields, iFs.
       iSplit.
       { iPureIntro.
@@ -76,7 +77,6 @@ Section proofs.
         + by rewrite /interp_list fmap_length.
         + by rewrite /iFs /= !dom_fmap_L.
       }
-      assert (wf_σ : Forall wf_ty σ) by by apply wf_ty_class_inv in hwf.
       iSplit.
       { iModIntro; iNext.
         iIntros (i ? heq v) "hphi".
@@ -87,7 +87,8 @@ Section proofs.
         iDestruct (subtype_is_inclusion _ hΔ wf_parent wf_mono
           wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub v
           with "hΣ hΣΔ hphi") as "hsub".
-        + by eauto.
+        + rewrite Forall_lookup in wf_σ.
+          by eauto.
         + by rewrite interp_mixed_unfold.
       }
       assert (hconstraints: ∀ i c,
@@ -96,9 +97,9 @@ Section proofs.
       { rewrite /subst_constraints => i ? hin.
         apply list_lookup_fmap_inv in hin as [c [-> hin]].
         rewrite /subst_constraint /=.
-        inv hok; simplify_eq.
-        apply H9 in hin.
-        apply subtype_weaken with (Δ' := (Δ ++ subst_constraints σ def.(constraints))) in hin => //;
+        apply ok_tyI in hok as (def' & hdef' & ? & hok); simplify_eq.
+        apply hok in hin.
+        apply subtype_weaken with (Δ' := (Δ ++ subst_constraints σ def'.(constraints))) in hin => //;
         last by set_solver.
         apply subtype_constraint_elim in hin => //.
         move => j ? hj.
@@ -121,21 +122,23 @@ Section proofs.
         }
         destruct wfpdefs.
         rewrite -!interp_type_subst.
-        { iApply (subtype_is_inclusion _ hΔ wf_parent wf_mono wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub v with "hΣ hΣΔ") => //.
+        { iApply (subtype_is_inclusion _ hΔ wf_parent wf_mono
+            wf_constraints_wf wf_constraints_bounded _ _ _ _ hsub v
+            with "hΣ hΣΔ") => //.
           apply wf_ty_subst => //.
-          apply wf_constraints_wf in H2.
-          rewrite /wf_cdef_constraints_wf Forall_lookup in H2.
-          apply H2 in heq.
+          apply wf_constraints_wf in hpdef.
+          rewrite /wf_cdef_constraints_wf Forall_lookup in hpdef.
+          apply hpdef in heq.
           by apply heq.
         }
-        { apply wf_constraints_bounded in H2.
-          rewrite /wf_cdef_constraints_bounded Forall_lookup -H3 in H2.
-          apply H2 in heq.
+        { apply wf_constraints_bounded in hpdef.
+          rewrite /wf_cdef_constraints_bounded Forall_lookup -hlen in hpdef.
+          apply hpdef in heq.
           by apply heq.
         }
-        { apply wf_constraints_bounded in H2.
-          rewrite /wf_cdef_constraints_bounded Forall_lookup -H3 in H2.
-          apply H2 in heq.
+        { apply wf_constraints_bounded in hpdef.
+          rewrite /wf_cdef_constraints_bounded Forall_lookup -hlen in hpdef.
+          apply hpdef in heq.
           by apply heq.
         }
       }
@@ -150,7 +153,7 @@ Section proofs.
       assert (hbσ: bounded (length σ) ty).
       { apply has_field_bounded in hff; try (by apply wfpdefs).
         destruct hff as (?&?&hh); simplify_eq.
-        by rewrite H3.
+        by rewrite hlen.
       }
       apply hf in hff.
       rewrite !lookup_fmap hff /= option_equivI.
@@ -171,8 +174,8 @@ Section proofs.
     rewrite /heap_models_fields.
     iSplitR.
     {
-      apply dom_map_args in H8.
-      by rewrite /iFs !dom_fmap_L H8 -hdom.
+      apply dom_map_args in hvargs.
+      by rewrite /iFs !dom_fmap_L hvargs -hdom.
     }
     iNext.
     iIntros (f iF) "hiF".
@@ -192,8 +195,8 @@ Section proofs.
     assert (h1: is_Some (vargs !! f)).
     {
       apply elem_of_dom.
-      apply dom_map_args in H8.
-      by rewrite H8 -hdom.
+      apply dom_map_args in hvargs.
+      by rewrite hvargs -hdom.
     }
     destruct h1 as [v0 hv0].
     assert (h2: is_Some (fields !! f)) by (by apply elem_of_dom).
@@ -201,14 +204,14 @@ Section proofs.
     iExists v0; iSplitR; first done.
     rewrite lookup_fmap.
     assert (heval0: expr_eval Ω a0 = Some v0).
-    { rewrite (map_args_lookup _ _ _ args vargs H8 f) in hv0.
+    { rewrite (map_args_lookup _ _ _ args vargs hvargs f) in hv0.
       by rewrite ha0 in hv0.
     }
-    assert (hty0: expr_has_ty Δ Γ (length Σ) kd a0 (subst_ty σ fty.1.2)) by (by apply harg with f).
+    assert (hty0: expr_has_ty Δ Γ rigid kd a0 (subst_ty σ fty.1.2)) by (by apply harg with f).
     rewrite !lookup_fmap hty /= option_equivI.
     rewrite discrete_fun_equivI.
     iSpecialize ("hiF" $! v0).
     iRewrite -"hiF".
-    iDestruct (expr_soundness Δ (length Σ) Σ kd a0 with "hΣ hΣΔ Hle") as "#Ha0" => //; by apply wfpdefs.
+    iDestruct (expr_soundness Δ rigid Σ kd a0 with "hΣ hΣΔ Hle") as "#Ha0" => //; by apply wfpdefs.
   Qed.
 End proofs.

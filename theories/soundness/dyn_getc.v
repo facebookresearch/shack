@@ -44,7 +44,9 @@ Section proofs.
   Proof.
     move => wfpdefs ?? hrecv hnotthis Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ".
-    inv hc.
+    elim/cmd_eval_getI : hc.
+    move => {n}.
+    move => Ω h l t vs v heval hheap hvs hvis.
     iIntros "[Hh #Hle]"; simpl.
     iModIntro. (* keep the later *)
     iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "#He" => //; try (by apply wfpdefs).
@@ -69,7 +71,7 @@ Section proofs.
     assert (hl0: length (generics dyndef) = length σ).
     { apply inherits_using_wf in hinherits; try (by apply wfpdefs).
       destruct hinherits as (?&?&?&hh).
-      inv hh; by simplify_eq.
+      apply wf_tyI in hh as (? & ? & ? & ?); by simplify_eq.
     }
     iAssert (⌜t0 = t⌝ ∗ heap_models h ∗ ▷ interp_type DynamicT Σt v)%I with "[Hh]" as "[%Ht [Hh Hv]]".
     { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
@@ -82,7 +84,7 @@ Section proofs.
       iSplitR; first done.
       iSplitL. { iExists _. iFrame. by iSplit. }
       (* the field must be public, since we can't access it from This *)
-      destruct H9 as (vis & fty & orig & hf & hvc).
+      destruct hvis as (vis & fty & orig & hf & hvc).
       destruct vis; last by destruct recv.
       assert (hsub: def0.(constraints) ++ Δsdt t0 ⊢ fty <D: DynamicT).
       { destruct wfpdefs.

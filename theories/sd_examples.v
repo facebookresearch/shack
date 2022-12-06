@@ -448,7 +448,7 @@ Proof.
     assert (wf_lty Γ).
     { split => //.
       - rewrite /this_type /=.
-        apply wf_ty_class with ROBox => //.
+        econstructor => //.
         by apply gen_targs_wf_2.
       - rewrite /Γ /=.
         apply map_Forall_lookup => i ty.
@@ -483,7 +483,7 @@ Proof.
       assert (wf_lty Γ).
       { split => //.
         - rewrite /this_type /=.
-          apply wf_ty_class with Box => //.
+          econstructor => //.
           by apply gen_targs_wf_2.
         - rewrite /Γ /=.
           apply map_Forall_lookup => i ty.
@@ -519,7 +519,7 @@ Proof.
       assert (wf_lty Γ).
       { split => //.
         - rewrite /this_type /=.
-          apply wf_ty_class with Box => //.
+          econstructor => //.
           by apply gen_targs_wf_2.
         - rewrite /Γ /=.
           by apply map_Forall_singleton.
@@ -684,7 +684,7 @@ Proof.
   rewrite lookup_insert_Some.
   case => [[? <-] | [?]].
   { split.
-    + eapply wf_ty_class => //.
+    + econstructor => //.
       by repeat constructor.
     + by repeat constructor.
   }
@@ -837,7 +837,7 @@ Proof.
     assert (wf_lty Γ).
     { split => //.
       - rewrite /this_type /=.
-        apply wf_ty_class with ROBox => //.
+        econstructor => //.
         by apply gen_targs_wf_2.
       - rewrite /Γ /=.
         by apply map_Forall_singleton.
@@ -863,7 +863,7 @@ Proof.
       assert (wf_lty Γ).
       { split => //.
         - rewrite /this_type /=.
-          apply wf_ty_class with Box => //.
+          econstructor => //.
           by apply gen_targs_wf_2.
         - rewrite /Γ /=.
           by apply map_Forall_singleton.
@@ -887,7 +887,7 @@ Proof.
       assert (wf_lty Γ).
       { split => //.
         - rewrite /this_type /=.
-          apply wf_ty_class with Box => //.
+          econstructor => //.
           by apply gen_targs_wf_2.
         - rewrite /Γ /=.
           by apply map_Forall_singleton.

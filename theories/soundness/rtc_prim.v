@@ -87,11 +87,13 @@ Section proofs.
   Proof.
     move => hkind wfpdefs wflty blty hokthis hΔ hΔb hv hthn hels Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ #Hthn #Hels".
-    inv hc; last first.
-    { iIntros "[Hh H]".
+    elim/cmd_eval_rtcI : hc; last first.
+    { move => ??.
+      iIntros "[Hh H]".
       iApply "Hels" => //.
       by iSplit.
     }
+    move => n0 hmatch htn.
     iClear "Hels".
     iIntros "H".
     assert (hwf: wf_lty (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0)).
@@ -99,19 +101,19 @@ Section proofs.
       constructor; first by apply wflty in hv.
       destruct rtk; (by elim hkind || by constructor).
     }
-    assert (hbounded: bounded_lty (length Σ) (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0)).
+    assert (hbounded: bounded_lty rigid (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0)).
     { apply insert_bounded_lty => //.
       constructor; first by apply blty in hv.
       destruct rtk; (by elim hkind || by constructor).
     }
     iModIntro; iNext.
     iApply ("Hthn" $! hwf hbounded hokthis hΔ hΔb with "[//]") => //.
-    clear H8.
+    clear htn.
     iDestruct "H" as "[H #Hle]".
     iDestruct "Hle" as "[Hthis Hle]".
     iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
     destruct rtk; try (by elim hkind).
-    - destruct H7 as (z & hz).
+    - destruct hmatch as (z & hz).
       rewrite Hlev in hz; simplify_eq.
       iFrame.
       iSplit => /=; first done.
@@ -123,7 +125,7 @@ Section proofs.
       rewrite interp_inter_unfold /=; iSplit; first done.
       rewrite !interp_type_unfold /=.
       by iExists z.
-    - destruct H7 as (b & hb).
+    - destruct hmatch as (b & hb).
       rewrite Hlev in hb; simplify_eq.
       iFrame.
       iSplit => /=; first done.
@@ -135,7 +137,7 @@ Section proofs.
       rewrite interp_inter_unfold /=; iSplit; first done.
       rewrite !interp_type_unfold /=.
       by iExists b.
-    - rewrite /= Hlev in H7; simplify_eq.
+    - rewrite /= Hlev in hmatch; simplify_eq.
       iFrame.
       iSplit => /=; first done.
       iIntros (w tw).
@@ -145,7 +147,7 @@ Section proofs.
       iExists NullV; rewrite Hlev; iSplitR; first done.
       rewrite interp_inter_unfold /=; iSplit; first done.
       by rewrite !interp_type_unfold.
-    - simpl in H7.
+    - simpl in hmatch.
       iFrame.
       iAssert (interp_local_tys Σ Γ0 st.1) as "#Hle_"; first by iSplit.
       iAssert (interp_type MixedT Σ val) as "Hmixed".
@@ -173,6 +175,6 @@ Section proofs.
       iDestruct "Hmixed" as "[? | %hnull]".
       { by rewrite interp_nonnull_unfold. }
       rewrite hnull in Hlev.
-      by rewrite Hlev in H7.
+      by rewrite Hlev in hmatch.
   Qed.
 End proofs.

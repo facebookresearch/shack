@@ -44,7 +44,9 @@ Section proofs.
     |=▷^n heap_models st'.2 ∗ interp_local_tys Σ Γ st'.1.
   Proof.
     move => wfpdefs wflty ? hrecv hrhs hnotthis Σ st st' n hrigid hc.
-    inv hc.
+    elim/cmd_eval_setI : hc.
+    move => {n}.
+    move => Ω h l v t vs vs' heval_recv heval_rhs hheap -> hvis.
     iIntros "#hΣ #hΣΔ".
     iIntros "[Hh #Hle]" => /=.
     iSplitL; last done.
@@ -69,7 +71,7 @@ Section proofs.
     destruct H as ([= <-] & hdef & hdef0 & ? & hinherits & hfields & hidom).
     simplify_eq.
     (* This is based on heap_models_update, but specialized for Dynamic *)
-    destruct H10 as (vis & fty & orig & hf & hv).
+    destruct hvis as (vis & fty & orig & hf & hv).
     destruct vis; last by destruct recv.
     iDestruct "Hh" as (sh) "[hown [%hdom #h]]".
     iExists sh.
@@ -122,7 +124,7 @@ Section proofs.
     assert (hl0: length (generics dyndef) = length σ).
     { apply inherits_using_wf in hinherits; try (by apply wfpdefs).
       destruct hinherits as (?&?&?&hh).
-      inv hh; by simplify_eq.
+      apply wf_tyI in hh as (? & ? & ? & ?); by simplify_eq.
     }
     assert (hsub: def0.(constraints) ++ Δsdt t ⊢ DynamicT <D: fty).
     { destruct wfpdefs.

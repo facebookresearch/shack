@@ -39,7 +39,8 @@ Section proofs.
     |=▷^n heap_models st'.2 ∗ interp_local_tys Σ Γ st'.1.
   Proof.
     move => wfpdefs wflty ? hthis hf hrhs Σ st st' n hrigid hc.
-    inv hc.
+    elim/cmd_eval_setI : hc => {n}.
+    move => Ω h l v t0 vs vs' heval heval_rhs hheap -> hvis.
     iIntros "#hΣ #hΣΔ".
     iIntros "[Hh #Hle]" => /=.
     iSplitL; last done.
@@ -47,10 +48,7 @@ Section proofs.
     destruct Ω as [vthis Ω].
     injection hthis; intros; subst; clear hthis.
     assert (ht: wf_ty (ClassT true t σ)).
-    { destruct wflty as (hh & _).
-      (* TODO *)
-      inv hh; simplify_eq; by econstructor.
-    }
+    { eapply wf_ty_exact; by apply wflty. }
     iApply (heap_models_update Δ _ _ _ _ _ false t σ) => //=; try (by apply wfpdefs).
     - iDestruct "Hle" as "[Hthis Hle]".
       rewrite /= /interp_this_type interp_this_unseal /interp_this_def /=.
@@ -58,7 +56,7 @@ Section proofs.
       destruct H as ([= <-] & hdef1 & ? & hin & hfields & hidom).
       iExists l, t1, def1, σ0, σt, fields, ifields.
       repeat iSplit => //.
-      by inv H2.
+      by case: heval => ->.
     - iApply expr_soundness => //; by apply wfpdefs.
   Qed.
 
@@ -78,15 +76,14 @@ Section proofs.
     |=▷^n heap_models st'.2 ∗ interp_local_tys Σ Γ st'.1.
   Proof.
     move => wfpdefs wflty ? hrecv hf hrhs Σ st st' n hrigid hc.
-    inv hc.
+    elim/cmd_eval_setI : hc => {n}.
+    move => Ω h l v t0 vs vs' heval heval_rhs hheap -> hvis.
     iIntros "#hΣ #hΣΔ".
     iIntros "[Hh #Hle]" => /=.
     iSplitL; last done.
     assert (ht: wf_ty (ClassT exact_ t σ)) by (by apply expr_has_ty_wf in hrecv).
     assert (htt: wf_ty (ClassT true t σ)).
-    { (* TODO *)
-      inv ht; simplify_eq; by econstructor.
-    }
+    { by eapply wf_ty_exact. }
     iApply (heap_models_update _ _ _ _ _ _ exact_ t σ) => //=; try (by apply wfpdefs).
     - iApply expr_soundness => //; by apply wfpdefs.
     - iApply expr_soundness => //; by apply wfpdefs.

@@ -175,12 +175,14 @@ Proof.
   split.
   { split.
     - rewrite /this_type /=.
-      by econstructor.
+      apply wf_ty_exact with true.
+      eapply WfClass => //.
+      by apply gen_targs_wf_2.
     - rewrite /=.
       rewrite map_Forall_insert; last done.
       split.
-      + econstructor => // k ty h.
-        by apply list_lookup_singleton_Some in h as [? <-].
+      + eapply WfClass => //.
+        by constructor.
       + by apply map_Forall_singleton.
   }
   split.
@@ -189,7 +191,7 @@ Proof.
     - eapply NewTy.
       + reflexivity.
       + econstructor => //.
-        move => k ty h; by apply list_lookup_singleton_Some in h as [? <-].
+        by constructor.
       + constructor.
         by apply Forall_singleton.
       + econstructor => //.
@@ -209,8 +211,7 @@ Proof.
           - eapply ESubTy.
             + by constructor.
             + econstructor => //.
-              move => k ty h; rewrite list_lookup_singleton_Some in h.
-              by destruct h as [? <-].
+              by constructor.
             + constructor.
               apply Forall_singleton.
               constructor; by lia.

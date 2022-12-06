@@ -292,11 +292,11 @@ Section Typing.
       destruct Γ as [[? ?] Γ].
       rewrite /this_type /= in hthis, he.
       simplify_eq.
-      by apply wf_ty_class_inv in hthis.
+      by apply wf_ty_classI in hthis.
     - apply insert_wf_lty => //.
       apply wf_ty_subst; last by apply has_field_wf in hf.
       apply expr_has_ty_wf in he => //.
-      by apply wf_ty_class_inv in he.
+      by apply wf_ty_classI in he.
     - split; first by apply hthis.
       by apply map_Forall_insert_2.
     - split; first by apply hthis.
@@ -305,7 +305,7 @@ Section Typing.
       destruct hm as [hargs' hret'].
       apply wf_ty_subst => //.
       apply expr_has_ty_wf in he => //.
-      by apply wf_ty_class_inv in he.
+      by apply wf_ty_classI in he.
     - split; first by apply hthis.
       apply map_Forall_insert_2 => //.
       apply has_method_wf in hm => //.
@@ -314,7 +314,7 @@ Section Typing.
       destruct Γ as [[? ?] Γ].
       rewrite /this_type /= in hthis, ht.
       simplify_eq.
-      by apply wf_ty_class_inv in hthis.
+      by apply wf_ty_classI in hthis.
     - apply hi in hwf as [hthis' hwf] => //; clear hi h.
       destruct hsub as [h0 h1].
       split; first by rewrite -h0.
@@ -361,20 +361,19 @@ Section Typing.
       apply bounded_subst with (length def.(generics)) => //.
       + destruct hwf as [hwf ?].
         rewrite /this_type /= in hwf.
-        inv hwf.
+        apply wf_tyI in hwf as (? & ? & ? & ?).
         by simplify_eq.
       + rewrite /this_type /= in hthis.
-        by inv hthis.
+        by apply boundedI in hthis.
     - apply insert_bounded_lty => //.
       apply has_field_bounded in hf => //.
       destruct hf as (def & hdef & hbfty).
       apply bounded_subst with (length def.(generics)) => //.
       + apply expr_has_ty_wf in he => //.
-        inv he.
+        apply wf_tyI in he as (? & ? & ? & ?).
         by simplify_eq.
       + apply expr_has_ty_bounded in he => //.
-        inv he.
-        by simplify_eq.
+        by apply boundedI in he.
     - by apply insert_bounded_lty.
     - split; first by apply hthis.
       apply map_Forall_insert_2 => //.
@@ -382,20 +381,20 @@ Section Typing.
       destruct hm as (odef & m & hodef & hmdef & hm & [σ [hin ->]]).
       assert (he' := he).
       apply expr_has_ty_wf in he' => //.
-      inv he'.
+      apply wf_tyI in he' as (tdef & ? & ? & ?).
       rewrite /subst_mdef /=.
-      apply bounded_subst with (length def.(generics)) => //.
+      apply bounded_subst with (length tdef.(generics)) => //.
       + apply bounded_subst with (length odef.(generics)) => //.
         * apply hmethods in hodef.
           apply hodef in hmdef.
           by apply hmdef.
         * apply inherits_using_wf in hin => //.
           destruct hin as (? & ? & ? & h); simplify_eq.
-          inv h; by simplify_eq.
+          apply wf_tyI in h as (? & ? & ? & ?); by simplify_eq.
         * apply inherits_using_wf in hin => //.
           by destruct hin as (? & ? & h & ?); simplify_eq.
       + apply expr_has_ty_bounded in he => //.
-        by inv he.
+        by apply boundedI in he.
     - split; first by apply hthis.
       apply map_Forall_insert_2 => //.
       apply has_method_from_def in hm => //.
@@ -404,19 +403,19 @@ Section Typing.
       injection ht; intros; subst; clear ht.
       destruct hwf as [hwf ?].
       rewrite /this_type /= in hwf, hthis.
-      inv hwf.
+      apply wf_tyI in hwf as (tdef & ? & ? & ?).
       rewrite /subst_mdef /=.
-      apply bounded_subst with (length def.(generics)) => //.
+      apply bounded_subst with (length tdef.(generics)) => //.
       + apply bounded_subst with (length odef.(generics)) => //.
         * apply hmethods in hodef.
           apply hodef in hmdef.
           by apply hmdef.
         * apply inherits_using_wf in hin => //.
           destruct hin as (? & ? & ? & h); simplify_eq.
-          inv h; by simplify_eq.
+          apply wf_tyI in h as (? & ? & ? & ?); by simplify_eq.
         * apply inherits_using_wf in hin => //.
           by destruct hin as (? & ? & h & ?); simplify_eq.
-      + by inv hthis.
+      + by apply boundedI in hthis.
     - by apply insert_bounded_lty.
     - by apply insert_bounded_lty.
   Qed.
@@ -512,7 +511,7 @@ Section Typing.
     assert (hext0 := hext).
     apply extends_using_wf in hext0 => //.
     destruct hext0 as (adef & hadef & ? & hwfb).
-    inv hwfb.
+    apply wf_tyI in hwfb as (? & ? & ? & ?).
     destruct hext as [A' B' adef' σ hadef' hsuper]; simplify_eq.
     exists adef'; repeat split => //.
     apply hwf in hadef'.
@@ -545,8 +544,8 @@ Section Typing.
       assert (hσ : Forall wf_ty σ ∧ length bdef.(generics) = length σ).
       { apply extends_using_wf in hext => //.
         destruct hext as (? & ? & ? & hh); simplify_eq.
-        split; first by apply wf_ty_class_inv in hh.
-        inv hh; by simplify_eq.
+        split; first by apply wf_ty_classI in hh.
+        apply wf_tyI in hh as (? & ? & ? & ?); by simplify_eq.
       }
       destruct hσ as [hσ hl].
       assert (hext0 := hext).
@@ -584,7 +583,7 @@ Section Typing.
           apply list_lookup_fmap_inv in hcc0 as [? [-> hcc]].
           rewrite /subst_constraint /=.
           destruct hext as (? & ? & hhok); simplify_eq.
-          inv hhok; simplify_eq.
+          apply ok_tyI in hhok as (? & ? & ? & ?); simplify_eq.
           by eauto.
         - eapply subtype_weaken.
           + apply SubConstraint.
@@ -595,8 +594,8 @@ Section Typing.
       rewrite -subst_constraints_subst; last first.
       { apply inherits_using_wf in h => //.
         destruct h as (? & ? & ? & h).
-        inv h; simplify_eq.
-        rewrite H5.
+        apply wf_tyI in h as (? & ? & hlen & ?); simplify_eq.
+        rewrite hlen.
         rewrite Forall_lookup => ??.
         by apply Δsdt_bounded.
       }

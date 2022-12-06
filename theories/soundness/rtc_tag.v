@@ -98,14 +98,14 @@ Section proofs.
   Proof.
     move => wfpdefs wflty blty hokthis ? hΔb hv hdef hthn hels Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ #Hthn #Hels".
-    inv hc; last first.
-    { iIntros "[Hh H]".
+    elim/cmd_eval_rtcI : hc; last first.
+    { move => ??; iIntros "[Hh H]".
       iApply "Hels" => //.
       by iSplit.
     }
+    move => n0 hmatch heval.
     iClear "Hels".
     iIntros "H".
-    pose (rigid := length Σ).
     pose (Δthn := lift_constraints rigid def.(constraints) ++ Δ).
     pose (tc := ClassT false t (map GenT (seq rigid (length def.(generics))))).
     assert (hwf: wf_lty (<[v:=InterT tv tc]> Γ0)).
@@ -113,22 +113,22 @@ Section proofs.
       constructor; first by apply wflty in hv.
       econstructor => //.
       - by rewrite map_length seq_length.
-      - move => k ty hx.
+      - rewrite Forall_lookup => k ty hx.
         apply list_lookup_fmap_inv in hx.
         destruct hx as [ty' [ -> h]].
         by constructor.
     }
     assert (hbounded:
-      bounded_lty (length Σ + length (generics def)) (<[v:=InterT tv tc]> Γ0)).
+      bounded_lty (rigid + length (generics def)) (<[v:=InterT tv tc]> Γ0)).
     { apply insert_bounded_lty.
       - constructor.
-        + apply bounded_ge with (length Σ); last by lia.
+        + apply bounded_ge with rigid; last by lia.
           by apply blty in hv.
         + by apply bounded_rigid.
-      - apply bounded_lty_ge with (length Σ); last by lia.
+      - apply bounded_lty_ge with rigid; last by lia.
         by apply blty.
     }
-    destruct H7 as (l & hl & t' & fields & hlt & hinherits).
+    destruct hmatch as (l & hl & t' & fields & hlt & hinherits).
     iDestruct "H" as "[H #Hle]".
     iDestruct "Hle" as "[Hthis Hle]".
     iDestruct ("Hle" $! v with "[//]") as (?) "[%Hlev Hv]".
@@ -172,7 +172,7 @@ Section proofs.
           split; first by constructor.
           by rewrite length_gen_targs.
         - destruct (hi hdef) as (σ & h0 & h1).
-          inv hst.
+          destruct hst as [s t sdef σB hsdef hsuper].
           exists (subst_ty σB <$> σ); split.
           + eapply InheritsTrans.
             * by econstructor.
@@ -184,7 +184,7 @@ Section proofs.
       { destruct wfpdefs.
         apply inherits_using_wf in hσin => //.
         destruct hσin as (? & ? & ? & h); simplify_eq.
-        by apply wf_ty_class_inv in h.
+        by apply wf_ty_classI in h.
       }
       assert (hexlen: length (interp_list Σt σin) = length (generics def)).
       { by rewrite /interp_list map_length. }
@@ -230,9 +230,9 @@ Section proofs.
         assert (hh := hσin).
         apply inherits_using_ok in hh => //.
         destruct hh as (? & ? & hok); simplify_eq.
-        inv hok; simplify_eq.
+        apply ok_tyI in hok as (? & ? & ? & hok); simplify_eq.
         assert (hc' := hc).
-        apply H4 in hc'.
+        apply hok in hc'.
         iApply (subtype_is_inclusion with "hmixed hΣt") => //.
         + by apply wf_constraints_wf in hrtdef.
         + apply wf_constraints_wf in hdef.
@@ -259,7 +259,7 @@ Section proofs.
       { iIntros (k c hc w) "#hw".
         rewrite Forall_lookup in hΔb.
         rewrite /Δthn lookup_app in hc.
-        destruct (lift_constraints rigid def.(constraints) !! k) as [c0 | ] eqn:hc0.
+        destruct (lift_constraints (length Σ) def.(constraints) !! k) as [c0 | ] eqn:hc0.
         + case : hc => <-.
           apply list_lookup_fmap_inv in hc0 as [c1 [-> hc1]].
           rewrite !interp_type_lift.
@@ -295,9 +295,8 @@ Section proofs.
         - iFrame.
           iSplit.
           + rewrite /= -interp_this_type_app; first done.
-            (* TODO *)
-            destruct blty as [blty _].
-            inv blty; simplify_eq; by econstructor.
+            eapply bounded_exact.
+            by apply blty.
           + rewrite /=.
             iIntros (w tw).
             rewrite lookup_insert_Some.
@@ -312,7 +311,7 @@ Section proofs.
               { by destruct wfpdefs. }
               econstructor => //.
               { by rewrite map_length seq_length heq. }
-              move => k ty h.
+              rewrite Forall_lookup => k ty h.
               apply list_lookup_fmap_inv in h as [? [-> h]].
               by constructor.
             * iDestruct ("Hle" $! w tw hw) as (z hz) "#Hz".

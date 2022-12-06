@@ -42,101 +42,99 @@ Section proofs.
         kd e0 h hi | kd v vty hv | | kd exp S T hS hi hwf hok hsub |
         kd exp S T hS hi hwf hok hsub | kd e t hwf hb hsub ]
         => Ω val he; iIntros "#wfΣ #Σcoherency #Hlty".
-    - inv he; rewrite interp_type_unfold /=; by eauto.
-    - inv he; rewrite interp_type_unfold /=; by eauto.
-    - inv he; rewrite interp_type_unfold /=; by eauto.
-    - inv he.
-      case heq1 : (expr_eval Ω e1) => [v1 | ]; rewrite heq1 in H0; last by done.
+    - case: he => <-; rewrite interp_type_unfold /=; by eauto.
+    - case: he => <-; rewrite interp_type_unfold /=; by eauto.
+    - case: he => <-; rewrite interp_type_unfold /=; by eauto.
+    - simpl in he.
+      case heq1 : (expr_eval Ω e1) => [v1 | ]; rewrite heq1 in he; last by done.
       apply hi1 in heq1.
       iDestruct (heq1 with "wfΣ Σcoherency Hlty") as "hv1".
       rewrite interp_type_unfold /=.
       iDestruct "hv1" as (z1) "%hz1".
-      rewrite hz1 in H0.
-      case heq2 : (expr_eval Ω e2) => [v2 | ]; rewrite heq2 in H0; last by done.
+      rewrite hz1 in he.
+      case heq2 : (expr_eval Ω e2) => [v2 | ]; rewrite heq2 in he; last by done.
       apply hi2 in heq2.
       iDestruct (heq2 with "wfΣ Σcoherency Hlty") as "hv2".
       rewrite interp_type_unfold /=.
       iDestruct "hv2" as (z2) "%hz2".
-      rewrite hz2 in H0.
-      case: H0 => <-.
+      rewrite hz2 in he.
+      case: he => <-.
       move: hop; rewrite /is_bool_op; destruct op => //= _; by iExists _.
-    - inv he.
-      case heq1 : (expr_eval Ω e1) => [v1 | ]; rewrite heq1 in H0; last by done.
+    - simpl in he.
+      case heq1 : (expr_eval Ω e1) => [v1 | ]; rewrite heq1 in he; last by done.
       apply hi1 in heq1.
       iDestruct (heq1 with "wfΣ Σcoherency Hlty") as "hv1".
       rewrite interp_type_unfold /=.
       iDestruct "hv1" as (z1) "%hz1".
-      rewrite hz1 in H0.
-      case heq2 : (expr_eval Ω e2) => [v2 | ]; rewrite heq2 in H0; last by done.
+      rewrite hz1 in he.
+      case heq2 : (expr_eval Ω e2) => [v2 | ]; rewrite heq2 in he; last by done.
       apply hi2 in heq2.
       iDestruct (heq2 with "wfΣ Σcoherency Hlty") as "hv2".
       rewrite interp_type_unfold /=.
       iDestruct "hv2" as (z2) "%hz2".
-      rewrite hz2 in H0.
-      case: H0 => <-.
+      rewrite hz2 in he.
+      case: he => <-.
       rewrite interp_type_unfold /= /interp_bool.
       move: hop; rewrite /is_bool_op; destruct op => //= _; by iExists _.
-    - inv he.
-      case heq1 : (expr_eval Ω e1) => [v1 | ]; rewrite heq1 in H0; last by done.
+    - simpl in he.
+      case heq1 : (expr_eval Ω e1) => [v1 | ]; rewrite heq1 in he; last by done.
       apply hi1 in heq1.
       iDestruct (heq1 with "wfΣ Σcoherency Hlty") as "hv1".
       rewrite interp_type_unfold /=.
       iDestruct "hv1" as (b1) "%hb1".
-      rewrite hb1 in H0.
-      case heq2 : (expr_eval Ω e2) => [v2 | ]; rewrite heq2 in H0; last by done.
+      rewrite hb1 in he.
+      case heq2 : (expr_eval Ω e2) => [v2 | ]; rewrite heq2 in he; last by done.
       apply hi2 in heq2.
       iDestruct (heq2 with "wfΣ Σcoherency Hlty") as "hv2".
       rewrite interp_type_unfold /=.
       iDestruct "hv2" as (b2) "%hb2".
-      rewrite hb2 in H0.
-      case: H0 => <-.
+      rewrite hb2 in he.
+      case: he => <-.
       by iExists _.
-    - inv he.
-      case heq : (expr_eval Ω e0) => [v0 | ]; rewrite heq in H0; last by done.
+    - simpl in he.
+      case heq : (expr_eval Ω e0) => [v0 | ]; rewrite heq in he; last by done.
       apply hi in heq.
       iDestruct (heq with "wfΣ Σcoherency Hlty") as "hv".
       rewrite interp_type_unfold /=.
       iDestruct "hv" as (b) "%hb".
-      rewrite hb in H0.
-      case: H0 => <-.
+      rewrite hb in he.
+      case: he => <-.
       by iExists _.
-    - inv he.
+    - simpl in he.
       iDestruct "Hlty" as "[? Hlty]".
       iDestruct ("Hlty" with "[//]") as (?) "[% H]".
-      rewrite H0 in H; by case: H => ->.
-    - inv he.
+      rewrite he in H; by case: H => ->.
+    - case: he => <-.
       iDestruct "Hlty" as "[Hthis Hv]".
       rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
       iDestruct "Hthis" as (?? tdef ????) "(%H & #hmixed & #hconstr & %hinst & hdyn & hloc)".
       destruct H as ([= <-] & htdef & hl & hin & hfields & hdom).
       rewrite /this_type interp_class_unfold //=; last first.
-      { (* TODO: make a lemma that wf don't depend on exact *)
-        destruct wflty as [wflty ?].
-        inv wflty; simplify_eq; by econstructor.
+      { eapply wf_ty_exact.
+        by apply wflty.
       }
       destruct Γ as [[this σthis] Γ]; simpl in *.
       assert (hthis: wf_ty (ClassT true this σthis)).
-      { (* TODO: make a lemma that wf don't depend on exact *)
-        destruct wflty as [wflty ?].
-        inv wflty; simplify_eq; by econstructor.
+      { eapply wf_ty_exact.
+        by apply wflty.
       }
-      inv hthis.
-      iExists _,t,def,tdef,_, _, _, _.
+      apply wf_tyI in hthis as (thisdef & ? & hlen & ?).
+      iExists _,t,thisdef,tdef,_, _, _, _.
       iSplit; first done.
       iSplit; first by iApply "hmixed".
       iSplit; first by iApply "hconstr".
       iSplit; last by iSplit.
       iModIntro; iNext.
       iClear "wfΣ Σcoherency hmixed hdyn hloc Hv".
-      assert (hl0 : length def.(generics) = length σ).
+      assert (hl0 : length thisdef.(generics) = length σ).
       { apply inherits_using_wf in hin => //.
         destruct hin as (?&?&?&h).
         by inv h; simplify_eq.
       }
       assert (hl1: length σ = length σthis).
-      { by rewrite H3. }
+      { by rewrite hlen. }
       move : hl0 hl1 hinst.
-      generalize def.(generics); clear.
+      generalize thisdef.(generics); clear.
       move => l hl0 hl1 hinst.
       iInduction l as [ | hd tl hi] "IH" forall (σ σthis hl0 hl1 hinst).
       { by destruct σ; destruct σthis. }

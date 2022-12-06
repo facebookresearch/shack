@@ -39,6 +39,23 @@ Section Ok.
     | OkSupportDyn : ok_ty Δ SupportDynT
   .
 
+  Lemma ok_tyI Δ ty:
+    ok_ty Δ ty →
+    match ty with
+    | ClassT _ t σ =>
+        ∃ def, pdefs !! t = Some def ∧
+        (∀ i ty, σ !! i = Some ty → ok_ty Δ ty) ∧
+        (∀ i c, def.(constraints) !! i = Some c → Δ ⊢ (subst_ty σ c.1) <D: (subst_ty σ c.2))
+    | UnionT A B
+    | InterT A B => ok_ty Δ A ∧ ok_ty Δ B
+    | _ => True
+    end.
+  Proof. move => h; inv h; intros; by eauto. Qed.
+
+  Lemma ok_ty_exact Δ ex0 ex1 t σ:
+    ok_ty Δ (ClassT ex0 t σ) → ok_ty Δ (ClassT ex1 t σ).
+  Proof. move => h; inv h; by econstructor. Qed.
+
   Lemma ok_ty_weaken Δ t: ok_ty Δ t → ∀ Δ', Δ ⊆ Δ' → ok_ty Δ' t.
   Proof.
     induction 1 as [ | | | | ? t σ def hσ hi hdef hconstr
@@ -51,11 +68,11 @@ Section Ok.
     - constructor; by eauto.
   Qed.
 
-  Lemma ok_ty_class_inv Δ exact_ t σ:
+  Lemma ok_ty_classI Δ exact_ t σ:
     ok_ty Δ (ClassT exact_ t σ) → Forall (ok_ty Δ) σ.
   Proof.
-    move => h; inv h.
-    apply Forall_lookup => ? x hin.
+    move/ok_tyI => [def [hdef [h ?]]].
+    rewrite Forall_lookup => ? x hin.
     by eauto.
   Qed.
 
@@ -75,7 +92,7 @@ Section Ok.
     - apply OkClass with def => //.
       + move => i ty h.
         apply list_lookup_fmap_inv in h as [ty' [-> h]].
-        apply wf_ty_class_inv in hwf.
+        apply wf_ty_classI in hwf.
         apply hi with i => //.
         rewrite Forall_lookup in hwf.
         by apply hwf in h.
@@ -89,13 +106,13 @@ Section Ok.
         rewrite -!subst_ty_subst.
         * apply subtype_subst => //.
           by apply hconstr with i.
-        * inv hwf; simplify_eq.
-          by rewrite H5.
-        * inv hwf; simplify_eq.
-          by rewrite H5.
-    - inv hwf.
+        * apply wf_tyI in hwf as [? [? [hlen ?]]]; simplify_eq.
+          by rewrite hlen.
+        * apply wf_tyI in hwf as [? [? [hlen ?]]]; simplify_eq.
+          by rewrite hlen.
+    - apply wf_tyI in hwf as [??].
       constructor; by eauto.
-    - inv hwf.
+    - apply wf_tyI in hwf as [??].
       constructor; by eauto.
     - destruct (σ !! n) as [ ty | ] eqn:hty; last by constructor.
       simpl.
@@ -212,20 +229,21 @@ Section Ok.
       { apply inherits_using_wf in h => //.
         by repeat destruct h as [? h].
       }
-      inv hwfC.
-      destruct hext as [A B adef σ hpdefs hsuper].
+      apply wf_tyI in hwfC as [cdef [hcdef [? hwfC]]].
+      rewrite Forall_lookup in hwfC.
+      destruct hext as [A B adef σ hadef hsuper].
       exists adef; split => //.
       econstructor => //.
       { move => i ty hi.
         apply list_lookup_fmap_inv in hi as [ty' [-> hi]].
         eapply ok_ty_trans.
         + eapply ok_ty_subst => //.
-          { inv hokB; by eauto. }
+          { apply ok_tyI in hokB as [? [? [??]]]; by eauto. }
           { by eauto. }
-          { by apply wf_ty_class_inv in hwfB. }
-          apply hok in hpdefs.
-          rewrite /wf_cdef_parent_ok hsuper in hpdefs.
-          by apply ok_ty_class_inv in hpdefs.
+          { by apply wf_ty_classI in hwfB. }
+          apply hok in hadef.
+          rewrite /wf_cdef_parent_ok hsuper in hadef.
+          by apply ok_ty_classI in hadef.
         + move => j c.
           rewrite lookup_app_Some.
           case => [hc | [? ]].
@@ -235,38 +253,38 @@ Section Ok.
           * rewrite /subst_constraints => hc.
             apply list_lookup_fmap_inv in hc as [c' [-> hc]].
             rewrite /subst_constraint /=.
-            apply hok in hpdefs.
-            rewrite /wf_cdef_parent_ok hsuper in hpdefs.
-            inv hpdefs; simplify_eq.
+            apply hok in hadef.
+            rewrite /wf_cdef_parent_ok hsuper in hadef.
+            apply ok_tyI in hadef as [? [? [??]]]; simplify_eq.
             by eauto.
       }
       move => i c hc.
       rewrite -!subst_ty_subst.
       + eapply subtype_constraint_trans.
-        * apply subtype_subst => //; last by apply wf_ty_class_inv in hwfB.
-          inv hokB; simplify_eq; by eauto.
+        * apply subtype_subst => //; last by apply wf_ty_classI in hwfB.
+          apply ok_tyI in hokB as [? [? [??]]]; simplify_eq; by eauto.
         * move => j c'.
           rewrite /subst_constraints => hc'.
           apply list_lookup_fmap_inv in hc' as [c'' [-> hc']].
           rewrite /subst_constraint /=.
-          apply hok in hpdefs.
-          rewrite /wf_cdef_parent_ok hsuper in hpdefs.
-          inv hpdefs; simplify_eq.
+          apply hok in hadef.
+          rewrite /wf_cdef_parent_ok hsuper in hadef.
+          apply ok_tyI in hadef as [? [? [??]]]; simplify_eq.
           by eauto.
-      + assert (hC := H2).
+      + assert (hC := hcdef).
         apply hcb in hC.
         rewrite /wf_cdef_constraints_bounded Forall_lookup in hC.
         apply hC in hc as [].
         apply inherits_using_wf in h as (? & ? & ? & hwf)=> //.
-        inv hwf; simplify_eq.
-        by rewrite H10.
-      + assert (hC := H2).
+        apply wf_tyI in hwf as [? [? [hlen ?]]]; simplify_eq.
+        by rewrite hlen.
+      + assert (hC := hcdef).
         apply hcb in hC.
         rewrite /wf_cdef_constraints_bounded Forall_lookup in hC.
         apply hC in hc as [].
         apply inherits_using_wf in h as (? & ? & ? & hwf)=> //.
-        inv hwf; simplify_eq.
-        by rewrite H10.
+        apply wf_tyI in hwf as [? [? [hlen ?]]]; simplify_eq.
+        by rewrite hlen.
   Qed.
 
   Definition wf_cdef_constraints_ok cdef :=

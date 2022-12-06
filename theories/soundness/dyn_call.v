@@ -64,20 +64,13 @@ Section proofs.
   Proof.
     move => wfpdefs wflty hokthis hΔ hrecv hi hnotthis Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ #IH".
-    inv hc; simpl.
+    elim/cmd_eval_callI : hc.
+    move => {C}{n}.
+    move => Ω h h' l t vs vargs orig mdef run_env run_env' ret n.
+    move => heval_recv hmap hheap hhasm0 hmdom <- heval_body heval_ret /=.
     assert (wfpdefs0 := wfpdefs).
     destruct wfpdefs0.
     iIntros "[Hh #Hle]".
-    (* make the script more resilient. Should provide a proper inversion
-     * lemma but this is the next best thing.
-     *)
-    rename H3 into heval_recv.
-    rename H4 into hmap.
-    rename H5 into hheap.
-    rename H6 into hhasm0.
-    rename H9 into hmdom.
-    rename H13 into heval_body.
-    rename H14 into heval_ret.
     iDestruct (expr_soundness Δ _ Σ _ recv with "hΣ hΣΔ Hle") as "#Hl" => //.
     rewrite interp_dynamic_unfold //.
     iDestruct "Hl" as "[H | Hl]".
@@ -124,14 +117,14 @@ Section proofs.
       by destruct ht0_orig_σ0 as (? & ? & hok); simplify_eq.
     }
     assert (hokσ0 : Forall (ok_ty def0.(constraints)) σ0).
-    { by apply ok_ty_class_inv in hok0. }
+    { by apply ok_ty_classI in hok0. }
     assert (hh: length σ0 = length (generics odef) ∧ wf_ty (ClassT true orig σ0)).
     { apply inherits_using_wf in ht0_orig_σ0 => //.
       destruct ht0_orig_σ0 as (? & ? & ? & hwf); split => //.
-      inv hwf; by simplify_eq.
+      apply wf_tyI in hwf as (? & ? & ? & ?); by simplify_eq.
     }
     destruct hh as [hl0 hwf0].
-    assert (hwfσ0: Forall wf_ty σ0) by by apply wf_ty_class_inv in hwf0.
+    assert (hwfσ0: Forall wf_ty σ0) by by apply wf_ty_classI in hwf0.
     iModIntro; iNext.
     (* Show that Σt |= Δt ∧ Δsdt^t *)
     iAssert (□ Σinterp Σt (Δsdt t0))%I as "#hΣt_Δt_sdt_t".
@@ -139,9 +132,9 @@ Section proofs.
     (* Build premises of "IH" *)
     iAssert (Σinterp (interp_list Σt σ0) (constraints odef))%I as "hΣtΔo".
     { iIntros (k c hc v) "hv".
-      inv hok0; simplify_eq.
+      apply ok_tyI in hok0 as (? & ? & ? & hok0); simplify_eq.
       assert (hc' := hc).
-      apply H5 in hc'.
+      apply hok0 in hc'.
       iDestruct (subtype_is_inclusion with "hmixed hconstr") as "hh"; try assumption.
       { by apply wf_constraints_wf in hdef0. }
       { by exact hc'. }
@@ -167,7 +160,7 @@ Section proofs.
       |}).
     { split => /=.
       - rewrite /this_type /=.
-        econstructor => //; last by apply gen_targs_wf.
+        econstructor => //; last by apply gen_targs_wf_2.
         by rewrite length_gen_targs.
       - rewrite map_Forall_lookup => k tk.
         rewrite lookup_fmap_Some.

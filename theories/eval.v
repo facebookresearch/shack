@@ -261,6 +261,19 @@ Section Evaluation.
         cmd_eval C st1 (RuntimeCheckC v rc thn els) st2 n
   .
 
+  Derive Inversion_clear cmd_eval_letI with
+    (∀ C Ω v e Ω' n, cmd_eval C Ω (LetC v e) Ω' n) Sort Prop.
+  Derive Inversion_clear cmd_eval_newI with
+    (∀ C Ω lhs t opt_targs args Ω' n, cmd_eval C Ω (NewC lhs t opt_targs args) Ω' n) Sort Prop.
+  Derive Inversion_clear cmd_eval_getI with
+    (∀ C Ω lhs recv name Ω' n, cmd_eval C Ω (GetC lhs recv name) Ω' n) Sort Prop.
+  Derive Inversion_clear cmd_eval_setI with
+    (∀ C Ω recv fld rhs Ω' n, cmd_eval C Ω (SetC recv fld rhs) Ω' n) Sort Prop.
+  Derive Inversion_clear cmd_eval_callI with
+    (∀ C Ω lhs recv name args Ω' n, cmd_eval C Ω (CallC lhs recv name args) Ω' n) Sort Prop.
+  Derive Inversion_clear cmd_eval_rtcI with
+    (∀ C Ω v rc thn els Ω' n, cmd_eval C Ω (RuntimeCheckC v rc thn els) Ω' n) Sort Prop.
+
   Lemma cmd_eval_subst cmd: ∀ C st st' n σ,
     cmd_eval C st (subst_cmd σ cmd) st' n →
     cmd_eval C st cmd st' n.

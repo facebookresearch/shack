@@ -445,7 +445,7 @@ Proof.
   { eapply NewTy.
     + reflexivity.
     + econstructor => //.
-      move => k ty; rewrite list_lookup_singleton_Some.
+      rewrite Forall_lookup => k ty; rewrite list_lookup_singleton_Some.
       case => _ <-; by constructor.
     + constructor.
       by rewrite Forall_singleton.
@@ -576,7 +576,9 @@ Proof.
   exists (final_lty {| type_of_this := ("Main", gen_targs 0); ctxt := methodargs EntryPoint|}).
   repeat split.
   - rewrite /final_lty /this_type /=.
-    by econstructor.
+    apply wf_ty_exact with true.
+    eapply WfClass => //.
+    by constructor.
   - rewrite /final_lty /=.
     rewrite map_Forall_lookup => k tk.
     rewrite lookup_insert_Some.
@@ -590,8 +592,6 @@ Proof.
     rewrite lookup_insert_Some.
     case => [[? <-] | [?]]; last by rewrite lookup_empty.
     econstructor => //.
-    move => ? ?; rewrite list_lookup_singleton_Some.
-    case => _ <-.
     by constructor.
   - apply Main_ty .
     split.
@@ -716,7 +716,7 @@ Proof.
   rewrite lookup_insert_Some.
   case => [[? <-] | [?]].
   { split.
-    + eapply wf_ty_class => //.
+    + econstructor => //.
       by apply wfσ.
     + by apply σbounded.
   }
@@ -1113,7 +1113,7 @@ Proof.
     - split.
       { rewrite /this_type /=.
         econstructor => //.
-        by apply gen_targs_wf.
+        by apply gen_targs_wf_2.
       }
       rewrite map_Forall_lookup => x tx /=.
       rewrite lookup_insert_Some.
@@ -1140,7 +1140,7 @@ Proof.
       split.
       { rewrite /this_type /=.
         econstructor => //.
-        by apply gen_targs_wf.
+        by apply gen_targs_wf_2.
       }
       rewrite map_Forall_lookup => k t /=.
       rewrite lookup_singleton_Some.
@@ -1160,7 +1160,7 @@ Proof.
       split.
       { rewrite /this_type /=.
         econstructor => //.
-        by apply gen_targs_wf.
+        by apply gen_targs_wf_2.
       }
       rewrite map_Forall_lookup => k t /=.
       rewrite lookup_insert_Some.
@@ -1188,7 +1188,9 @@ Proof.
       }
     * split.
       { rewrite /this_type /=.
-        by econstructor.
+        apply wf_ty_exact with true.
+        econstructor => //.
+        by constructor.
       }
       rewrite map_Forall_lookup => x tx /=.
       rewrite lookup_singleton_Some.
@@ -1571,8 +1573,9 @@ Proof.
     assert (wf_lty Γ).
     { split => //.
       rewrite /this_type /=.
-      apply wf_ty_class with ROBox => //.
-      by apply gen_targs_wf_2.
+      apply wf_ty_exact with true.
+      eapply WfClass => //.
+      by constructor.
     }
     (* dummy Γ *)
     exists Γ; split; first done.
@@ -1599,8 +1602,9 @@ Proof.
     assert (wf_lty Γ).
     { split => //.
       rewrite /this_type /=.
-      apply wf_ty_class with Box => //.
-      by apply gen_targs_wf_2.
+      apply wf_ty_exact with true.
+      econstructor => //.
+      by constructor.
     }
     (* dummy Γ *)
     exists Γ; split; first done.
@@ -1627,8 +1631,9 @@ Proof.
     assert (wf_lty Γ).
     { split => //.
       rewrite /this_type /=.
-      apply wf_ty_class with IntBoxS => //.
-      by apply gen_targs_wf_2.
+      apply wf_ty_exact with true.
+      econstructor => //.
+      by constructor.
     }
     (* dummy Γ *)
     exists Γ; split; first done.
@@ -1655,8 +1660,9 @@ Proof.
     assert (wf_lty Γ).
     { split => //.
       rewrite /this_type /=.
-      apply wf_ty_class with Main => //.
-      by apply gen_targs_wf_2.
+      apply wf_ty_exact with true.
+      econstructor => //.
+      by constructor.
     }
     (* dummy Γ *)
     exists Γ; split; first done.

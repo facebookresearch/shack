@@ -95,10 +95,11 @@ Section proofs.
         assert (hl0: length def.(generics) = length σ').
         { apply inherits_using_wf in hinherits => //.
           destruct hinherits as (? & ? & ? & hhh).
-          inv hhh; by simplify_eq.
+          apply wf_tyI in hhh as (? & ? & ? & ?).
+          by simplify_eq.
         }
         assert (hl1: length σ' = length σt).
-        { inv hwf; simplify_eq.
+        { apply wf_tyI in hwf as (? & ? & ? & ?); simplify_eq.
           by rewrite -hl0.
         }
         assert (hwf_fty: wf_ty fty).
@@ -123,16 +124,18 @@ Section proofs.
         assert (hl1: length σ' = length σt).
         { apply inherits_using_wf in hinherits => //.
           destruct hinherits as (? & ? & ? & hhh).
-          inv hhh; inv hwf; simplify_eq.
-          by rewrite H6 H9.
+          apply wf_tyI in hhh as (? & ? & hl0 & ?).
+          apply wf_tyI in hwf as (? & ? & hl1 & ?).
+          simplify_eq.
+          by rewrite hl0 hl1.
         }
         assert (hb: bounded (length σ') fty).
         { apply has_field_bounded in hfield => //.
           destruct hfield as (? & ? & hf); simplify_eq.
           apply inherits_using_wf in hinherits => //.
           destruct hinherits as (? & ? & ? & hh).
-          inv hh; simplify_eq.
-          by rewrite H7.
+          apply wf_tyI in hh as (? & ? & hlen & ?); simplify_eq.
+          by rewrite hlen.
         }
         iExists t', σ', Σt, fields, ifields.
         iSplitR; first done.
@@ -194,8 +197,8 @@ Section proofs.
     rewrite interp_type_subst; last first.
     { apply has_field_bounded in hfield => //.
       destruct hfield as (def' & hdef' & hfty).
-      inv hwf; simplify_eq.
-      by rewrite H3.
+      apply wf_tyI in hwf as (? & ? & hlen & ?); simplify_eq.
+      by rewrite hlen.
     }
     by iApply "hstatic".
   Qed.
@@ -225,8 +228,8 @@ Section proofs.
     assert (hh: Forall wf_ty σ ∧ length adef.(generics) = length σ).
     { apply inherits_using_wf in hin; try (by apply wfpdefs).
       destruct hin as (?&?&?&hh).
-      split; first by apply wf_ty_class_inv in hh.
-      inv hh; by simplify_eq.
+      split; first by apply wf_ty_classI in hh.
+      apply wf_tyI in hh as (? & ? & ? & ?); by simplify_eq.
     }
     destruct hh as [hwfσ hl].
     assert (hwfc: Forall wf_constraint tdef.(constraints)) by by apply wf_constraints_wf in htdef.
@@ -244,7 +247,7 @@ Section proofs.
       { iModIntro.
         apply inherits_using_ok in hin => //; try by apply wfpdefs.
         destruct hin as (? & ? & hok); simplify_eq.
-        inv hok; simplify_eq.
+        apply ok_tyI in hok as (? & ? & ? & hok); simplify_eq.
         iIntros (i c hc w) "#h".
         assert (hb : bounded_constraint (length σ) c).
         { apply wf_constraints_bounded in hadef => //.
@@ -260,7 +263,7 @@ Section proofs.
           apply hadef in hc.
           by destruct hc.
         }
-        apply H4 in hc.
+        apply hok in hc.
         rewrite -!interp_type_subst //.
         iApply (subtype_is_inclusion tdef.(constraints)) => //; by apply wfpdefs.
       }

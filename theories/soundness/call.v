@@ -65,27 +65,19 @@ Section proofs.
   Proof.
     move => wfpdefs wflty hΔ hrecv hhasm hpub hdom hi Σ st st' n hrigid hc.
     iIntros "#hΣ #hΣΔ #IH".
-    inv hc; simpl.
+    elim/cmd_eval_callI : hc.
+    move => {C}{n}.
+    move => Ω h h' l t0 vs vargs orig0 mdef0 run_env run_env' ret n.
+    move => heval_recv hmap hheap hhasm0 hmdom <- heval_body heval_ret /=.
     assert (wfpdefs0 := wfpdefs).
     destruct wfpdefs0.
     iIntros "[Hh #Hle]".
-    (* make the script more resilient. Should provide a proper inversion
-     * lemma but this is the next best thing.
-     *)
-    rename H3 into heval_recv.
-    rename H4 into hmap.
-    rename H5 into hheap.
-    rename H6 into hhasm0.
-    rename H9 into hmdom.
-    rename H13 into heval_body.
-    rename H14 into heval_ret.
     assert (hwfr : wf_ty (ClassT true t σ)).
     { apply expr_has_ty_wf in hrecv => //.
-      (* TODO *)
-      inv hrecv; simplify_eq; by econstructor.
+      by eapply wf_ty_exact.
     }
     (* Get inherits relation between dynamic tag and static tag *)
-    iDestruct (expr_soundness Δ (length Σ) Σ _ recv with "hΣ hΣΔ Hle") as "#Hrecv_" => //.
+    iDestruct (expr_soundness Δ rigid Σ _ recv with "hΣ hΣΔ Hle") as "#Hrecv_" => //.
     iDestruct (exact_subtype_is_inclusion with "Hrecv_") as "Hrecv"; iClear "Hrecv_".
     rewrite interp_class_unfold //.
     iDestruct "Hrecv" as (? t1 def def1 σin Σt fields ifields) "(%Hpure & #hΣt & #hΣtΔ1 & #hf & #hdyn & Hl)".
@@ -99,17 +91,17 @@ Section proofs.
     fold_leibniz; subst.
     destruct (has_method_ordered _ _ _ _ _ _ _ _ wf_override wf_parent
       wf_constraints_bounded wf_methods_bounded hin_t1_t hhasm0 hhasm (*hpub*))
-    as (odef0 & odef & σt1_o0 & σt_o & omdef0 & omdef & hodef0 & hodef & homdef0 & homdef & hin_t1_o0
-    & hin_t_o & -> & -> & (*hpub0 &*) hincl0 & _).
+      as (odef0 & odef & σt1_o0 & σt_o & omdef0 & omdef & hodef0 & hodef & homdef0 & homdef & hin_t1_o0
+          & hin_t_o & -> & -> & (*hpub0 &*) hincl0 & _).
     assert (hwf0: wf_ty (ClassT false orig0 (gen_targs (length odef0.(generics))))).
-    { econstructor => //; last by apply gen_targs_wf.
+    { econstructor => //; last by apply gen_targs_wf_2.
       by rewrite length_gen_targs.
     }
     assert (hh: Forall wf_ty σt_o ∧ length odef.(generics) = length σt_o).
     { apply inherits_using_wf in hin_t_o => //.
       destruct hin_t_o as (?&?&?&hh).
-      split; first by apply wf_ty_class_inv in hh.
-      inv hh; by simplify_eq.
+      split; first by apply wf_ty_classI in hh.
+      apply wf_tyI in hh as (? & ? & ? & ?); by simplify_eq.
     }
     destruct hh as [hFσt_o heq1].
     assert (hok0: ok_ty (constraints def1) (ClassT true orig0 σt1_o0)).
@@ -158,19 +150,19 @@ Section proofs.
     assert (hh: Forall wf_ty σt1_o0 ∧ length odef0.(generics) = length σt1_o0).
     { apply inherits_using_wf in hin_t1_o0 => //.
       destruct hin_t1_o0 as (?&?&?&hh).
-      split; first by apply wf_ty_class_inv in hh.
-      inv hh; by simplify_eq.
+      split; first by apply wf_ty_classI in hh.
+      apply wf_tyI in hh as (? & ? & ? & ?); by simplify_eq.
     }
     destruct hh as [hFσt1_o0 heq0].
     assert (hh: Forall wf_ty σin ∧ length def.(generics) = length σin).
     { apply inherits_using_wf in hin_t1_t => //.
       destruct hin_t1_t as (?&?&?&hh).
-      split; first by apply wf_ty_class_inv in hh.
-      inv hh; by simplify_eq.
+      split; first by apply wf_ty_classI in hh.
+      apply wf_tyI in hh as (? & ? & ? & ?); by simplify_eq.
     }
     destruct hh as [hFσin heq2].
     assert (heq3: length def.(generics) = length σ).
-    { inv hwfr; by simplify_eq. }
+    { apply wf_tyI in hwfr as (? & ? & ? & ?); by simplify_eq. }
     iModIntro; iNext.
     iAssert (interp_env_as_mixed (interp_list Σt σt1_o0)) as "hΣt0".
     { iIntros (k ϕi hk v) "#hv".
@@ -183,9 +175,9 @@ Section proofs.
     }
     iAssert (Σinterp (interp_list Σt σt1_o0) (constraints odef0))%I as "hΣtΔ0".
     { iIntros (k c hc v) "hv".
-      inv hok0; simplify_eq.
+      apply ok_tyI in hok0 as (? & ? & ? & hok0); simplify_eq.
       assert (hc' := hc).
-      apply H5 in hc'.
+      apply hok0 in hc'.
       iDestruct (subtype_is_inclusion with "hΣt hΣtΔ1") as "hh"; try assumption.
       { by exact hc'. }
       { apply wf_ty_subst => //.
@@ -212,7 +204,7 @@ Section proofs.
     { move => i ? hc.
       apply list_lookup_fmap_inv in hc as [c [-> hc]].
       rewrite /subst_constraint /=.
-      inv hok0; simplify_eq.
+      apply ok_tyI in hok0 as (? & ? & ? & ?); simplify_eq.
       by eauto.
     }
     destruct hincl0 as [hdom0 [hmargs0 hmret0_]].
@@ -330,14 +322,14 @@ Section proofs.
               destruct hvi as [wi [-> hwi]].
               move => hti hc.
               apply inherits_using_mono with (def := def) in hin_t_o => //.
-              inv hin_t_o; simplify_eq.
+              elim/mono_classI : hin_t_o => ????; simplify_eq.
               destruct wi; by eauto.
             + move => i vi ti hvi.
               apply list_lookup_fmap_inv in hvi.
               destruct hvi as [wi [-> hwi]].
               move => hti hc.
               apply inherits_using_mono with (def := def) in hin_t_o => //.
-              inv hin_t_o; simplify_eq.
+              elim/mono_classI : hin_t_o => ????; simplify_eq.
               destruct wi; by eauto.
           }
           assert (hb: bounded (length (generics odef)) tw).
@@ -390,11 +382,11 @@ Section proofs.
         by apply homdef.
       + move => i vi ti hvi hti hc.
         apply inherits_using_mono with (def := def) in hin_t_o => //.
-        inv hin_t_o; simplify_eq.
+        elim/mono_classI : hin_t_o => ????; simplify_eq.
         destruct vi; by eauto.
       + move => i vi ti hvi hti hc.
         apply inherits_using_mono with (def := def) in hin_t_o => //.
-        inv hin_t_o; simplify_eq.
+        elim/mono_classI : hin_t_o => ????; simplify_eq.
         destruct vi; by eauto.
     }
     rewrite interp_type_subst; last first.
