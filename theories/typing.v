@@ -641,6 +641,10 @@ Section Typing.
     map_Forall (λ mname mdef, wf_mdef_dyn_ty cname (Δ mname) n mdef) cdef.(classmethods)
   .
 
+  (* SDT class level constraints can't mention `this`, like normal
+   * constraints. See SDTClassSpec.
+   *)
+
   (* Collection of all program invariant (at the source level):
    * - no cycle (we have a forest)
    * - every type is well-formed/bounded

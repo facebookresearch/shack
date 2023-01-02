@@ -15,10 +15,8 @@ From shack Require Import eval heap modality interp typing.
 From shack.soundness Require Import expr defs.
 
 Section proofs.
-  (* assume a given set of class definitions *)
-  Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints and their properties *)
-  Context `{SDTCS: SDTClassSpec}.
+  (* assume a given set of class definitions and their SDT annotations. *)
+  Context `{SDTCVS: SDTClassVarianceSpec}.
 
   (* Helping the inference with this notation that hides pdefs *)
   Local Notation "Δ ⊢ s <: t" := (@subtype _ _ Δ Plain s t) (at level 70, s at next level, no associativity).
@@ -59,48 +57,39 @@ Section proofs.
     { apply (not_elem_of_dom (D:=gset loc)).
       by rewrite Hdom not_elem_of_dom.
     }
-    pose (Σthis0 := interp_tag_exact t (interp_list Σthis Σ σ)).
-    iAssert (□ interp_as_mixed Σthis0)%I as "#hΣthis0".
-    { admit. }
+    assert (hwf' := hwf).
+    apply wf_tyI in hwf' as (def & hpdef & hlen & wf_σ).
     set (iFs :=
-        (λ x, (interp_car (interp_type x.1.2 Σthis0 (interp_list Σthis Σ σ)))) <$>
+        (λ x, (interp_car (interp_type (subst_gen t def x.1.2) interp_nothing (interp_list Σthis Σ σ)))) <$>
       fields).
     iMod ((sem_heap_own_update new) with "H●") as "[H● #H◯]" => //;
     first by apply (sem_heap_view_alloc _ new t iFs).
     iIntros "!> !>". (* kill the modalities *)
     iAssert (interp_type (ClassT true t σ) Σthis Σ (LocV new)) with "[]" as "#Hl".
     { rewrite interp_exact_class_unfold //; last by apply wfpdefs.
-      assert (hwf' := hwf).
-      apply wf_tyI in hwf' as (def & hpdef & hlen & wf_σ).
-      iExists Σthis0.
+      iExists def, (interp_list Σthis Σ σ).
       iSplit.
-      { iModIntro; iNext; iIntros (v) "#hv".
-        rewrite interp_tag_exact_unfold interp_exact_tag_equiv //.
-        by apply wfpdefs.
+      { iPureIntro; split => //.
         by rewrite /interp_list fmap_length.
       }
-      iSplit; first done.
-      iExists new, def, (interp_list Σthis Σ σ), fields, iFs.
+      iSplit.
+      { iModIntro; iNext; iIntros (k phi hk v) "#hv".
+        rewrite interp_list_lookup in hk.
+        destruct (σ !! k) as [? | ] eqn:hphi => //.
+        case : hk => <-.
+        iDestruct (submixed_is_inclusion_aux with "hΣthis hΣ hv") as "hm". 
+        { rewrite Forall_lookup in wf_σ; by apply wf_σ in hphi. }
+        by rewrite interp_mixed_unfold.
+      }
+      iSplit.
+      { iApply iForall3_interp_reflexive.
+        by rewrite /interp_list fmap_length.
+      }
+      iExists new, def, fields, iFs.
       iSplit.
       { iPureIntro.
         repeat split => //.
-        + by rewrite /interp_list fmap_length.
-        + by rewrite /iFs /= !dom_fmap_L.
-      }
-      iSplit.
-      { iModIntro; iNext.
-        iIntros (i ? heq v) "hphi".
-        rewrite /interp_list in heq.
-        apply list_lookup_fmap_inv in heq as [phi [-> heq]].
-        assert (hsub: Δ ⊢ phi <: MixedT) by eauto.
-        destruct wfpdefs.
-        iDestruct (subtype_is_inclusion _ hΔ wf_parent wf_mono
-          wf_constraints_wf wf_constraints_no_this wf_constraints_bounded
-          _ _ _ _ _ hsub v
-          with "hΣthis hΣ hΣΔ hphi") as "hsub".
-        + rewrite Forall_lookup in wf_σ.
-          by eauto.
-        + by rewrite interp_mixed_unfold.
+        by rewrite /iFs /= !dom_fmap_L.
       }
       assert (hconstraints: ∀ i c,
         subst_constraints σ def.(constraints) !! i = Some c → Δ ⊢ c.1 <D: c.2
@@ -139,8 +128,8 @@ Section proofs.
         }
         destruct hno as [].
         destruct wfpdefs.
-        rewrite (interp_type_no_this _ _ _ Σthis0 Σthis); last done.
-        rewrite (interp_type_no_this _ _ _ Σthis0 Σthis); last done.
+        rewrite (interp_type_no_this _ _ _ _ Σthis); last done.
+        rewrite (interp_type_no_this _ _ _ _ Σthis); last done.
         rewrite -!interp_type_subst.
         { iApply (subtype_is_inclusion _ hΔ wf_parent wf_mono
             wf_constraints_wf wf_constraints_no_this wf_constraints_bounded
@@ -161,11 +150,6 @@ Section proofs.
           apply hpdef in heq.
           by apply heq.
         }
-      }
-      iSplit.
-      { iModIntro; iNext.
-        iApply iForall3_interp_reflexive.
-        by rewrite /interp_list fmap_length.
       }
       iSplit; last done.
       iIntros (f vis ty orig hff).
@@ -225,26 +209,27 @@ Section proofs.
       by rewrite ha0 in hv0.
     }
     assert (hty0: expr_has_ty Δ Γ rigid kd a0 (subst_fty true t σ fty.1.2)) by (by apply harg with f).
-    { rewrite hty /= option_equivI discrete_fun_equivI.
-      iSpecialize ("hiF" $! v0).
-      iRewrite -"hiF".
-      rewrite /subst_fty in hty0.
-      iDestruct (expr_soundness Δ rigid Σthis Σ kd a0 with "hΣthis hΣ hΣΔ Hle") as "#Ha0" => //; try by apply wfpdefs.
-      rewrite interp_type_subst; last admit.
-      iClear "hΣthis hΣ hΣΔ Hle Hh hΣthis0 H◯ Hl".
-      rewrite /Σthis0.
-      rewrite interp_type_subst.
-
-
-
-"Ha0" : interp_type (ClassT t (gen_targs (length σ))) Σthis (interp_list Σthis Σ σ) v0
---------------------------------------□
-Σthis0 v0
-
-
-Σthis0 := interp_tag_exact t (interp_list Σthis Σ σ) : interpO Θ
-
-
-    => //; by apply wfpdefs.
+    rewrite hty /= option_equivI discrete_fun_equivI.
+    iSpecialize ("hiF" $! v0).
+    iRewrite -"hiF".
+    rewrite /subst_fty in hty0.
+    iDestruct (expr_soundness Δ rigid Σthis Σ kd a0 with "hΣthis hΣ hΣΔ Hle") as "#Ha0" => //; try by apply wfpdefs.
+    rewrite interp_type_subst; last first.
+    { case: fty hty {hty0} => [[vis fty]] orig hty.
+      apply hf in hty.
+      apply bounded_subst_this => /=.
+      - apply has_field_bounded in hty; [ | by apply wfpdefs | by apply wfpdefs].
+        destruct hty as (? & ? & hb); simplify_eq.
+        by rewrite hlen.
+      - constructor.
+        by apply bounded_gen_targs.
+    }
+    assert (hlen0 : length σ = length (interp_list Σthis Σ σ)).
+    { by rewrite /interp_list fmap_length. }
+    rewrite hlen0 interp_type_subst_this; [ | done | by rewrite -hlen0].
+    assert (hlen1: length (interp_list Σthis Σ σ) = length (generics def)) by by rewrite -hlen0.
+    rewrite /subst_gen.
+    rewrite -interp_type_subst_this //.
+    by rewrite hlen1.
   Qed.
 End proofs.

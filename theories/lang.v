@@ -837,6 +837,25 @@ Proof.
   by apply hi.
 Qed.
 
+Lemma subst_this_has_no_this ty:
+  ∀ this, no_this this → no_this (subst_this this ty).
+Proof.
+  elim: ty => //=.
+  - move => _exact C σ hi this hthis.
+    apply forallb_True.
+    rewrite Forall_lookup => k ty hSome.
+    apply list_lookup_fmap_inv in hSome as [ty0 [-> hty0]].
+    rewrite Forall_lookup in hi.
+    assert (hty0_ := hty0).
+    by apply hi with (this := this) in hty0_.
+  - move => s t hs ht this hthis.
+    apply andb_prop_intro.
+    firstorder.
+  - move => s t hs ht this hthis.
+    apply andb_prop_intro.
+    firstorder.
+Qed.
+
 Lemma subst_ty_id n ty:
   bounded n ty →
   subst_ty (gen_targs n) ty = ty.
