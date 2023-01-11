@@ -801,6 +801,12 @@ Proof.
   by rewrite hty.
 Qed.
 
+(* Short-hand for subst_this + gen_thargs, used mostly for interpretation *)
+Definition subst_gen t tdef ty :=
+  let σ := gen_targs (length tdef.(generics)) in
+  subst_this (ClassT true t σ) ty
+.
+
 Lemma subst_ty_has_no_this σ ty:
   no_this ty → Forall no_this σ → no_this (subst_ty σ ty).
 Proof.
@@ -854,6 +860,24 @@ Proof.
   - move => s t hs ht this hthis.
     apply andb_prop_intro.
     firstorder.
+Qed.
+
+Lemma subst_this_no_this_id ty:
+  ∀ this, no_this ty → subst_this this ty = ty.
+Proof.
+  elim: ty => //=.
+  - move => ? t σ hi this /forallb_True hσ.
+    f_equal.
+    apply list_eq => k.
+    rewrite !Forall_lookup in hi, hσ.
+    rewrite list_lookup_fmap.
+    destruct (σ !! k) as [ ty | ] eqn:hty; last done.
+    rewrite /= (hi k ty hty); first done.
+    by eapply hσ.
+  - move => s t hs ht this /andb_prop_elim [hnos hnot].
+    f_equal; by eauto.
+  - move => s t hs ht this /andb_prop_elim [hnos hnot].
+    f_equal; by eauto.
 Qed.
 
 Lemma subst_ty_id n ty:

@@ -327,6 +327,35 @@ Section SubtypeFacts.
     | MonoThis : mono vs ThisT
   .
 
+  Lemma monoI vs ty:
+    mono vs ty →
+    match ty with
+    | ClassT _ t σ =>
+        ∃ def, pdefs !! t = Some def ∧
+        (∀ i wi ti, def.(generics) !! i = Some wi →
+                    σ !! i = Some ti →
+                    not_contra wi →
+                    mono vs ti) ∧
+        (∀ i wi ti, def.(generics) !! i = Some wi →
+                    σ !! i = Some ti →
+                    not_cov wi →
+                    mono (neg_variance <$> vs) ti)
+    | UnionT A B
+    | InterT A B => mono vs A ∧ mono vs B
+    | GenT n =>
+        match vs !! n with
+        | Some Invariant
+        | Some Covariant => True
+        | _ => False
+        end
+    | _ => True
+    end.
+  Proof.
+    move => h; inv h; simplify_eq; try by eauto.
+    - by rewrite H.
+    - by rewrite H.
+  Qed.
+
   Definition wf_cdef_mono cdef : Prop :=
     match cdef.(superclass) with
     | None => True

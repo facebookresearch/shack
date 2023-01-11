@@ -285,11 +285,6 @@ Section proofs.
     - by iApply hi.
   Qed.
 
-  Definition subst_gen t tdef ty :=
-    let σ := gen_targs (length tdef.(generics)) in
-    subst_this (ClassT true t σ) ty
-  .
-
   (* See
    * https://gitlab.mpi-sws.org/iris/iris/-/blob/master/iris/base_logic/lib/invariants.v#L10
    * for example about `seal`.
