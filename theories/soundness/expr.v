@@ -27,6 +27,7 @@ Section proofs.
     map_Forall (λ _ : string, wf_cdef_constraints_wf) pdefs →
     map_Forall (λ _ : string, wf_cdef_constraints_no_this) pdefs →
     map_Forall (λ _ : string, wf_cdef_constraints_bounded) pdefs →
+    map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     Forall wf_constraint Δ →
     wf_lty Γ →
     expr_eval Ω e = Some val →
@@ -37,7 +38,7 @@ Section proofs.
     interp_local_tys Σthis Σ Γ Ω -∗
     interp_type ty Σthis Σ val.
   Proof.
-    move => ?????? wflty he h; move: Ω val he.
+    move => ??????? wflty he h; move: Ω val he.
     induction h as [| | | kd op e1 e2 hop he1 hi1 he2 hi2 |
         kd op e1 e2 hop he1 hi1 he2 hi2 | kd e1 e2 h1 hi1 h2 hi2 |
         kd e0 h hi | kd v vty hv | | kd exp S T hS hi hwf hok hsub |

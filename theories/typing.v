@@ -161,7 +161,7 @@ Section Typing.
     | GetPrivTy: ∀ Δ kd rigid cdef Γ lhs name fty,
         pdefs !! C = Some cdef →
         has_field name C Private fty C →
-        cmd_has_ty C Δ kd rigid Γ (GetC lhs ThisE name) (<[lhs := subst_gen C cdef fty]>Γ)
+        cmd_has_ty C Δ kd rigid Γ (GetC lhs ThisE name) (<[lhs := fty]>Γ)
     | GetPubTy: ∀ Δ kd rigid Γ lhs recv exact_ t σ name fty orig,
         expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
         field_lookup exact_ t σ name Public fty orig →

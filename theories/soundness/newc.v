@@ -66,25 +66,8 @@ Section proofs.
     first by apply (sem_heap_view_alloc _ new t iFs).
     iIntros "!> !>". (* kill the modalities *)
     iAssert (interp_type (ClassT true t σ) Σthis Σ (LocV new)) with "[]" as "#Hl".
-    { rewrite interp_exact_class_unfold //; last by apply wfpdefs.
-      iExists def, (interp_list Σthis Σ σ).
-      iSplit.
-      { iPureIntro; split => //.
-        by rewrite /interp_list fmap_length.
-      }
-      iSplit.
-      { iModIntro; iNext; iIntros (k phi hk v) "#hv".
-        rewrite interp_list_lookup in hk.
-        destruct (σ !! k) as [? | ] eqn:hphi => //.
-        case : hk => <-.
-        iDestruct (submixed_is_inclusion_aux with "hΣthis hΣ hv") as "hm". 
-        { rewrite Forall_lookup in wf_σ; by apply wf_σ in hphi. }
-        by rewrite interp_mixed_unfold.
-      }
-      iSplit.
-      { iApply iForall3_interp_reflexive.
-        by rewrite /interp_list fmap_length.
-      }
+    { rewrite interp_exact_tag_unfold.
+      rewrite interp_exact_tag_unseal /interp_exact_tag_def /=.
       iExists new, def, fields, iFs.
       iSplit.
       { iPureIntro.
@@ -133,7 +116,7 @@ Section proofs.
         rewrite -!interp_type_subst.
         { iApply (subtype_is_inclusion _ hΔ wf_parent wf_mono
             wf_constraints_wf wf_constraints_no_this wf_constraints_bounded
-            _ _ _ _ _ hsub v with "hΣthis hΣ hΣΔ") => //.
+            wf_fields_wf _ _ _ _ _ hsub v with "hΣthis hΣ hΣΔ") => //.
           apply wf_ty_subst => //.
           apply wf_constraints_wf in hpdef.
           rewrite /wf_cdef_constraints_wf Forall_lookup in hpdef.
@@ -160,7 +143,10 @@ Section proofs.
         by rewrite hlen.
       }
       apply hf in hff.
-      by rewrite !lookup_fmap hff /= option_equivI.
+      iModIntro; iNext.
+      iExists _; iSplit.
+      { by rewrite !lookup_fmap hff /= option_equivI. }
+      iIntros (w); iSplit; by iIntros.
     }
     iSplitL; last by iApply interp_local_tys_update.
     iExists _. iFrame. iSplit; first by rewrite !dom_insert_L Hdom.

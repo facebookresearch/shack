@@ -28,13 +28,14 @@ Section proofs.
     wf_cdefs pdefs →
     wf_lty Γ →
     bounded_lty rigid Γ →
-    ok_ty Δ (this_type Γ) →
     Forall wf_constraint Δ →
     Forall (bounded_constraint rigid) Δ →
     cmd_has_ty C Δ kd rigid Γ cmd Γ' →
-    ∀ Σ st st' n,
+    ∀ t Σt σ Σ st st' n,
+    inherits_using t C σ →
     length Σ = rigid →
     cmd_eval C st cmd st' n →
+    interp_list Σt σ ≡ Σ →
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σ Δ -∗
     heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗ |=▷^n
