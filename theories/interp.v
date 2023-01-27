@@ -1413,6 +1413,22 @@ Section proofs.
     by rewrite (iForall3_interp_equivI_r _ _ h).
   Qed.
 
+  Lemma interp_list_gen_targs Σthis Σ n:
+      length Σ = n → interp_list Σthis Σ (gen_targs n) ≡ Σ.
+  Proof.
+    move => hlen.
+    apply list_equiv_lookup => k.
+    rewrite /interp_list list_lookup_fmap.
+    destruct (decide (k < n)) as [hlt | hge].
+    - rewrite lookup_gen_targs_lt //= interp_generic_unfold /interp_generic /=.
+      rewrite -hlen in hlt.
+      by apply lookup_lt_is_Some_2 in hlt as [phi ->].
+    - rewrite lookup_gen_targs_ge //=.
+      rewrite lookup_ge_None_2; first done.
+      + by lia.
+      + by lia.
+  Qed.
+
   Lemma iForall3_interp_gen_targs vs n Σthis Σ:
     length vs = n →
     length Σ = n →
@@ -2196,6 +2212,41 @@ Section proofs.
         by apply wf_ty_classI in h_.
   Qed.
 
+  Lemma tag_inherits_using_is_inclusion:
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_mono) pdefs →
+    map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
+    map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →
+    ∀ Σthis Σ A adef B σ v,
+    pdefs !! A = Some adef →
+    inherits_using A B σ →
+    length Σ = length adef.(generics) →
+    interp_tag interp_type A Σ v -∗
+    interp_tag interp_type B (interp_list Σthis Σ σ) v.
+  Proof.
+    move => hwfp hwfm hwff hwfc Σthis Σ A adef B σ v hadef hin hlen.
+    iIntros "h".
+    assert (h := hin).
+    apply inherits_using_wf in h => //.
+    destruct h as (? & ? & ? & hwfB & ?); simplify_eq.
+    apply wf_tyI in hwfB.
+    destruct hwfB as (bdef & hbdef & ? & ?).
+    iDestruct (inherits_using_is_inclusion hwfp hwfm hwff hwfc
+      Σthis Σ A B (gen_targs (length adef.(generics))) σ v hin) as "hh".
+    { econstructor => //.
+      - by rewrite length_gen_targs.
+      - by apply gen_targs_wf_2.
+    }
+    rewrite interp_tag_unfold.
+    assert (heq:
+      interp_list Σthis Σ (gen_targs (length (generics adef))) ≡ Σ).
+    { by apply interp_list_gen_targs. }
+    rewrite (interp_tag_equivI _ _ heq A v).
+    rewrite interp_tag_unfold.
+    rewrite subst_tys_id; last done.
+    by iApply "hh".
+  Qed.
+
   Section Inclusion.
     Hypothesis Δ: list constraint.
     Hypothesis wfΣc: Forall wf_constraint Δ.
@@ -2674,7 +2725,6 @@ Section proofs.
 
   Definition interp_local_tys Σthis Σ
     (Γ : local_tys) (le : local_env) : iProp Θ :=
-    interp_exact_tag interp_type Γ.(type_of_this).1 (interp_list
     (Σthis (LocV le.(vthis))) ∗
     (∀ v ty, ⌜Γ !! v = Some ty⌝ -∗
      ∃ val, ⌜le.(lenv) !! v = Some val⌝ ∗ interp_type ty Σthis Σ val)%I.

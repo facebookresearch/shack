@@ -23,10 +23,11 @@ Section proofs.
 
   Notation "X ≡≡ Y" := (∀ (w: value), X w ∗-∗ Y w)%I (at level 50, no associativity).
 
-  Lemma get_priv_soundness C Δ rigid Γ lhs name fty:
+  Lemma get_priv_soundness C cdef Δ rigid Γ lhs name fty:
     wf_cdefs pdefs →
     wf_lty Γ →
-    has_field name C Private fty C →
+    pdefs !! C = Some cdef →
+    cdef.(classfields) !! name = Some (Private, fty) →
     ∀ t tdef Σt σ,
     pdefs !! t = Some tdef →
     length Σt = length tdef.(generics) →
@@ -42,13 +43,13 @@ Section proofs.
     heap_models st.2 ∗ interp_local_tys Σthis Σ Γ st.1 -∗
     |=▷^n heap_models st'.2 ∗ interp_local_tys Σthis Σ (<[lhs:=fty]> Γ) st'.1.
   Proof.
-    move => wfpdefs wflty hf.
+    move => wfpdefs wflty hcdef hf.
     move => t tdef Σt σ htdef hlenΣt hin_t_C_σ.
     move => Σ st st' n hrigid hc /=.
     iIntros "%heq #hΣthis #hΣ #hΣΔ".
     elim/cmd_eval_getI: hc.
     move => {n}.
-    move => Ω h l t0 vs v heval hheap hvs hvis.
+    move => Ω h vis _fty orig l t0 vs v heval hheap hvs hf0 hvis.
     iIntros "[Hh Hle]".
     iModIntro. (* keep the later *)
     destruct Ω as [vthis Ω].
@@ -59,8 +60,7 @@ Section proofs.
     rewrite {3}interp_exact_tag_unseal /interp_exact_tag_def /=.
     iDestruct "Hthis" as (l0 ? fields ifields H) "(#hconstr & #hf0 & #H◯)".
     destruct H as ([= <-] & ? & hfields & hidom); simplify_eq.
-    assert (hlen: ∃ cdef, pdefs !! C = Some cdef ∧
-      length σ = length cdef.(generics) ∧
+    assert (hlen: length σ = length cdef.(generics) ∧
       Forall (λ ty : lang_ty, no_this ty) σ).
     { destruct wfpdefs.
       apply inherits_using_wf in hin_t_C_σ => //.
@@ -68,7 +68,7 @@ Section proofs.
       apply wf_tyI in hh as (? & ? & hlenC & ?); simplify_eq.
       by eauto.
     }
-    destruct hlen as (cdef & hcdef & hlen & hnothis).
+    destruct hlen as (hlen & hnothis).
     iAssert (⌜t0 = t⌝ ∗ heap_models h ∗ ▷ interp_type fty (interp_exact_tag interp_type t Σt) Σ v)%I with "[Hh]" as "[%Ht [Hh Hv]]".
     { iDestruct "Hh" as (sh) "(H● & %hdom & #Hh)".
       iDestruct (sem_heap_own_valid_2 with "H● H◯") as "#HΦ".
@@ -79,7 +79,14 @@ Section proofs.
       fold_leibniz; subst.
       iSplitR; first done.
       iSplitL. { iExists _. iFrame. by iSplit. }
-      assert (hfC: has_field name t Private (subst_ty σ fty) C) by (destruct wfpdefs; by eapply has_field_inherits_using).
+      assert (hfC: has_field name t Private (subst_ty σ fty) C).
+      { destruct wfpdefs.
+        apply has_field_inherits_using with C => //.
+        change Private with (Private, fty).1.
+        by apply HasField with cdef.
+      }
+      case: (has_field_fun _ _ _ _ _ hf0 _ _ _ hfC) => hvis_ [hfty horig].
+      simplify_eq.
       iSpecialize ("hf0" $! name Private (subst_ty σ fty) C hfC).
       iDestruct "H▷" as "[hdf h]".
       rewrite later_equivI.
@@ -97,8 +104,8 @@ Section proofs.
       iClear "hiw_".
       rewrite interp_type_subst; last first.
       { destruct wfpdefs.
-        apply has_field_bounded in hf => //.
-        destruct hf as (? & ? & ?); simplify_eq.
+        apply wf_fields_bounded in hcdef.
+        apply hcdef in hf.
         by rewrite hlen.
       }
       assert (heq2: interp_list (interp_exact_tag interp_type t Σt) Σt σ ≡ Σ).
@@ -119,7 +126,8 @@ Section proofs.
     wf_lty Γ →
     Forall wf_constraint Δ →
     expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
-    field_lookup exact_ t σ name Public fty orig →
+    has_field name t Public fty orig →
+    (is_true exact_ ∨ no_this fty) →
     ∀ Σthis Σ st st' n,
     length Σ = rigid →
     cmd_eval C st (GetC lhs recv name) st' n →
@@ -129,18 +137,17 @@ Section proofs.
     heap_models st.2 ∗ interp_local_tys Σthis Σ Γ st.1 -∗
     |=▷^n heap_models st'.2 ∗ interp_local_tys Σthis Σ (<[lhs:=subst_fty exact_ t σ fty]> Γ) st'.1.
   Proof.
-    move => wfpdefs ?? hrecv hf Σthis Σ st st' n hrigid hc.
+    move => wfpdefs ?? hrecv hf hex Σthis Σ st st' n hrigid hc.
     iIntros "hΣthis hΣ hΣΔ".
     elim/cmd_eval_getI: hc.
     move => {n}.
-    move => Ω h l t0 vs v heval hheap hvs hvis.
+    move => Ω h vis0 fty0 orig0 l t0 vs v heval hheap hvs hf0 hvis.
     iIntros "[Hh #Hle]".
     iModIntro. (* keep the later *)
     assert (hwf0: wf_ty (ClassT exact_ t σ)) by (by apply expr_has_ty_wf in hrecv).
     assert (hwf0_ := hwf0).
     apply wf_tyI in hwf0_ as (tdef & htdef & hlen & hfσ); simplify_eq.
     iDestruct (expr_soundness with "hΣthis hΣ hΣΔ Hle") as "He" => //; try (by apply wfpdefs).
-    destruct hf as [hf hex].
     destruct exact_.
     (* receiver class is exact *)
     - rewrite interp_exact_tag_unfold interp_exact_tag_unseal /interp_exact_tag_def /=.

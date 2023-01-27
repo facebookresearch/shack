@@ -123,10 +123,6 @@ Section Typing.
       by econstructor.
   Qed.
 
-  Definition field_lookup (exact: bool) (C: tag) (σ: list lang_ty)
-    (name: string) (vis: visibility) (fty: lang_ty) (orig: tag) : Prop :=
-    has_field name C vis fty orig ∧ (is_true exact ∨ no_this fty).
-
   Definition subst_fty exact_ t σ fty :=
     subst_ty σ (subst_this (ClassT exact_ t (gen_targs (length σ))) fty)
   .
@@ -160,11 +156,12 @@ Section Typing.
         cmd_has_ty C Δ kd rigid Γ1 (IfC cond thn els) Γ2
     | GetPrivTy: ∀ Δ kd rigid cdef Γ lhs name fty,
         pdefs !! C = Some cdef →
-        has_field name C Private fty C →
+        cdef.(classfields) !! name = Some (Private, fty) →
         cmd_has_ty C Δ kd rigid Γ (GetC lhs ThisE name) (<[lhs := fty]>Γ)
     | GetPubTy: ∀ Δ kd rigid Γ lhs recv exact_ t σ name fty orig,
         expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
-        field_lookup exact_ t σ name Public fty orig →
+        has_field name t Public fty orig →
+        (is_true exact_ ∨ no_this fty) →
         cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := subst_fty exact_ t σ fty]>Γ)
     (* | SetPrivTy: ∀ Δ kd rigid Γ fld rhs fty, *)
     (*     has_field fld C Private fty C → *)
@@ -191,42 +188,27 @@ Section Typing.
         expr_has_ty Δ Γ rigid kd arg (subst_fty true t targs fty.1.2)) →
         cmd_has_ty C Δ kd rigid Γ (NewC lhs t otargs args) (<[lhs := ClassT true t targs]>Γ)
         (* TODO: do we need a case for `this` too ? *)
-    (* | CallPubExactTy: ∀ Δ kd rigid Γ lhs recv t targs name orig mdef args, *)
-    (*     expr_has_ty Δ Γ rigid kd recv (ClassT true t targs) → *)
-    (*     has_method name t orig mdef → *)
-    (*     mdef.(methodvisibility) = Public → *)
-    (*     dom mdef.(methodargs) = dom args → *)
-    (*     (∀ x ty arg, *)
-    (*     mdef.(methodargs) !! x = Some ty → *)
-    (*     args !! x = Some arg → *)
-    (*     expr_has_ty Δ Γ rigid kd arg (subst_fty true t targs ty)) → *)
-    (*     cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := subst_fty true t targs mdef.(methodrettype)]>Γ) *)
-    (* | CallPubInexactTy: ∀ Δ kd rigid Γ lhs recv t targs name orig mdef args, *)
-    (*     expr_has_ty Δ Γ rigid kd recv (ClassT false t targs) → *)
-    (*     has_method name t orig mdef → *)
-    (*     mdef.(methodvisibility) = Public → *)
-    (*     dom mdef.(methodargs) = dom args → *)
-    (*     (∀ t0 targs0, *)
-    (*     expr_has_ty Δ Γ rigid kd recv (ClassT true t0 targs0) → *)
-    (*     (∀ x ty arg, *)
-    (*     mdef.(methodargs) !! x = Some ty → *)
-    (*     args !! x = Some arg → *)
-    (*     expr_has_ty Δ Γ rigid kd arg (subst_fty true t0 targs0 ty))) → *)
-    (*     cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) *)
-    (*       (<[lhs := subst_fty false t targs mdef.(methodrettype)]>Γ) *)
-  (*
-    | CallPrivTy: ∀ Δ kd rigid Γ lhs t σ name mdef args,
-        (* FIXME *)
-        type_of_this Γ = (t, σ) →
-        has_method name t C mdef →
+    | CallPubTy: ∀ Δ kd rigid Γ lhs recv exact_ t σ name orig mdef args,
+        expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
+        has_method name t orig mdef →
+        (is_true exact_ ∨ no_this_mdef mdef) →
+        mdef.(methodvisibility) = Public →
+        dom mdef.(methodargs) = dom args →
+        (∀ x ty arg,
+          mdef.(methodargs) !! x = Some ty →
+          args !! x = Some arg →
+          expr_has_ty Δ Γ rigid kd arg (subst_fty exact_ t σ ty)) →
+        cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := subst_fty exact_ t σ mdef.(methodrettype)]>Γ)
+    | CallPrivTy: ∀ cdef Δ kd rigid Γ lhs name mdef args,
+        pdefs !! C = Some cdef →
+        cdef.(classmethods) !! name = Some mdef →
         mdef.(methodvisibility) = Private →
         dom mdef.(methodargs) = dom args →
         (∀ x ty arg,
-        mdef.(methodargs) !! x = Some ty →
-        args !! x = Some arg →
-        expr_has_ty Δ Γ rigid kd arg (subst_ty σ ty)) →
-        cmd_has_ty C Δ kd rigid Γ (CallC lhs ThisE name args) (<[lhs := subst_ty σ mdef.(methodrettype)]>Γ)
-   *)
+          mdef.(methodargs) !! x = Some ty →
+          args !! x = Some arg →
+          expr_has_ty Δ Γ rigid kd arg ty) →
+        cmd_has_ty C Δ kd rigid Γ (CallC lhs ThisE name args) (<[lhs := mdef.(methodrettype)]>Γ)
     | SubTy: ∀ Δ kd rigid Γ c Γ0 Γ1,
         lty_sub Δ kd Γ1 Γ0 →
         bounded_lty rigid Γ0 →
@@ -320,12 +302,11 @@ Section Typing.
   Proof.
     move => hp hfields hmethods hΔ hwf.
     induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
-      ???????? he h1 hi1 h2 hi2 | ???????? hcdef hf | ???????????? he hf |
+      ???????? he h1 hi1 h2 hi2 | ???????? hcdef hf | ???????????? he hf hex |
       (* ??????? hf hr | ??????????? he hf hr | *)
       ?????????? _ ht hb hok hf hdom hargs |
-      (* ???????????? he hm hvis hdom hargs | *)
-      (* ???????????? he hm hvis hdom _ | *)
-      (* ?????????? ht hm hvis hdom hargs | *)
+      ????????????? he hm hex hvis hdom hargs |
+      ????????? hcdef hm hvis hdom hargs |
       ??????? hsub hb h hi (* |
       ??????????? hin hdef hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
@@ -340,11 +321,8 @@ Section Typing.
     - apply insert_wf_lty => //.
       by apply expr_has_ty_wf in he.
     - apply insert_wf_lty => //.
-      apply wf_ty_subst_this.
-      { econstructor => //; last by apply gen_targs_wf_2.
-        by rewrite length_gen_targs.
-      }
-      by apply has_field_wf in hf.
+      apply hfields in hcdef.
+      by apply hcdef in hf.
     - apply expr_has_ty_wf in he => //.
       assert (he_ := he).
       apply wf_tyI in he_ as (? & ? & ? & ?).
@@ -354,38 +332,22 @@ Section Typing.
       { econstructor => //; last by apply gen_targs_wf_2.
         by rewrite length_gen_targs.
       }
-      case: hf => hf _.
       by apply has_field_wf in hf.
     - by apply map_Forall_insert_2.
-    (* - apply map_Forall_insert_2 => //. *)
-    (*   apply expr_has_ty_wf in he => //. *)
-    (*   apply wf_tyI in he as (? & ? & ? & ?). *)
-    (*   apply wf_ty_subst => //. *)
-    (*   apply wf_ty_subst_this. *)
-    (*   { econstructor => //; last by apply gen_targs_wf_2. *)
-    (*     by rewrite length_gen_targs. *)
-    (*   } *)
-    (*   apply has_method_wf in hm => //. *)
-    (*   by destruct hm as [hargs' hret']. *)
-    (* - apply map_Forall_insert_2 => //. *)
-    (*   apply expr_has_ty_wf in he => //. *)
-    (*   apply wf_tyI in he as (? & ? & ? & ?). *)
-    (*   apply wf_ty_subst => //. *)
-    (*   apply wf_ty_subst_this. *)
-    (*   { econstructor => //; last by apply gen_targs_wf_2. *)
-    (*     by rewrite length_gen_targs. *)
-    (*   } *)
-    (*   apply has_method_wf in hm => //. *)
-    (*   by destruct hm as [hargs' hret']. *)
-    (* - split; first by apply hthis. *)
-    (*   apply map_Forall_insert_2 => //. *)
-    (*   apply has_method_wf in hm => //. *)
-    (*   destruct hm as [hargs' hret']. *)
-    (*   apply wf_ty_subst => //. *)
-    (*   destruct Γ as [[? ?] Γ]. *)
-    (*   rewrite /this_type /= in hthis, ht. *)
-    (*   simplify_eq. *)
-    (*   by apply wf_ty_class_inv in hthis. *)
+    - apply map_Forall_insert_2 => //.
+      apply expr_has_ty_wf in he => //.
+      apply wf_tyI in he as (? & ? & ? & ?).
+      apply wf_ty_subst => //.
+      apply wf_ty_subst_this.
+      { econstructor => //; last by apply gen_targs_wf_2.
+        by rewrite length_gen_targs.
+      }
+      apply has_method_wf in hm => //.
+      by destruct hm as [hargs' hret'].
+    - apply map_Forall_insert_2 => //.
+      apply hmethods in hcdef.
+      apply hcdef in hm.
+      by apply hm.
     - apply hi in hwf => //; clear hi h.
       rewrite /wf_lty map_Forall_lookup => k ty hty.
       apply hsub in hty.
@@ -412,12 +374,11 @@ Section Typing.
   Proof.
     move => hp ?? hfields hmethods hΔ hwf hcdef hge hb.
     induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
-      ???????? he h1 hi1 h2 hi2 | ????????? hf | ???????????? he hf |
+      ???????? he h1 hi1 h2 hi2 | ????????? hf | ???????????? he hf hex |
       (* ??????? hf hr | ??????????? he hf hr | *)
       ?????????? _ ht htb hok hf hdom hargs |
-      (* ???????????? he hm hvis hdom hargs | *)
-      (* ???????????? he hm hvis hdom _ | *)
-      (* ?????????? ht hm hvis hdom hargs | *)
+      ????????????? he hm hex hvis hdom hargs |
+      ?????????? hm hvis hdom hargs |
       ??????? hsub hΓb h hi (*| ??????????? hin hdef hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
@@ -432,17 +393,10 @@ Section Typing.
       by apply expr_has_ty_bounded in he.
     - apply insert_bounded_lty => //.
       simplify_eq.
-      apply bounded_subst_this.
-      { apply has_field_bounded in hf => //.
-        destruct hf as (def & hdef & hbfty).
-        simplify_eq.
-        by eapply bounded_ge.
-      }
-      constructor.
-      eapply bounded_forall_ge; last by exact hge.
-      by apply bounded_gen_targs.
+      apply hfields in hcdef.
+      apply hcdef in hf.
+      by eapply bounded_ge.
     - apply insert_bounded_lty => //.
-      case: hf => hf _.
       apply has_field_bounded in hf => //.
       destruct hf as (def & hdef & hbfty).
       apply bounded_subst with (length def.(generics)) => //.
@@ -458,78 +412,39 @@ Section Typing.
       + apply expr_has_ty_bounded in he => //.
         by apply boundedI in he.
     - by apply insert_bounded_lty.
-    (* - apply map_Forall_insert_2 => //. *)
-    (*   apply has_method_from_def in hm => //. *)
-    (*   destruct hm as (odef & m & hodef & hmdef & hm & [σ [hin ->]]). *)
-    (*   assert (he' := he). *)
-    (*   apply expr_has_ty_wf in he' => //. *)
-    (*   apply wf_tyI in he' as (tdef & ? & hlen & ?). *)
-    (*   rewrite /subst_mdef /=. *)
-    (*   apply bounded_subst with (length tdef.(generics)) => //. *)
-    (*   + apply bounded_subst_this. *)
-    (*     { apply bounded_subst with (length odef.(generics)) => //. *)
-    (*       * apply hmethods in hodef. *)
-    (*         apply hodef in hmdef. *)
-    (*         by apply hmdef. *)
-    (*       * apply inherits_using_wf in hin => //. *)
-    (*         destruct hin as (? & ? & ? & h & _); simplify_eq. *)
-    (*         apply wf_tyI in h as (? & ? & ? & ?); by simplify_eq. *)
-    (*       * apply inherits_using_wf in hin => //. *)
-    (*         by destruct hin as (? & ? & h & ?); simplify_eq. *)
-    (*     } *)
-    (*     { constructor. *)
-    (*       rewrite hlen. *)
-    (*       by apply bounded_gen_targs. *)
-    (*     } *)
-    (*   + apply expr_has_ty_bounded in he => //. *)
-    (*     by apply boundedI in he. *)
-    (* - apply map_Forall_insert_2 => //. *)
-    (*   apply has_method_from_def in hm => //. *)
-    (*   destruct hm as (odef & m & hodef & hmdef & hm & [σ [hin ->]]). *)
-    (*   assert (he' := he). *)
-    (*   apply expr_has_ty_wf in he' => //. *)
-    (*   apply wf_tyI in he' as (? & ? & hlen & ?). *)
-    (*   apply inherits_using_wf in hin => //. *)
-    (*   destruct hin as (tdef & ? & ? & h & _); simplify_eq. *)
-    (*   apply wf_tyI in h as (? & ? & ? & ?); simplify_eq. *)
-    (*   rewrite /subst_mdef /=. *)
-    (*   apply bounded_subst with (length tdef.(generics)) => //. *)
-    (*   + apply bounded_subst_this; last first. *)
-    (*     { constructor. *)
-    (*       rewrite hlen. *)
-    (*       by apply bounded_gen_targs. *)
-    (*     } *)
-    (*     apply bounded_subst with (length odef.(generics)) => //. *)
-    (*     apply hmethods in hodef. *)
-    (*     apply hodef in hmdef. *)
-    (*     by apply hmdef. *)
-    (*   + apply expr_has_ty_bounded in he => //. *)
-    (*     by apply boundedI in he. *)
-      (*
-    - split; first by apply hthis.
-      apply map_Forall_insert_2 => //.
+    - apply map_Forall_insert_2 => //.
       apply has_method_from_def in hm => //.
       destruct hm as (odef & m & hodef & hmdef & hm & [? [hin ->]]).
-      destruct Γ as [[tt σt] Γ].
-      injection ht; intros; subst; clear ht.
-      destruct hwf as [hwf ?].
-      rewrite /this_type /= in hwf, hthis.
-      apply wf_tyI in hwf as (tdef & ? & ? & ?).
+      assert (he' := he).
+      apply expr_has_ty_wf in he' => //.
+      apply wf_tyI in he' as (tdef & ? & hlen & ?).
       rewrite /subst_mdef /=.
       apply bounded_subst with (length tdef.(generics)) => //.
-      + apply bounded_subst with (length odef.(generics)) => //.
-        * apply hmethods in hodef.
-          apply hodef in hmdef.
-          by apply hmdef.
-        * apply inherits_using_wf in hin => //.
-          destruct hin as (? & ? & ? & h); simplify_eq.
-          apply wf_tyI in h as (? & ? & ? & ?); by simplify_eq.
-        * apply inherits_using_wf in hin => //.
-          by destruct hin as (? & ? & h & ?); simplify_eq.
-      + by apply boundedI in hthis.
-    - by apply insert_bounded_lty.
-    - by apply insert_bounded_lty.
-       *)
+      + apply bounded_subst_this.
+        { apply bounded_subst with (length odef.(generics)) => //.
+          * apply hmethods in hodef.
+            apply hodef in hmdef.
+            by apply hmdef.
+          * apply inherits_using_wf in hin => //.
+            destruct hin as (? & ? & ? & h & _); simplify_eq.
+            apply wf_tyI in h as (? & ? & ? & ?); by simplify_eq.
+          * apply inherits_using_wf in hin => //.
+            by destruct hin as (? & ? & h & ?); simplify_eq.
+        }
+        { constructor.
+          rewrite hlen.
+          by apply bounded_gen_targs.
+        }
+      + apply expr_has_ty_bounded in he => //.
+        by apply boundedI in he.
+    - apply map_Forall_insert_2 => //.
+      simplify_eq.
+      apply hmethods in hcdef.
+      apply hcdef in hm.
+      eapply bounded_ge; first by apply hm.
+      done.
+    (* - by apply insert_bounded_lty. *)
+    (* - by apply insert_bounded_lty. *)
   Qed.
 
   (* Consider a class C<T0, ..., Tn>,

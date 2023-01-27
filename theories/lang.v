@@ -650,6 +650,11 @@ Record methodDef := {
   methodret: expr;
 }.
 
+Definition no_this_mdef mdef :=
+  map_Forall (λ _argname, no_this) mdef.(methodargs) ∧
+  no_this mdef.(methodrettype)
+.
+
 Definition subst_mdef targs mdef : methodDef := {|
     methodvisibility := mdef.(methodvisibility);
     methodargs := subst_ty targs <$> mdef.(methodargs);

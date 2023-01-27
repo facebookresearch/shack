@@ -13,9 +13,9 @@ From iris.proofmode Require Import tactics.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp.
 From shack.soundness Require Import expr defs.
-From shack.soundness Require Import getc setc newc call priv_call sub.
-From shack.soundness Require Import rtc_tag rtc_prim.
-From shack.soundness Require Import dyn_getc dyn_setc dyn_call.
+(* From shack.soundness Require Import getc setc newc call priv_call sub. *)
+(* From shack.soundness Require Import rtc_tag rtc_prim. *)
+(* From shack.soundness Require Import dyn_getc dyn_setc dyn_call. *)
 
 Section proofs.
   (* assume a given set of class definitions and their SDT annotations. *)
@@ -30,19 +30,26 @@ Section proofs.
     bounded_lty rigid Γ →
     Forall wf_constraint Δ →
     Forall (bounded_constraint rigid) Δ →
-    cmd_has_ty C Δ kd rigid Γ cmd Γ' →
-    ∀ t Σt σ Σ st st' n,
+    ∀ t tdef Σt σ,
+    pdefs !! t = Some tdef →
+    length Σt = length tdef.(generics) →
     inherits_using t C σ →
+    cmd_has_ty C Δ kd rigid Γ cmd Γ' →
+    ∀ Σ st st' n,
     length Σ = rigid →
     cmd_eval C st cmd st' n →
-    interp_list Σt σ ≡ Σ →
+    let Σthis := interp_exact_tag interp_type t Σt in
+    ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
+    □ interp_env_as_mixed Σt -∗
     □ interp_env_as_mixed Σ -∗
-    □ Σinterp Σ Δ -∗
-    heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗ |=▷^n
-        heap_models st'.2 ∗ interp_local_tys Σ Γ' st'.1.
+    □ Σinterp Σthis Σ Δ -∗
+    heap_models st.2 ∗ interp_local_tys Σthis Σ Γ st.1 -∗ |=▷^n
+        heap_models st'.2 ∗ interp_local_tys Σthis Σ Γ' st'.1.
   Proof.
-    move => wfpdefs wflty blty hokthis hΔ hΔb.
-    iLöb as "IH" forall (C Δ kd rigid Γ cmd Γ' wflty blty hokthis hΔ hΔb).
+    move => wfpdefs.
+    iLöb as "IH" forall (C Δ kd rigid Γ cmd Γ').
+    move => wflty blty hΔ hΔb.
+    move => t tdef Σt σ htdef hlenΣt hin_t_C_σ.
     iIntros "%hty" (Σ st st' n hrigid hc) "#hΣ #hΣΔ".
     iInduction hty as [ Γ Δ kd rigid |
         Δ kd rigid Γ0 Γ1 hthis hwf |

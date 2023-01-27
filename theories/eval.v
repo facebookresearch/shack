@@ -192,9 +192,7 @@ Section Evaluation.
   (* We keep track of the tag of the current class, to correctly implement
    * the runtime check for visibility:
    *)
-  Definition visibility_check (C t: tag) (recv: expr) name :=
-    ∃ vis fty orig,
-    has_field name t vis fty orig ∧
+  Definition visibility_check (C orig: tag) (recv: expr) vis :=
     (match (vis, recv) with
      | (Public, _) => True
      | (Private, ThisE) => orig = C
@@ -215,18 +213,20 @@ Section Evaluation.
         h !! new = None →
         map_args (expr_eval Ω) args = Some vargs →
         cmd_eval C (Ω, h) (NewC lhs t opt_targs args) (<[lhs := LocV new]>Ω, <[new := (t, vargs)]>h) 1
-    | GetEv: ∀ C Ω h lhs recv name l t vs v,
+    | GetEv: ∀ C Ω h lhs recv name vis fty orig l t vs v,
         expr_eval Ω recv = Some (LocV l) →
         h !! l = Some (t, vs) →
         vs !! name = Some v →
-        visibility_check C t recv name →
+        has_field name t vis fty orig →
+        visibility_check C orig recv vis →
         cmd_eval C (Ω, h) (GetC lhs recv name) (<[lhs := v]>Ω, h) 1
-    | SetEv: ∀ C Ω h recv fld rhs l v t vs vs',
+    | SetEv: ∀ C Ω h recv fld vis fty orig rhs l v t vs vs',
         expr_eval Ω recv = Some (LocV l) →
         expr_eval Ω rhs = Some v →
         h !! l = Some (t, vs) →
         vs' = <[ fld := v ]>vs →
-        visibility_check C t recv fld →
+        has_field fld t vis fty orig →
+        visibility_check C orig recv vis →
         cmd_eval C (Ω, h) (SetC recv fld rhs) (Ω, <[l := (t, vs')]> h) 0
     | SeqEv: ∀ C st1 st2 st3 fstc sndc n1 n2,
         cmd_eval C st1 fstc st2 n1 →
@@ -246,6 +246,7 @@ Section Evaluation.
         map_args (expr_eval Ω) args = Some vargs →
         h !! l = Some (t, vs) →
         has_method name t orig mdef →
+        visibility_check C orig recv mdef.(methodvisibility) →
         dom mdef.(methodargs) = dom args →
         {| vthis := l; lenv := vargs|} = run_env →
         cmd_eval orig (run_env, h) mdef.(methodbody) (run_env', h') n →
@@ -297,19 +298,18 @@ Section Evaluation.
     - inv h; econstructor => //.
       + by rewrite -(expr_eval_subst _ _ σ).
       + by rewrite -(map_expr_eval_subst _ _ σ).
-      + by rewrite H9 dom_fmap_L.
+      + by destruct recv.
+      + by rewrite H10 dom_fmap_L.
     - inv h; econstructor => //.
       by rewrite -(map_expr_eval_subst _ _ σ).
     - inv h; econstructor => //.
       + by rewrite -(expr_eval_subst _ _ σ).
-      + destruct H9 as (vis & fty & orig & hf & hvc).
-        exists vis, fty, orig; split; first done.
+      + destruct vis => //.
         by destruct recv.
     - inv h; econstructor => //.
       + by rewrite -(expr_eval_subst _ _ σ).
       + by rewrite -(expr_eval_subst _ _ σ).
-      + destruct H10 as (vis & fty & orig & hf & hvc).
-        exists vis, fty, orig; split; first done.
+      + destruct vis => //.
         by destruct recv.
     - inv h.
       + econstructor => //.
