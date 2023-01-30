@@ -13,7 +13,7 @@ From iris.proofmode Require Import tactics.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp.
 From shack.soundness Require Import expr defs.
-(* From shack.soundness Require Import getc setc newc call priv_call sub. *)
+From shack.soundness Require Import getc setc newc call priv_call sub.
 (* From shack.soundness Require Import rtc_tag rtc_prim. *)
 (* From shack.soundness Require Import dyn_getc dyn_setc dyn_call. *)
 
@@ -24,12 +24,13 @@ Section proofs.
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
 
-  Lemma cmd_soundness_ C Δ kd rigid Γ cmd Γ' :
+  Lemma cmd_soundness_ C cdef Δ kd rigid Γ cmd Γ' :
     wf_cdefs pdefs →
     wf_lty Γ →
     bounded_lty rigid Γ →
     Forall wf_constraint Δ →
     Forall (bounded_constraint rigid) Δ →
+    pdefs !! C = Some cdef →
     ∀ t tdef Σt σ,
     pdefs !! t = Some tdef →
     length Σt = length tdef.(generics) →
@@ -37,6 +38,7 @@ Section proofs.
     cmd_has_ty C Δ kd rigid Γ cmd Γ' →
     ∀ Σ st st' n,
     length Σ = rigid →
+    rigid ≥ length cdef.(generics) →
     cmd_eval C st cmd st' n →
     let Σthis := interp_exact_tag interp_type t Σt in
     ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
@@ -47,34 +49,32 @@ Section proofs.
         heap_models st'.2 ∗ interp_local_tys Σthis Σ Γ' st'.1.
   Proof.
     move => wfpdefs.
-    iLöb as "IH" forall (C Δ kd rigid Γ cmd Γ').
-    move => wflty blty hΔ hΔb.
-    move => t tdef Σt σ htdef hlenΣt hin_t_C_σ.
-    iIntros "%hty" (Σ st st' n hrigid hc) "#hΣ #hΣΔ".
+    iLöb as "IH" forall (C cdef Δ kd rigid Γ cmd Γ').
+    iIntros (wflty blty hΔ hΔb hcdef t0 t0def Σt0 σ0 ht0def hlenΣt0 hin_t0_C_σ hty).
     iInduction hty as [ Γ Δ kd rigid |
-        Δ kd rigid Γ0 Γ1 hthis hwf |
+        Δ kd rigid Γ0 Γ1 hwf hbounded |
         Δ kd rigid Γ1 Γ2 Γ3 fstc sndc hfst hi1 hsnd hi2 |
         Δ kd rigid Γ lhs e ty he |
         Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
-        Δ kd rigid Γ lhs t targs name fty hrecv hf |
-        Δ kd rigid Γ lhs recv exact_ t targs name fty orig hrecv hf |
-        Δ kd rigid Γ fld rhs fty t σ hrecv hf hrhs |
-        Δ kd rigid Γ recv fld rhs fty orig exact_ t σ hrecv hrhs hf |
+        Δ kd rigid _cdef Γ lhs name fty _hcdef hf |
+        Δ kd rigid Γ lhs recv exact_ t targs name fty orig hrecv hf hex |
+        Δ kd rigid _cdef Γ fld rhs fty _hcdef hf hrhs |
+        Δ kd rigid Γ recv fld rhs fty orig exact_ t σ hrecv hf hex hrhs |
         Δ kd rigid Γ lhs t otargs targs args fields htargs hwf hb hok hf hdom harg |
-        Δ kd rigid Γ lhs recv exact_ t targs name orig mdef args hrecv hhasm hvis hdom hi |
-        Δ kd rigid Γ lhs t targs name mdef args hrecv hhasm hvis hdom hi |
-        Δ kd rigid Γ c Γ0 Γ1 hsub hb h hi |
-        Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hthn hi0 hels hi1 |
-        Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
-        Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
-        Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
-        Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
-        Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
-        Δ kd rigid Γ lhs recv name he hnotthis |
-        Δ kd rigid Γ recv fld rhs hrecv hrhs hnotthis |
-        Δ kd rigid Γ lhs recv name args hrecv hi hnotthis |
-        Δ kd rigid Γ0 cmd Γ1 hthis hwf hb hsub
-      ] "IHty" forall (Σ st st' n hrigid hc) "hΣ hΣΔ".
+        Δ kd rigid Γ lhs recv exact_ t targs name orig mdef args hrecv hhasm hex hvis hdom hargs |
+        Δ kd rigid _cdef Γ lhs name mdef args _hcdef hm hvis hdom hargs |
+        Δ kd rigid Γ c Γ0 Γ1 hsub hb h |
+        (* Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hthn hi0 hels hi1 | *)
+        (* Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 | *)
+        (* Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 | *)
+        (* Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 | *)
+        (* Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 | *)
+        (* Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 | *)
+        (* Δ kd rigid Γ lhs recv name he hnotthis | *)
+        (* Δ kd rigid Γ recv fld rhs hrecv hrhs hnotthis | *)
+        (* Δ kd rigid Γ lhs recv name args hrecv hi hnotthis | *)
+        Δ kd rigid Γ0 cmd Γ1 hwf hb hsub
+      ] "IHty"; iIntros (Σ st st' n hrigid hge hc) "%hΣeq #hΣt0 #hΣ #hΣΔ".
     - (* Skip *)
       inv hc.
       rewrite updN_zero.
@@ -82,75 +82,139 @@ Section proofs.
     - (* Error *) by inv hc.
     - (* Seq *)
       inv hc. iIntros "H".
-      iSpecialize ("IHty" $! wflty blty hokthis hΔ hΔb Σ _ _ _ refl_equal with "[//] hΣ hΣΔ H").
+      iSpecialize ("IHty" $! wflty blty hΔ hΔb Σ _ _ _ refl_equal hge H3 hΣeq with "hΣt0 hΣ hΣΔ H").
       rewrite Nat.iter_add.
       iApply (updN_mono_I with "[] IHty").
       destruct wfpdefs.
       iApply "IHty1" => //.
       + by apply cmd_has_ty_wf in hfst.
-      + by apply cmd_has_ty_bounded in hfst.
-      + by apply cmd_has_ty_preserves_this in hfst as <-.
+      + by eapply cmd_has_ty_bounded in hfst.
     - (* Let *)
       inv hc.
       iIntros "[? #Hle]".
       rewrite updN_zero /=.
       iFrame.
-      iDestruct (expr_soundness with "hΣ hΣΔ Hle") as "#?" => //; try (by apply wfpdefs).
+      iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
+      { iModIntro; iIntros (w) "hw".
+        iLeft; iRight; iRight.
+        iExists t0, Σt0, t0def; iSplit; first done.
+        by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
+      }
+      iDestruct (expr_soundness with "hΣthis hΣ hΣΔ Hle") as "#?" => //; try (by apply wfpdefs).
       by iApply interp_local_tys_update.
     - (* If *)
       inv hc.
       + iIntros "H". by iApply "IHty".
       + iIntros "H". by iApply "IHty1".
-    - by iApply get_priv_soundness.
-    - by iApply get_pub_soundness.
+    - iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
+      { iModIntro; iIntros (w) "hw".
+        iLeft; iRight; iRight.
+        iExists t0, Σt0, t0def; iSplit; first done.
+        by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
+      }
+      by iApply get_priv_soundness.
+    - iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
+      { iModIntro; iIntros (w) "hw".
+        iLeft; iRight; iRight.
+        iExists t0, Σt0, t0def; iSplit; first done.
+        by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
+      }
+      by iApply get_pub_soundness.
     - by iApply set_priv_soundness.
     - by iApply set_pub_soundness.
-    - by iApply new_soundness.
-    - by iApply call_soundness.
-    - by iApply priv_call_soundness.
-    - by iApply sub_soundness.
-    - by iApply rtc_tag_soundness.
-    - by iApply rtc_prim_soundness => //.
-    - by iApply rtc_prim_soundness => //.
-    - by iApply rtc_prim_soundness => //.
-    - by iApply rtc_prim_soundness => //.
-    - (* Dynamic ifC *)
-      inv hc.
-      + iIntros "H". by iApply "IHty".
-      + iIntros "H". by iApply "IHty1".
-    - by iApply dyn_get_soundness.
-    - by iApply (dyn_set_soundness _ _ _ _ _ recv).
-    - by iApply dyn_call_soundness.
+    - iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
+      { iModIntro; iIntros (w) "hw".
+        iLeft; iRight; iRight.
+        iExists t0, Σt0, t0def; iSplit; first done.
+        by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
+      }
+      by iApply new_soundness.
+    - iApply ((call_soundness C cdef)) => //.
+      iModIntro; iNext.
+      (* Dunno why I have to do all that, helping iris. *)
+      iIntros (C0 cdef0 Δ0 kd0 rigid0 Γ0 cmd0 Γ'0).
+      iSpecialize ("IH" $! C0 cdef0 Δ0 kd0 rigid0 Γ0 cmd0 Γ'0).
+      iIntros (hwf0 hb0 hD0 hDb0 hcdef0).
+      iSpecialize ("IH" $! hwf0 hb0 hD0 hDb0 hcdef0).
+      iIntros (z zdef Σz σz hzdef hlenz hinz hc0).
+      iSpecialize ("IH" $! z zdef Σz σz hzdef hlenz hinz hc0).
+      iIntros (Σ0 st0 st0' n0 hl0 hg0 he0 heq0).
+      iSpecialize ("IH" $! Σ0 st0 st0' n0 hl0 hg0 he0 heq0).
+      by iApply "IH".
+    - simplify_eq.
+      iApply ((priv_call_soundness C cdef)) => //.
+      iModIntro; iNext.
+      (* Dunno why I have to do all that, helping iris. *)
+      iIntros (C0 cdef0 Δ0 kd0 rigid0 Γ0 cmd0 Γ'0).
+      iSpecialize ("IH" $! C0 cdef0 Δ0 kd0 rigid0 Γ0 cmd0 Γ'0).
+      iIntros (hwf0 hb0 hD0 hDb0 hcdef0).
+      iSpecialize ("IH" $! hwf0 hb0 hD0 hDb0 hcdef0).
+      iIntros (z zdef Σz σz hzdef hlenz hinz hc0).
+      iSpecialize ("IH" $! z zdef Σz σz hzdef hlenz hinz hc0).
+      iIntros (Σ0 st0 st0' n0 hl0 hg0 he0 heq0).
+      iSpecialize ("IH" $! Σ0 st0 st0' n0 hl0 hg0 he0 heq0).
+      by iApply "IH".
+    - iApply (sub_soundness C cdef) => //.
+      iModIntro.
+      iIntros (hwf0 hb0 hD0 hDb0 Σ0 st0 st0' n0).
+      iSpecialize ("IHty" $! hwf0 hb0 hD0 hDb0 Σ0 st0 st0' n0).
+      iIntros (hl0 hge0 hc0 heq0).
+      iSpecialize ("IHty" $! hl0 hge0 hc0 heq0).
+      by iApply "IHty".
+    (* - by iApply rtc_tag_soundness. *)
+    (* - by iApply rtc_prim_soundness => //. *)
+    (* - by iApply rtc_prim_soundness => //. *)
+    (* - by iApply rtc_prim_soundness => //. *)
+    (* - by iApply rtc_prim_soundness => //. *)
+    (* - (1* Dynamic ifC *1) *)
+    (*   inv hc. *)
+    (*   + iIntros "H". by iApply "IHty". *)
+    (*   + iIntros "H". by iApply "IHty1". *)
+    (* - by iApply dyn_get_soundness. *)
+    (* - by iApply (dyn_set_soundness _ _ _ _ _ recv). *)
+    (* - by iApply dyn_call_soundness. *)
     - destruct wfpdefs.
-      by iDestruct (inconsistency with "hΣ hΣΔ") as "hFalse".
+      iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
+      { iModIntro; iIntros (w) "hw".
+        iLeft; iRight; iRight.
+        iExists t0, Σt0, t0def; iSplit; first done.
+        by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
+      }
+      by iDestruct (inconsistency with "hΣthis hΣ hΣΔ") as "hFalse".
   Qed.
 
-  Lemma cmd_soundness C Δ kd Σ Γ cmd Γ' :
+  Lemma cmd_soundness C cdef Δ kd Γ cmd Γ' Σ :
     wf_cdefs pdefs →
     wf_lty Γ →
-    ok_ty Δ (this_type Γ) →
     bounded_lty (length Σ) Γ →
     Forall wf_constraint Δ →
     Forall (bounded_constraint (length Σ)) Δ →
+    pdefs !! C = Some cdef →
+    ∀ t tdef Σt σ,
+    pdefs !! t = Some tdef →
+    length Σt = length tdef.(generics) →
+    inherits_using t C σ →
     cmd_has_ty C Δ kd (length Σ) Γ cmd Γ' →
-    ∀ st st' n, cmd_eval C st cmd st' n →
+    ∀ st st' n,
+    length Σ ≥ length cdef.(generics) →
+    cmd_eval C st cmd st' n →
+    let Σthis := interp_exact_tag interp_type t Σt in
+    ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
+    □ interp_env_as_mixed Σt -∗
     □ interp_env_as_mixed Σ -∗
-    □ Σinterp Σ Δ -∗
-    heap_models st.2 ∗ interp_local_tys Σ Γ st.1 -∗
-    |=▷^n heap_models st'.2 ∗ interp_local_tys Σ Γ' st'.1.
+    □ Σinterp Σthis Σ Δ -∗
+    heap_models st.2 ∗ interp_local_tys Σthis Σ Γ st.1 -∗ |=▷^n
+        heap_models st'.2 ∗ interp_local_tys Σthis Σ Γ' st'.1.
   Proof.
     intros.
-    by iApply cmd_soundness_.
+    by iApply (cmd_soundness_ C cdef).
   Qed.
 
 End proofs.
 
 Print Assumptions cmd_soundness.
 
-Definition main_lty tag := {|
-  type_of_this := (tag, []);
-  ctxt := ∅
-|}.
+Definition main_lty : local_tys := ∅.
 
 Definition main_le := {|
   vthis := 1%positive;
@@ -173,12 +237,11 @@ Definition main_heap tag : heap := {[1%positive := (tag, ∅)]}.
  * value of this type.
  *)
 Lemma sem_heap_init
-  `{PDC: ProgDefContext}
-  `{SDTCC: SDTClassConstraints}
-  `{SDTCS: SDTClassSpec}
+  `{SDTCVS: SDTClassVarianceSpec}
   `{!sem_heapGpreS Θ}:
   ∀ MainTag methods, pdefs !! MainTag = Some (main_cdef methods) →
-  ⊢@{iPropI Θ} |==> ∃ _: sem_heapGS Θ, (heap_models (main_heap MainTag) ∗ interp_local_tys [] (main_lty MainTag) main_le).
+  ⊢@{iPropI Θ} |==> ∃ _: sem_heapGS Θ, (heap_models (main_heap MainTag) ∗
+      interp_local_tys (interp_exact_tag interp_type MainTag []) [] main_lty main_le).
 Proof.
   move => MainTag methods hpdefs.
   set (empty := ∅ : gmap loc (prodO tagO (laterO (gmapO string (sem_typeO Θ))))).
@@ -202,11 +265,10 @@ Proof.
       iNext.
       by iIntros "?".
   - rewrite /main_lty /main_le; iSplit => /=.
-    + rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-      iExists 1%positive, MainTag, _, (gen_targs (length (main_cdef methods).(generics))), [] , ∅, ∅; iSplitR.
+    + rewrite interp_exact_tag_unseal /interp_exact_tag_def /=.
+      iExists 1%positive, (main_cdef methods), ∅, ∅; iSplitR.
       { iPureIntro.
         repeat split => //.
-        * by eapply InheritsRefl.
         * move => h.
           by inv h; simplify_eq.
         * by rewrite !dom_empty_L.
@@ -215,11 +277,6 @@ Proof.
       { iModIntro; iNext; iIntros (n ? h).
         by rewrite lookup_nil in h.
       }
-      iSplit.
-      { iModIntro; iNext; iIntros (n ? h).
-        by rewrite lookup_nil in h.
-      }
-      iSplit => //.
       iSplit.
       { iIntros (f vis ty orig hf).
         rewrite /main_cdef in hpdefs.

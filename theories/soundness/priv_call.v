@@ -47,6 +47,7 @@ Section proofs.
     inherits_using t C σ →
     ∀ Σ st st' n,
     length Σ = rigid →
+    rigid ≥ length cdef.(generics) →
     cmd_eval C st (CallC lhs ThisE name args) st' n →
     let Σthis := interp_exact_tag interp_type t Σt in
     ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
@@ -54,11 +55,12 @@ Section proofs.
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σthis Σ Δ -∗
 
-    □ ▷ (∀ C Δ kd rigid Γ cmd Γ',
+    □ (▷ ∀ C cdef Δ kd rigid Γ cmd Γ',
          ⌜wf_lty Γ⌝ →
          ⌜bounded_lty rigid Γ⌝ →
          ⌜Forall wf_constraint Δ⌝ →
          ⌜Forall (bounded_constraint rigid) Δ⌝ →
+         ⌜pdefs !! C = Some cdef⌝ →
          ∀ t tdef Σt σ,
          ⌜pdefs !! t = Some tdef⌝ →
          ⌜length Σt = length tdef.(generics)⌝ →
@@ -66,6 +68,7 @@ Section proofs.
          ⌜cmd_has_ty C Δ kd rigid Γ cmd Γ'⌝ →
          ∀ Σ st st' n,
          ⌜length Σ = rigid⌝ →
+         ⌜rigid ≥ length cdef.(generics)⌝ →
          ⌜cmd_eval C st cmd st' n⌝ →
          ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
          □ interp_env_as_mixed Σt -∗
@@ -85,17 +88,16 @@ Section proofs.
     destruct wfpdefs0.
     move => wflty hΔ hΔb hcdef hmdef hpriv hdom hty_args.
     move => t tdef Σt σ htdef hlenΣt hin_t_C_σ.
-    move => Σ st st' n hrigid hc /=.
+    move => Σ st st' n hrigid hge hc Σthis.
     iIntros "%heq #hΣt #hΣ #hΣΔ #IH".
     elim/cmd_eval_callI : hc => {n}.
     move => Ω h h' l t0 vs vargs orig mdef0 run_env run_env' ret n.
     move => heval_recv hmap hheap hhasm0 hvis hmdom <- heval_body heval_ret.
     simpl.
     iIntros "[Hh #Hle]".
-    iAssert (□ interp_local_tys (interp_exact_tag interp_type t Σt) Σ Γ Ω)%I as "#Hle_"; first by done.
+    iAssert (□ interp_local_tys Σthis Σ Γ Ω)%I as "#Hle_"; first by done.
     destruct Ω as [vthis Ω].
     case: heval_recv => hvthis; subst.
-    pose (Σthis := interp_exact_tag interp_type t Σt).
     iAssert (□ interp_as_mixed interp_nothing)%I as "#hnothing".
     { iModIntro; by iIntros (w) "hw". }
     iAssert (□ interp_as_mixed Σthis)%I as "#hΣthis".
@@ -106,8 +108,9 @@ Section proofs.
       by iApply (exact_subtype_is_inclusion_aux with "hΣt hw").
     }
     iDestruct "Hle_" as "[#Hthis #Hle_]" => /=.
-    iAssert (interp_exact_tag interp_type t Σt (LocV l)) as "#Hl"; first by done.
-    rewrite {3}interp_exact_tag_unseal /interp_exact_tag_def /=.
+    iAssert (Σthis (LocV l)) as "#Hl"; first by done.
+    rewrite {3}/Σthis.
+    rewrite interp_exact_tag_unseal /interp_exact_tag_def /=.
     iDestruct "Hthis" as (l0 ? fields ifields H) "(#hconstr & #hf0 & #H◯)".
     destruct H as ([= <-] & ? & hfields & hidom); simplify_eq.
     assert (hh: Forall wf_ty σ ∧ length σ = length cdef.(generics) ∧
@@ -209,14 +212,12 @@ Section proofs.
       rewrite (interp_type_no_this _ _ _ Σthis interp_nothing); last done.
       by iApply "hconstr".
     }
-    iAssert (□ Σinterp (interp_exact_tag interp_type t Σt)
-               (interp_list interp_nothing Σt σ)
-               ΔC)%I as "#hΣΔc".
+    iAssert (□ Σinterp Σthis (interp_list interp_nothing Σt σ) ΔC)%I as "#hΣΔc".
     { iModIntro.
       iIntros (k c hc v) "hv".
       destruct k as [ | k]; simpl in hc.
       { assert (heq_:
-          interp_list (interp_exact_tag interp_type t Σt)
+          interp_list Σthis
             (interp_list interp_nothing Σt σ) (gen_targs (length (generics cdef))) ≡
             (interp_list interp_nothing Σt σ)).
         { apply interp_list_gen_targs.
@@ -271,9 +272,10 @@ Section proofs.
         by apply bounded_gen_targs.
       - by apply wf_constraints_bounded in hcdef.
     }
-    iSpecialize ("IH" $! C _ Plain (length cdef.(generics)) _ _ _ hwf_lty0 hbounded hwfΔc hbΔc).
+    assert (hgec: length (generics cdef) ≥ length (generics cdef)) by constructor.
+    iSpecialize ("IH" $! C _ _ Plain (length cdef.(generics)) _ _ _ hwf_lty0 hbounded hwfΔc hbΔc hcdef).
     iSpecialize ("IH" $! t tdef Σt σ htdef hlenΣt hin_t_C_σ hbody (interp_list interp_nothing Σt σ)).
-    iSpecialize ("IH" $! _ _ _ hlc heval_body heq2 with "hΣt hΣc hΣΔc"); simpl.
+    iSpecialize ("IH" $! _ _ _ hlc hgec heval_body heq2 with "hΣt hΣc hΣΔc"); simpl.
     iDestruct ("IH" with "[Hh Hle_ H●]") as "Hstep".
     { iClear "IH"; iSplit.
       - iExists _; iFrame.

@@ -154,6 +154,7 @@ Section Typing.
         cmd_has_ty C Δ kd rigid Γ1 thn Γ2 →
         cmd_has_ty C Δ kd rigid Γ1 els Γ2 →
         cmd_has_ty C Δ kd rigid Γ1 (IfC cond thn els) Γ2
+    (* TODO: We need a case for `this` too *)
     | GetPrivTy: ∀ Δ kd rigid cdef Γ lhs name fty,
         pdefs !! C = Some cdef →
         cdef.(classfields) !! name = Some (Private, fty) →
@@ -163,15 +164,17 @@ Section Typing.
         has_field name t Public fty orig →
         (is_true exact_ ∨ no_this fty) →
         cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := subst_fty exact_ t σ fty]>Γ)
-    (* | SetPrivTy: ∀ Δ kd rigid Γ fld rhs fty, *)
-    (*     has_field fld C Private fty C → *)
-    (*     expr_has_ty Δ Γ rigid kd rhs fty → *)
-    (*     cmd_has_ty C Δ kd rigid Γ (SetC ThisE fld rhs) Γ *)
-    (* | SetPubTy: ∀ Δ kd rigid Γ recv fld rhs fty orig exact_ t σ, *)
-    (*     expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) → *)
-    (*     has_field fld t Public fty orig → *)
-    (*     expr_has_ty Δ Γ rigid kd rhs (subst_fty exact_ t σ fty) → *)
-    (*     cmd_has_ty C Δ kd rigid Γ (SetC recv fld rhs) Γ *)
+    | SetPrivTy: ∀ Δ kd rigid cdef Γ fld rhs fty,
+        pdefs !! C = Some cdef →
+        cdef.(classfields) !! fld = Some (Private, fty) →
+        expr_has_ty Δ Γ rigid kd rhs fty →
+        cmd_has_ty C Δ kd rigid Γ (SetC ThisE fld rhs) Γ
+    | SetPubTy: ∀ Δ kd rigid Γ recv fld rhs fty orig exact_ t σ,
+        expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
+        has_field fld t Public fty orig →
+        (is_true exact_ ∨ no_this fty) →
+        expr_has_ty Δ Γ rigid kd rhs (subst_fty exact_ t σ fty) →
+        cmd_has_ty C Δ kd rigid Γ (SetC recv fld rhs) Γ
     | NewTy: ∀ Δ kd rigid Γ lhs t otargs targs args fields,
         (match otargs with
          | Some σ => targs = σ
@@ -183,11 +186,11 @@ Section Typing.
         has_fields t fields →
         dom fields = dom args →
         (∀ f fty arg,
-        fields !! f = Some fty →
-        args !! f = Some arg →
-        expr_has_ty Δ Γ rigid kd arg (subst_fty true t targs fty.1.2)) →
+          fields !! f = Some fty →
+          args !! f = Some arg →
+          expr_has_ty Δ Γ rigid kd arg (subst_fty true t targs fty.1.2)) →
         cmd_has_ty C Δ kd rigid Γ (NewC lhs t otargs args) (<[lhs := ClassT true t targs]>Γ)
-        (* TODO: do we need a case for `this` too ? *)
+    (* TODO: We need a case for `this` too *)
     | CallPubTy: ∀ Δ kd rigid Γ lhs recv exact_ t σ name orig mdef args,
         expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
         has_method name t orig mdef →
@@ -199,7 +202,7 @@ Section Typing.
           args !! x = Some arg →
           expr_has_ty Δ Γ rigid kd arg (subst_fty exact_ t σ ty)) →
         cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := subst_fty exact_ t σ mdef.(methodrettype)]>Γ)
-    | CallPrivTy: ∀ cdef Δ kd rigid Γ lhs name mdef args,
+    | CallPrivTy: ∀ Δ kd rigid cdef Γ lhs name mdef args,
         pdefs !! C = Some cdef →
         cdef.(classmethods) !! name = Some mdef →
         mdef.(methodvisibility) = Private →
@@ -283,12 +286,12 @@ Section Typing.
          | _ => True
          end) →
         cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := DynamicT]>Γ)
+   *)
     | FalseCmdTy: ∀ Δ kd rigid Γ0 cmd Γ1,
         wf_lty Γ1 →
         bounded_lty rigid Γ1 →
         subtype Δ kd IntT BoolT →
         cmd_has_ty C Δ kd rigid Γ0 cmd Γ1
-   *)
   .
 
   Lemma cmd_has_ty_wf C Δ kd rigid Γ0 cmd Γ1:
@@ -303,17 +306,18 @@ Section Typing.
     move => hp hfields hmethods hΔ hwf.
     induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
       ???????? he h1 hi1 h2 hi2 | ???????? hcdef hf | ???????????? he hf hex |
-      (* ??????? hf hr | ??????????? he hf hr | *)
+      ???????? hcdef hf hr | ???????????? he hf hex hr |
       ?????????? _ ht hb hok hf hdom hargs |
       ????????????? he hm hex hvis hdom hargs |
       ????????? hcdef hm hvis hdom hargs |
-      ??????? hsub hb h hi (* |
+      ??????? hsub hb h hi |
+      (*
       ??????????? hin hdef hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
       ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
-      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis |
-      ????????? *)
+      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis | *)
+      ?????????
       ] => //=; try (by eauto).
     (* - apply hi2 => //. *)
     (*   + by apply hi1. *)
@@ -375,16 +379,16 @@ Section Typing.
     move => hp ?? hfields hmethods hΔ hwf hcdef hge hb.
     induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
       ???????? he h1 hi1 h2 hi2 | ????????? hf | ???????????? he hf hex |
-      (* ??????? hf hr | ??????????? he hf hr | *)
+      ???????? _ hf hr | ???????????? he hf hex hr |
       ?????????? _ ht htb hok hf hdom hargs |
       ????????????? he hm hex hvis hdom hargs |
       ?????????? hm hvis hdom hargs |
-      ??????? hsub hΓb h hi (*| ??????????? hin hdef hthn hi0 hels hi1 |
+      ??????? hsub hΓb h hi | (* ??????????? hin hdef hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
       ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
-      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis |
-      ?????????*)
+      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis |*)
+      ?????????
       ] => //=; try (by eauto).
     - apply hi2 => //.
       + by apply cmd_has_ty_wf in h1.

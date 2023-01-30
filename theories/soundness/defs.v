@@ -21,6 +21,8 @@ Section proofs.
   Context `{!sem_heapGS Θ}.
   Notation γ := sem_heap_name.
 
+  Notation "X ≡≡ Y" := (∀ (w: value), X w ∗-∗ Y w)%I (at level 50, no associativity).
+
   Lemma interp_local_tys_update Σthis Σ v Γ Ω ty val :
     interp_local_tys Σthis Σ Γ Ω -∗
     interp_type ty Σthis Σ val -∗
@@ -51,105 +53,245 @@ Section proofs.
     ⌜h !! ℓ = Some (t, vs)⌝ -∗
     ∃ (iFs : gmapO string (sem_typeO Θ)),
     sh !! ℓ ≡ Some (t, Next iFs) ∗ ▷ heap_models_fields iFs vs.
- 
-  (*
-  Lemma heap_models_update Δ Σ h l rt vs t σt f vis fty orig v:
->>>>>>> 12fbf50 ([this] introducing this, not finished, need exact types)
+
+  (* TODO: try to refactor them up like before *)
+  Lemma heap_models_update_pub Δ Σ h l t1 vs exact_ t σ  f fty orig v:
     map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
     map_Forall (λ _cname, wf_cdef_fields) pdefs →
     map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _cname, wf_field_mono) pdefs →
     map_Forall (λ _ : string, wf_cdef_mono) pdefs →
+    map_Forall (λ _ : string, wf_cdef_constraints_wf) pdefs →
     Forall wf_constraint Δ →
-    h !! l = Some (rt, vs) →
-    has_field f t vis fty orig →
-    wf_ty (ClassT true t σt) →
+    wf_ty (ClassT exact_ t σ) →
+    h !! l = Some (t1, vs) →
+    has_field f t Public fty orig →
+    is_true exact_ ∨ no_this fty →
+    ∀ t0 Σt0,
+    let Σthis0 := interp_exact_tag interp_type t0 Σt0 in
+    □ interp_env_as_mixed Σt0 -∗
     □ interp_env_as_mixed Σ -∗
-    □ Σinterp Σ Δ -∗
-    match vis with
-    | Public => interp_type (ClassT exact_ t σt) Σ (LocV l)
-    | Private => interp_this_type t σt Σ (LocV l)
-    end -∗
-    interp_type (subst_ty σt fty) Σ v -∗
+    □ Σinterp Σthis0 Σ Δ -∗
+    interp_type (ClassT exact_ t σ) Σthis0 Σ (LocV l) -∗
+    interp_type (subst_fty exact_ t σ fty) Σthis0 Σ v -∗
     heap_models h -∗
-    heap_models (<[l:=(rt, <[f:=v]> vs)]> h).
+    heap_models (<[l:=(t1, <[f:=v]> vs)]> h).
   Proof.
-    move => ??????? hheap hfield hwf.
-    iIntros "#wfΣ #Σcoherency hrecv".
-    iAssert (∃ t' σ' Σt fields (ifields: gmapO string (sem_typeO Θ)),
-      ⌜inherits_using t' t σ' ∧ has_fields t' fields ∧ dom fields = dom ifields⌝ ∗
-       (□ ▷ ∀ w,
-           interp_type fty (interp_list Σ σt) w ∗-∗
-           interp_type (subst_ty σ' fty) Σt w)
-       ∗
-       (▷ ∀ f vis ty orig, ⌜has_field f t' vis ty orig⌝ -∗ (ifields !! f ≡ Some (interp_car (interp_type ty Σt)))) ∗
-      l↦(t',ifields))%I with "[hrecv]" as "hrecv".
-    { destruct vis.
-      - iDestruct (exact_subtype_is_inclusion with "hrecv") as "hrecv".
-        rewrite interp_class_unfold //.
-        iDestruct "hrecv" as (l' t' def tdef' σ' Σt fields ifields) "(%H & #hmixed & #? & #hf0 & hdyn & hl)".
-        destruct H as ([= <-] & hdef & htdef' & ? & hinherits & hfields & hdom).
-        iExists t', σ', Σt, fields, ifields.
-        iSplitR; first done.
-        iSplitR; last by iSplit.
-        iModIntro; iNext; iIntros (w).
-        assert (hl0: length def.(generics) = length σ').
-        { apply inherits_using_wf in hinherits => //.
-          destruct hinherits as (? & ? & ? & hhh).
-          apply wf_tyI in hhh as (? & ? & ? & ?).
-          by simplify_eq.
-        }
-        assert (hl1: length σ' = length σt).
-        { apply wf_tyI in hwf as (? & ? & ? & ?); simplify_eq.
-          by rewrite -hl0.
-        }
-        assert (hwf_fty: wf_ty fty).
-        { by apply has_field_wf in hfield. }
-        assert (hb: bounded (length σ') fty).
-        { apply has_field_bounded in hfield => //.
-          destruct hfield as (? & ? & hf); simplify_eq.
-          by rewrite -hl0.
-        }
-        apply has_field_mono in hfield => //.
-        destruct hfield as (def' & hdef' & [hco hcontra]); simplify_eq.
-        iDestruct (neg_interp_variance with "hf0") as "hf1".
-        iSplit; iIntros "#?".
-        + iAssert (interp_type (subst_ty σ' fty) Σt w) as "h"; last done.
-          rewrite interp_type_subst //.
-          by iApply (interp_with_mono with "hf1").
-        + iApply (interp_with_mono with "hf0") => //.
-          by rewrite -interp_type_subst.
-      - rewrite /interp_this_type interp_this_unseal /interp_this_def /=.
-        iDestruct "hrecv" as (l' t' tdef' σ' Σt fields ifields) "(%H & #hmixed & #? & %hinst & hdyn & hl)".
-        destruct H as ([= <-] & htdef' & ? & hinherits & hfields & hdom).
-        assert (hl1: length σ' = length σt).
-        { apply inherits_using_wf in hinherits => //.
-          destruct hinherits as (? & ? & ? & hhh).
-          apply wf_tyI in hhh as (? & ? & hl0 & ?).
-          apply wf_tyI in hwf as (? & ? & hl1 & ?).
-          simplify_eq.
-          by rewrite hl0 hl1.
-        }
-        assert (hb: bounded (length σ') fty).
-        { apply has_field_bounded in hfield => //.
-          destruct hfield as (? & ? & hf); simplify_eq.
-          apply inherits_using_wf in hinherits => //.
-          destruct hinherits as (? & ? & ? & hh).
-          apply wf_tyI in hh as (? & ? & hlen & ?); simplify_eq.
-          by rewrite hlen.
-        }
-        iExists t', σ', Σt, fields, ifields.
-        iSplitR; first done.
-        iSplitR; last by iSplit.
-        iModIntro; iNext; iIntros (w).
-        rewrite interp_type_subst // -hinst.
-        by iSplit; iIntros.
+    move => ???????? hwf hheap hf hex.
+    move => t0 Σt0 Σthis0.
+    iIntros "#hΣt0 #hΣ #hΣΔ #hrecv #hv Hh".
+    assert (hh : ∃ tdef, pdefs !! t = Some tdef ∧
+      length σ = length tdef.(generics)).
+    { apply wf_tyI in hwf as (? & ? & ? & ?).
+      by eauto.
     }
-    iDestruct "hrecv" as (t' σ' Σt fields ifields) "(%hpure & #hstatic & #hdyn & hl)".
-    destruct hpure as (hinherits' & hfields & hdomfields).
-    iIntros "#hv hmodels".
-    iDestruct "hmodels" as (sh) "(hown & %hdom & #h)".
+    destruct hh as (tdef & htdef & hlenσ).
+    destruct exact_.
+    - (* Public access on exact type *)
+      rewrite interp_exact_tag_unfold interp_exact_tag_unseal /interp_exact_tag_def /=.
+      iDestruct "hrecv" as (? tdef' fields ifields hpure) "(#hconstr & #hfields & hl)".
+      destruct hpure as ([= <-] & htdef' & hfields & hdomfields); simplify_eq.
+      iDestruct "Hh" as (sh) "(hown & %hdom & #h)".
+      iExists sh.
+      iDestruct (sem_heap_own_valid_2 with "hown hl") as "#Hv".
+      iSplitL "hown"; first by iFrame.
+      iSplitR.
+      { iPureIntro.
+        by rewrite hdom dom_insert_lookup_L.
+      }
+      iModIntro.
+      iIntros (l'' t'' vs'') "%Heq".
+      rewrite lookup_insert_Some in Heq.
+      destruct Heq as [[<- [= <- <-]] | [hne hl]]; last first.
+      { iApply "h".
+        by iPureIntro.
+      }
+      iSpecialize ("h" $! l t1 vs with "[//]").
+      iDestruct "h" as (iFs) "[#hsh hmodels]".
+      iExists iFs; iSplit; first done.
+      iRewrite "Hv" in "hsh".
+      rewrite !option_equivI prod_equivI /=.
+      iDestruct "hsh" as "[%ht #hifs]".
+      fold_leibniz; subst.
+      iSpecialize ("hfields" $! f Public fty orig hf).
+      rewrite later_equivI.
+      iNext.
+      iDestruct "hfields" as (iF) "(#hiF & #hiff)".
+      iAssert (⌜is_Some (iFs !! f)⌝)%I as "%hiFs".
+      { iRewrite -"hifs".
+        by iRewrite "hiF".
+      }
+      rewrite /heap_models_fields.
+      iDestruct "hmodels" as "[%hdomv #hmodfs]".
+      iSplit.
+      { iPureIntro.
+        by rewrite -hdomv dom_insert_lookup // -elem_of_dom hdomv elem_of_dom.
+      }
+      iIntros (f' iF') "#hf'".
+      destruct (decide (f = f')) as [-> | hne]; last first.
+      { rewrite lookup_insert_ne //.
+        by iApply "hmodfs".
+      }
+      rewrite lookup_insert.
+      iExists v; iSplitR; first done.
+      iRewrite -"hifs" in "hf'".
+      iRewrite "hiF" in "hf'".
+      rewrite !option_equivI discrete_fun_equivI.
+      iSpecialize ("hf'" $! v).
+      iRewrite -"hf'".
+      iApply "hiff".
+      rewrite interp_type_subst; last first.
+      { apply bounded_subst_this; last by (constructor; by apply bounded_gen_targs).
+        apply has_field_bounded in hf => //.
+        destruct hf as (def' & hdef' & hfty).
+        apply wf_tyI in hwf as (? & ? & hlen & ?); simplify_eq.
+        by rewrite hlen.
+      }
+      iClear "hconstr hiF hiff hl hifs hmodfs hf' Hv".
+      rewrite /subst_gen hlenσ.
+      rewrite (interp_type_no_this _ _ _ Σthis0 interp_nothing); first done.
+      apply subst_this_has_no_this => /=.
+      apply forallb_True.
+      by apply gen_targs_has_no_this.
+    - (* property doesn't have `this` *)
+      case: hex => // hnothis.
+      rewrite interp_tag_unfold interp_tag_equiv //; last first.
+      { by rewrite /interp_list fmap_length. }
+      rewrite /interp_tag_alt /=.
+      iDestruct "hrecv" as (? t2 tdef' t2def σin Σt2 fields ifields hpure)
+        "(#hΣt2 & #hconstr & #hinst & #hfields & hl)".
+      destruct hpure as ([= <-] & htdef' & ht2def & hlenΣt2 & hin & hfields & hdomfields); simplify_eq.
+      iDestruct "Hh" as (sh) "(hown & %hdom & #h)".
+      iExists sh.
+      iDestruct (sem_heap_own_valid_2 with "hown hl") as "#Hv".
+      iSplitL "hown"; first by iFrame.
+      iSplitR.
+      { iPureIntro.
+        by rewrite hdom dom_insert_lookup_L.
+      }
+      iModIntro.
+      iIntros (l'' t'' vs'') "%Heq".
+      rewrite lookup_insert_Some in Heq.
+      destruct Heq as [[<- [= <- <-]] | [hne hl]]; last first.
+      { iApply "h".
+        by iPureIntro.
+      }
+      iSpecialize ("h" $! l t1 vs with "[//]").
+      iDestruct "h" as (iFs) "[#hsh hmodels]".
+      iExists iFs; iSplit; first done.
+      iRewrite "Hv" in "hsh".
+      rewrite !option_equivI prod_equivI /=.
+      iDestruct "hsh" as "[%ht #hifs]".
+      fold_leibniz; subst.
+      (* NEW *)
+      assert (hfield2 : has_field f t1 Public (subst_ty σin fty) orig)
+      by (by eapply has_field_inherits_using).
+      iSpecialize ("hfields" $! f Public (subst_ty σin fty) orig hfield2).
+      (* NEW *)
+      rewrite later_equivI.
+      iNext.
+      iDestruct "hfields" as (iF) "(#hiF & #hiff)".
+      iAssert (⌜is_Some (iFs !! f)⌝)%I as "%hiFs".
+      { iRewrite -"hifs".
+        by iRewrite "hiF".
+      }
+      rewrite /heap_models_fields.
+      iDestruct "hmodels" as "[%hdomv #hmodfs]".
+      iSplit.
+      { iPureIntro.
+        by rewrite -hdomv dom_insert_lookup // -elem_of_dom hdomv elem_of_dom.
+      }
+      iIntros (f' iF') "#hf'".
+      destruct (decide (f = f')) as [-> | hne]; last first.
+      { rewrite lookup_insert_ne //.
+        by iApply "hmodfs".
+      }
+      rewrite lookup_insert.
+      iExists v; iSplitR; first done.
+      iRewrite -"hifs" in "hf'".
+      iRewrite "hiF" in "hf'".
+      rewrite !option_equivI discrete_fun_equivI.
+      iSpecialize ("hf'" $! v).
+      iRewrite -"hf'".
+      rewrite interp_type_subst; last first.
+      { apply bounded_subst_this; last by (constructor; by apply bounded_gen_targs).
+        apply has_field_bounded in hf => //.
+        destruct hf as (def' & hdef' & hfty).
+        apply wf_tyI in hwf as (? & ? & hlen & ?); simplify_eq.
+        by rewrite hlen.
+      }
+      iApply "hiff".
+      iClear "hconstr hiF hiff hl hifs hmodfs hf' Hv".
+      (* NEW *)
+      rewrite /subst_gen -hlenΣt2.
+      iAssert (
+        interp_type (subst_ty σin fty) (interp_exact_tag interp_type t1 Σt2) Σt2 v -∗
+        interp_type
+          (subst_this (ClassT true t1 (gen_targs (length Σt2))) (subst_ty σin fty)) interp_nothing Σt2 v)%I as "HH".
+      { iIntros "HH".
+        by rewrite -(interp_type_subst_this _ _ interp_nothing).
+      }
+      iApply "HH"; iClear "HH".
+      rewrite subst_this_no_this_id; last done.
+      rewrite (interp_type_no_this _ _ _ Σthis0 (interp_exact_tag interp_type t1 Σt2)); last done.
+      iDestruct (neg_interp_variance with "hinst") as "hinst2".
+      iDestruct (interp_with_mono with "hinst2 hv") as "hv2" => //.
+      { apply has_field_mono in hf => //.
+        destruct hf as (? & ? & []); by simplify_eq.
+      }
+      { by apply has_field_wf in hf. }
+      assert (heq:
+        interp_list interp_nothing Σt2 σin ≡
+        interp_list (interp_exact_tag interp_type t1 Σt2) Σt2 σin).
+      { apply interp_list_no_this.
+        apply inherits_using_wf in hin => //.
+        by destruct hin as (? & ? & ? & ? & ?).
+      }
+      rewrite (interp_type_equivI _ _ _ heq).
+      rewrite interp_type_subst; first done.
+      apply has_field_bounded in hf => //.
+      destruct hf as (? & ? & hf); simplify_eq.
+      apply inherits_using_wf in hin => //.
+      destruct hin as (? & ? & ? & hwfσin & ?); simplify_eq.
+      apply wf_tyI in hwfσin as (? & ? & hlen & ?); simplify_eq.
+      by rewrite hlen.
+  Qed.
+
+  Lemma heap_models_update_priv Δ Σ h l t1 C σ0 cdef vs f fty v:
+    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_fields) pdefs →
+    map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
+    map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
+    map_Forall (λ _cname, wf_field_mono) pdefs →
+    map_Forall (λ _ : string, wf_cdef_mono) pdefs →
+    map_Forall (λ _ : string, wf_cdef_constraints_wf) pdefs →
+    Forall wf_constraint Δ →
+    h !! l = Some (t1, vs) →
+    (* TODO: maybe turn this one into a has_field to share more proof ? *)
+    pdefs !! C = Some cdef →
+    cdef.(classfields) !! f = Some (Private, fty) →
+    ∀ t0 Σt0 tdef0,
+    pdefs !! t0 = Some tdef0 →
+    inherits_using t0 C σ0 →
+    length Σt0 = length tdef0.(generics) →
+    let Σthis0 := interp_exact_tag interp_type t0 Σt0 in
+    ⌜interp_list interp_nothing Σt0 σ0 ≡ Σ⌝ -∗
+    □ interp_env_as_mixed Σt0 -∗
+    □ interp_env_as_mixed Σ -∗
+    □ Σinterp Σthis0 Σ Δ -∗
+    Σthis0 (LocV l) -∗
+    interp_type fty Σthis0 Σ v -∗
+    heap_models h -∗
+    heap_models (<[l:=(t1, <[f:=v]> vs)]> h).
+  Proof.
+    move => ?? hwfb ????? hheap hcdef hf.
+    move => t0 Σt0 tdef0 hdef0 hin hlenΣt0 Σthis0.
+    iIntros "%heqΣ #hΣt0 #hΣ #hΣΔ #hrecv #hv Hh".
+    rewrite {2}/Σthis0 interp_exact_tag_unseal /interp_exact_tag_def /=.
+    iDestruct "hrecv" as (? tdef' fields ifields hpure) "(#hconstr & #hfields & hl)".
+    destruct hpure as ([= <-] & htdef' & hfields & hdomfields); simplify_eq.
+    iDestruct "Hh" as (sh) "(hown & %hdom & #h)".
     iExists sh.
     iDestruct (sem_heap_own_valid_2 with "hown hl") as "#Hv".
     iSplitL "hown"; first by iFrame.
@@ -164,19 +306,25 @@ Section proofs.
     { iApply "h".
       by iPureIntro.
     }
-    iSpecialize ("h" $! l rt vs with "[//]").
+    iSpecialize ("h" $! l t1 vs with "[//]").
     iDestruct "h" as (iFs) "[#hsh hmodels]".
     iExists iFs; iSplit; first done.
     iRewrite "Hv" in "hsh".
     rewrite !option_equivI prod_equivI /=.
     iDestruct "hsh" as "[%ht #hifs]".
     fold_leibniz; subst.
-    assert (hfield2 : has_field f rt vis (subst_ty σ' fty) orig) by (by eapply has_field_inherits_using).
-    iSpecialize ("hdyn" $! f vis (subst_ty σ' fty) orig hfield2).
-    rewrite later_equivI. iNext.
+    assert (hf0: has_field f t1 Private (subst_ty σ0 fty) C).
+    { eapply has_field_inherits_using => //.
+      change Private with (Private, fty).1.
+      by eapply HasField.
+    }
+    iSpecialize ("hfields" $! f Private _ C hf0).
+    rewrite later_equivI.
+    iNext.
+    iDestruct "hfields" as (iF) "(#hiF & #hiff)".
     iAssert (⌜is_Some (iFs !! f)⌝)%I as "%hiFs".
     { iRewrite -"hifs".
-      by iRewrite "hdyn".
+      by iRewrite "hiF".
     }
     rewrite /heap_models_fields.
     iDestruct "hmodels" as "[%hdomv #hmodfs]".
@@ -192,19 +340,38 @@ Section proofs.
     rewrite lookup_insert.
     iExists v; iSplitR; first done.
     iRewrite -"hifs" in "hf'".
-    iRewrite "hdyn" in "hf'".
+    iRewrite "hiF" in "hf'".
     rewrite !option_equivI discrete_fun_equivI.
     iSpecialize ("hf'" $! v).
     iRewrite -"hf'".
+    iApply "hiff".
+    (* NEW *)
+    rewrite /subst_gen -hlenΣt0.
+    iAssert (
+      interp_type (subst_ty σ0 fty) (interp_exact_tag interp_type t1 Σt0) Σt0 v -∗
+      interp_type
+        (subst_this (ClassT true t1 (gen_targs (length Σt0))) (subst_ty σ0 fty)) interp_nothing Σt0 v)%I as "HH".
+    { iIntros "HH".
+      by rewrite -(interp_type_subst_this _ _ interp_nothing).
+    }
+    iApply "HH"; iClear "HH".
+    iClear "hconstr hiF hiff hl hifs hmodfs hf' Hv".
+    apply inherits_using_wf in hin => //.
+    destruct hin as (? & ? & ? & hwf & ?); simplify_eq.
+    rewrite (interp_type_equivI _ Σ (interp_list interp_nothing Σt0 σ0)); last done.
     rewrite interp_type_subst; last first.
-    { apply has_field_bounded in hfield => //.
-      destruct hfield as (def' & hdef' & hfty).
+    { assert (h0 := hcdef).
+      apply hwfb in h0.
+      apply h0 in hf.
       apply wf_tyI in hwf as (? & ? & hlen & ?); simplify_eq.
       by rewrite hlen.
     }
-    by iApply "hstatic".
+    assert (heq_ : interp_list interp_nothing Σt0 σ0 ≡ interp_list Σthis0 Σt0 σ0).
+    { by apply interp_list_no_this. }
+    by rewrite (interp_type_equivI _ _ _ heq_).
   Qed.
 
+  (*
   (* This is dynamic related. Once a [| dynamic |] is open,
    * we want to use facts about the Σt and Σdyn to show that
    * Σt models the SDT constraints of the runtime type.

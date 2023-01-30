@@ -25,11 +25,12 @@ Section proofs.
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
 
-  Lemma call_soundness C Δ kd rigid Γ lhs recv exact_ t σ name orig mdef args:
+  Lemma call_soundness C cdef Δ kd rigid Γ lhs recv exact_ t σ name orig mdef args:
     wf_cdefs pdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     Forall (bounded_constraint rigid) Δ →
+    pdefs !! C = Some cdef →
     expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
     has_method name t orig mdef →
     (is_true exact_ ∨ no_this_mdef mdef) →
@@ -45,6 +46,7 @@ Section proofs.
     inherits_using t0 C σ0 →
     ∀ Σ st st' n,
     length Σ = rigid →
+    rigid ≥ length cdef.(generics) →
     cmd_eval C st (CallC lhs recv name args) st' n →
     let Σthis := interp_exact_tag interp_type t0 Σt0 in
     ⌜interp_list interp_nothing Σt0 σ0 ≡ Σ⌝ -∗
@@ -52,11 +54,12 @@ Section proofs.
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σthis Σ Δ -∗
 
-    □ ▷ (∀ C Δ kd rigid Γ cmd Γ',
+    □ (▷ ∀ C cdef Δ kd rigid Γ cmd Γ',
          ⌜wf_lty Γ⌝ →
          ⌜bounded_lty rigid Γ⌝ →
          ⌜Forall wf_constraint Δ⌝ →
          ⌜Forall (bounded_constraint rigid) Δ⌝ →
+         ⌜pdefs !! C = Some cdef⌝ →
          ∀ t tdef Σt σ,
          ⌜pdefs !! t = Some tdef⌝ →
          ⌜length Σt = length tdef.(generics)⌝ →
@@ -64,6 +67,7 @@ Section proofs.
          ⌜cmd_has_ty C Δ kd rigid Γ cmd Γ'⌝ →
          ∀ Σ st st' n,
          ⌜length Σ = rigid⌝ →
+         ⌜rigid ≥ length cdef.(generics)⌝ →
          ⌜cmd_eval C st cmd st' n⌝ →
          ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
          □ interp_env_as_mixed Σt -∗
@@ -81,16 +85,15 @@ Section proofs.
     move => wfpdefs.
     assert (wfpdefs0 := wfpdefs).
     destruct wfpdefs0.
-    move => wflty hΔ hΔb hrecv hhasm hex hpub hdom hty_args.
+    move => wflty hΔ hΔb hcdef hrecv hhasm hex hpub hdom hty_args.
     move => t0 t0def Σt0 σ0 ht0def hlenΣt0 hin_t0_C_σ0.
-    move => Σ st st' n hrigid hc /=.
+    move => Σ st st' n hrigid hge hc Σthis.
     iIntros "%heq #hΣt0 #hΣ #hΣΔ #IH".
     elim/cmd_eval_callI : hc => {n}.
     move => Ω h h' l t1 vs vargs orig0 mdef0 run_env run_env' ret n.
     move => heval_recv hmap hheap hhasm0 hvis hmdom <- heval_body heval_ret.
     simpl.
     iIntros "[Hh #Hle]".
-    pose (Σthis := interp_exact_tag interp_type t0 Σt0).
     iAssert (□ interp_as_mixed interp_nothing)%I as "#hnothing".
     { iModIntro; by iIntros (w) "hw". }
     iAssert (□ interp_as_mixed Σthis)%I as "#hΣthis".
@@ -248,18 +251,19 @@ Section proofs.
         apply wf_constraints_no_this in hodef.
         rewrite /wf_cdef_constraints_no_this Forall_lookup in hodef.
         apply hodef in hc as [].
-        rewrite (interp_type_no_this _ _ _ (interp_exact_tag interp_type t (interp_list Σthis Σ σ))  interp_nothing); last done.
-        rewrite (interp_type_no_this _ _ _ (interp_exact_tag interp_type t (interp_list Σthis Σ σ))  interp_nothing); last done.
+        rewrite (interp_type_no_this _ _ _ (interp_exact_tag interp_type t (interp_list Σthis Σ σ)) interp_nothing); last done.
+        rewrite (interp_type_no_this _ _ _ (interp_exact_tag interp_type t (interp_list Σthis Σ σ)) interp_nothing); last done.
         by iApply "hh".
       }
       assert (hl0 : length (interp_list interp_nothing (interp_list Σthis Σ σ) σin) = length (generics odef)).
       { by rewrite /interp_list fmap_length heq2. }
+      assert (hge0 : length (generics odef) ≥ length (generics odef)) by constructor.
       assert (heqΣ :
         interp_list interp_nothing (interp_list Σthis Σ σ) σin ≡
         interp_list interp_nothing (interp_list Σthis Σ σ) σin) by done.
-      iSpecialize ("IH" $! _ _ Plain _ _ _ _ hwf_lty0 hbounded hwfΔc hbΔc).
+      iSpecialize ("IH" $! _ odef _ Plain _ _ _ _ hwf_lty0 hbounded hwfΔc hbΔc hodef).
       iSpecialize ("IH" $! t tdef (interp_list Σthis Σ σ) σin htdef hlt).
-      iSpecialize ("IH" $! hin_t_orig hbody _ _ _ _ hl0 heval_body heqΣ).
+      iSpecialize ("IH" $! hin_t_orig hbody _ _ _ _ hl0 hge0 heval_body heqΣ).
       iSpecialize ("IH" with "hmixed0 hmixed1 hΣΔc").
       assert (heq_:
         interp_list (interp_exact_tag interp_type t (interp_list Σthis Σ σ))
@@ -321,7 +325,6 @@ Section proofs.
       iRevert "Hstep".
       iApply updN_mono_I.
       iIntros "[Hmodels Hle2]"; iFrame.
-      Check interp_local_tys_update.
       iApply interp_local_tys_update; first by done.
       rewrite /subst_fty interp_type_subst; last first.
       { apply bounded_subst_this; last by (constructor; apply bounded_gen_targs).
@@ -480,7 +483,8 @@ Section proofs.
           rewrite (interp_tag_equivI _ _ heq_ orig0 v).
           iDestruct ((exact_subtype_is_inclusion_aux _ _ _ _ hdef1) with "hΣt hv") as "hv".
           { done. }
-          by iApply (tag_inherits_using_is_inclusion wf_parent wf_mono wf_fields_wf wf_constraints_wf _ _ _ _ _ _ _ hdef1).
+          by iApply (tag_inherits_using_is_inclusion wf_parent wf_mono
+            wf_fields_wf wf_constraints_wf _ _ _ _ _ _ _ hdef1).
         }
         apply ok_tyI in hok0 as (? & ? & ? & hok0); simplify_eq.
         assert (hc' := hc).
@@ -524,11 +528,12 @@ Section proofs.
       iDestruct (neg_interp_variance with "hf") as "hf2".
       assert (hl0 : length (interp_list interp_nothing Σt σt1_o0) = length (generics odef0)).
       { by rewrite /interp_list fmap_length -heq0. }
+      assert (hge0: length (generics odef0) ≥ length (generics odef0)) by constructor.
       assert (heqΣ: interp_list interp_nothing Σt σt1_o0 ≡
                     interp_list interp_nothing Σt σt1_o0) by reflexivity.
-      iSpecialize ("IH" $! orig0 _ Plain _ _ _ _ hwf_lty0 hbounded hΔ0 hΔb0).
+      iSpecialize ("IH" $! orig0 _ _ Plain _ _ _ _ hwf_lty0 hbounded hΔ0 hΔb0 hodef0).
       iSpecialize ("IH" $! t1_ def1 Σt _ hdef1 hlen1 hin_t1_o0 hbody).
-      iSpecialize ("IH" $! _ _ _ _ hl0 heval_body heqΣ with "hΣt hmixed0 hΣtΔ0"); simpl.
+      iSpecialize ("IH" $! _ _ _ _ hl0 hge0 heval_body heqΣ with "hΣt hmixed0 hΣtΔ0"); simpl.
       assert (heq_: interp_list interp_nothing Σt σin ≡ interp_list Σthis Σt σin).
       { by apply interp_list_no_this. }
       assert (heq_1: interp_list interp_nothing Σt σin ≡ interp_list Σthis1 Σt σin).

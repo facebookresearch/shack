@@ -192,6 +192,8 @@ Proof.
   - move => ????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
   - move => ?????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
   - move => ??????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+  - move => ???; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+  - move => ????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
 Qed.
 
 Local Instance SDTCVS : SDTClassVarianceSpec.
@@ -326,16 +328,15 @@ Proof.
       by apply map_Forall_empty.
     - by rewrite lookup_insert.
     - by apply has_method_get0.
+    - done.
     - by rewrite /Get /= !dom_empty_L.
     - by rewrite omap_empty.
     - eapply GetEv.
       + by constructor.
       + by rewrite lookup_insert.
       + by rewrite lookup_insert.
-      + rewrite /visibility_check.
-        exists Private, (GenT 0), "ROBox"; split; last done.
-        change Private with (Private, GenT 0).1.
-        by econstructor.
+      + by apply (HasField _ _ ROBox (Private, GenT 0)).
+      + done.
     - by rewrite /Get /= lookup_insert.
   }
   eapply SeqEv.
@@ -353,16 +354,16 @@ Proof.
       by apply map_Forall_empty.
     - by rewrite lookup_insert.
     - by apply has_method_get1.
+    - done.
     - by rewrite /Get /= fmap_empty !dom_empty_L.
     - by rewrite omap_empty.
     - eapply GetEv.
       + by constructor.
       + by rewrite lookup_insert.
       + by rewrite lookup_insert.
-      + exists Public, (subst_ty [IntT] (GenT 0)), "Box"; split; last done.
-        eapply InheritsField => //.
-        change Public with (Public, GenT 0).1.
-        by econstructor.
+      + eapply InheritsField => //.
+        by apply (HasField _ _ Box (Public, GenT 0)).
+      + done.
     - by rewrite /Get /= lookup_insert.
   }
   eapply SeqEv.
@@ -379,6 +380,7 @@ Proof.
       by rewrite lookup_insert.
     - by rewrite lookup_insert.
     - by apply has_method_set.
+    - done.
     - by rewrite /IntBoxSSet /= !dom_singleton_L.
     - by rewrite omap_singleton /= lookup_insert.
     - rewrite /IntBoxSSet /=.
@@ -387,10 +389,9 @@ Proof.
       + by constructor.
       + by rewrite lookup_insert.
       + done.
-      + exists Public, (subst_ty [IntT] (GenT 0)), "Box"; split; last done.
-        eapply InheritsField => //.
-        change Public with (Public, GenT 0).1.
-        by econstructor.
+      + eapply InheritsField => //.
+        by apply (HasField _ _ Box (Public, GenT 0)).
+      + done.
     - by rewrite /IntBoxSSet /=.
   }
   rewrite lookup_insert.
@@ -422,10 +423,9 @@ Proof.
     by rewrite lookup_insert.
   - by rewrite lookup_insert.
   - by rewrite lookup_insert.
-  - exists Public, (subst_ty [IntT] (GenT 0)), "Box"; split; last done.
-    eapply InheritsField => //.
-    change Public with (Public, GenT 0).1.
-    by econstructor.
+  - eapply InheritsField => //.
+    by apply (HasField _ _ Box (Public, GenT 0)).
+  - done.
 Qed.
 
 Definition final_lty lty : local_tys :=
@@ -435,9 +435,11 @@ Definition final_lty lty : local_tys :=
   (<["$init"  := IntT]>
   (<["$robox" := ClassT true "ROBox" [IntT]]> lty)))).
 
+Definition MainC := [(ThisT, ClassT false "Main" (gen_targs 0))].
+
 Lemma Main_ty n lty :
   bounded_lty n lty →
-  cmd_has_ty "Main" [] Plain n lty ProgramBody (final_lty lty).
+  cmd_has_ty "Main" MainC Plain n lty ProgramBody (final_lty lty).
 Proof.
   move => hb.
   rewrite /final_lty /ProgramBody.
@@ -469,6 +471,7 @@ Proof.
     + constructor.
       by rewrite lookup_insert.
     + by apply has_method_get0.
+    + by left.
     + done.
     + by set_solver.
     + move => ????; by rewrite lookup_empty.
@@ -492,6 +495,7 @@ Proof.
     + econstructor.
       by rewrite lookup_insert.
     + by apply has_method_get1.
+    + by left.
     + done.
     + by set_solver.
     + by move => x ty arg; rewrite /Get /= lookup_empty.
@@ -508,6 +512,7 @@ Proof.
       rewrite lookup_insert_ne // lookup_insert_ne //.
       by rewrite lookup_insert.
     + by apply has_method_set.
+    + by left.
     + done.
     + by set_solver.
     + move => x ty arg; rewrite /Get /= !lookup_singleton_Some.
@@ -518,19 +523,11 @@ Proof.
   }
   rewrite /IntBoxSSet /=.
   eapply SubTy; last first.
-  - eapply GetPubTy; last by apply has_fields_IntBoxS.
+  - eapply GetPubTy; [ | by apply has_fields_IntBoxS | by right ].
     constructor.
     do 3 (rewrite lookup_insert_ne //).
     by rewrite lookup_insert.
   - apply insert_bounded_lty; first done.
-    split => /=.
-    { rewrite /this_type /=.
-      constructor.
-      destruct lty as [[this σ] Γ]; simpl.
-      destruct hb as [hb _].
-      rewrite /this_type /= in hb.
-      by inv hb.
-    }
     apply map_Forall_insert_2; first done.
     apply map_Forall_insert_2.
     { apply bounded_ge with 0; last by lia.
@@ -544,9 +541,7 @@ Proof.
       by apply Forall_singleton.
     }
     by apply hb.
-  - split => /=.
-    { by rewrite /this_type. }
-    move => v ty.
+  - move => v ty.
     rewrite lookup_insert_Some.
     case => [[<- <-] | [? h]].
     + exists IntT; by rewrite lookup_insert.
@@ -570,16 +565,12 @@ Proof.
       by rewrite lookup_insert_ne.
 Qed.
 
-Lemma wf_mdef_ty_Main: wf_mdef_ty "Main" [] 0 (gen_targs 0) EntryPoint.
+Lemma wf_mdef_ty_Main: wf_mdef_ty "Main" MainC 0 EntryPoint.
 Proof.
   rewrite /wf_mdef_ty.
-  exists (final_lty {| type_of_this := ("Main", gen_targs 0); ctxt := methodargs EntryPoint|}).
+  exists (final_lty (methodargs EntryPoint)).
   repeat split.
-  - rewrite /final_lty /this_type /=.
-    apply wf_ty_exact with true.
-    eapply WfClass => //.
-    by constructor.
-  - rewrite /final_lty /=.
+  - rewrite /final_lty /wf_lty /=.
     rewrite map_Forall_lookup => k tk.
     rewrite lookup_insert_Some.
     case => [[? <-] | [?]]; first by constructor.
@@ -594,12 +585,8 @@ Proof.
     econstructor => //.
     by constructor.
   - apply Main_ty .
-    split.
-    + rewrite /this_type /=.
-      constructor.
-      by apply Forall_nil.
-    + simpl.
-      by apply map_Forall_empty.
+    simpl.
+    by apply map_Forall_empty.
   - rewrite /final_lty.
     constructor => //.
     + constructor.
@@ -715,10 +702,11 @@ Proof.
   case => [[? <-] | [?]] => //.
   rewrite lookup_insert_Some.
   case => [[? <-] | [?]].
-  { split.
+  { split; last split.
     + econstructor => //.
       by apply wfσ.
     + by apply σbounded.
+    + by repeat constructor.
   }
   rewrite lookup_singleton_Some.
   by case => [? <-].
@@ -1107,15 +1095,9 @@ Proof.
     eexists.
     split; first last.
     - rewrite /Get /=; split.
-      + eapply GetPrivTy => //.
-        by apply has_fields_ROBox.
+      + by eapply GetPrivTy.
       + by econstructor.
-    - split.
-      { rewrite /this_type /=.
-        econstructor => //.
-        by apply gen_targs_wf_2.
-      }
-      rewrite map_Forall_lookup => x tx /=.
+    - rewrite /wf_lty map_Forall_lookup => x tx /=.
       rewrite lookup_insert_Some.
       case => [[? <-]|[?]]; last by rewrite lookup_empty.
       by constructor.
@@ -1131,18 +1113,25 @@ Proof.
       split; first last.
       { split ; last by constructor.
         eapply SetPubTy.
-        - by constructor.
+        - eapply ESubTy; last first.
+          + apply SubConstraint.
+            by apply elem_of_list_singleton.
+          + econstructor.
+            * move => i ty /lookup_gen_targs ->.
+              by constructor.
+            * done.
+            * by rewrite /Box => /= i c.
+          + by repeat constructor.
+          + econstructor => //.
+            by constructor.
+          + by constructor.
         - simpl.
           change Public with (Public, GenT 0).1.
           by eapply HasField.
         - by constructor.
+        - by constructor.
       }
-      split.
-      { rewrite /this_type /=.
-        econstructor => //.
-        by apply gen_targs_wf_2.
-      }
-      rewrite map_Forall_lookup => k t /=.
+      rewrite /wf_lty map_Forall_lookup => k t /=.
       rewrite lookup_singleton_Some.
       case => [? <-].
       by constructor.
@@ -1152,17 +1141,24 @@ Proof.
       eexists; split; first last.
       { split.
         - eapply GetPubTy.
-          + by constructor.
+          + eapply ESubTy; last first.
+            * apply SubConstraint.
+              by apply elem_of_list_singleton.
+            * econstructor.
+              { move => i ty /lookup_gen_targs ->.
+                by constructor. }
+              { done. }
+              { by rewrite /Box => /= i c. }
+            * by repeat constructor.
+            * econstructor => //.
+              by constructor.
+            * by constructor.
           + change Public with (Public, GenT 0).1.
             by eapply HasField.
+          + by constructor.
         - by constructor.
       }
-      split.
-      { rewrite /this_type /=.
-        econstructor => //.
-        by apply gen_targs_wf_2.
-      }
-      rewrite map_Forall_lookup => k t /=.
+      rewrite /wf_lty map_Forall_lookup => k t /=.
       rewrite lookup_insert_Some.
       case => [[? <-]|[?]]; first by constructor.
       by rewrite lookup_empty.
@@ -1173,26 +1169,30 @@ Proof.
     rewrite map_Forall_singleton.
     eexists.
     split; first last.
-    * split; last by constructor.
+    - split; last by constructor.
       rewrite /IntBoxSSet /=.
       eapply SetPubTy.
-      { by constructor. }
-      { eapply InheritsField => //.
+      + eapply ESubTy; last first.
+        * apply SubConstraint.
+          by apply elem_of_list_singleton.
+        * econstructor.
+          -- move => i ty /lookup_gen_targs ->.
+              by constructor.
+          -- done.
+          -- by rewrite /Box => /= i c.
+        * by repeat constructor.
+        * econstructor => //.
+          by constructor.
+        * by constructor.
+      + eapply InheritsField => //.
         change Public with (Public, GenT 0).1.
         by eapply HasField.
-      }
-      { constructor => //.
-        - constructor.
+      + by right.
+      + constructor => //.
+        * constructor.
           by rewrite /= lookup_insert.
-        - by constructor.
-      }
-    * split.
-      { rewrite /this_type /=.
-        apply wf_ty_exact with true.
-        econstructor => //.
-        by constructor.
-      }
-      rewrite map_Forall_lookup => x tx /=.
+        * by constructor.
+    - rewrite /wf_lty map_Forall_lookup => x tx /=.
       rewrite lookup_singleton_Some.
       case => [? <-].
       by constructor.
@@ -1269,6 +1269,25 @@ Proof.
   rewrite lookup_singleton_Some.
   case => [? <-].
   by rewrite /wf_cdef_constraints_bounded /= Forall_nil.
+Qed.
+
+Lemma wf_constraints_no_this: map_Forall (λ _ : string, wf_cdef_constraints_no_this) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { rewrite /wf_cdef_constraints_no_this /= Forall_singleton.
+    split; by repeat constructor.
+  }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_no_this /= Forall_nil. }
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  { by rewrite /wf_cdef_constraints_no_this /= Forall_nil. }
+  rewrite lookup_singleton_Some.
+  case => [? <-].
+  by rewrite /wf_cdef_constraints_no_this /= Forall_nil.
 Qed.
 
 Lemma wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) pdefs.
@@ -1565,28 +1584,12 @@ Proof.
   rewrite lookup_insert_Some.
   case => [[<- <-]|[?]].
   { move => k m hm.
-    pose (Γ := {|
-        type_of_this := ("ROBox", gen_targs (length (generics ROBox)));
-        ctxt := ∅;
-      |}
-      ).
-    assert (wf_lty Γ).
-    { split => //.
-      rewrite /this_type /=.
-      apply wf_ty_exact with true.
-      eapply WfClass => //.
-      by constructor.
-    }
-    (* dummy Γ *)
-    exists Γ; split; first done.
+    assert (wf_lty ∅) by done.
+    exists ∅; split; first done.
     split.
     - apply FalseCmdTy => //.
-      + split => //.
-        rewrite /Γ /this_type /=.
-        constructor.
-        by repeat constructor.
-      + apply SubConstraint.
-        by set_solver.
+      apply SubConstraint.
+      by set_solver.
     - apply FalseTy => //.
       apply SubConstraint.
       by set_solver.
@@ -1594,28 +1597,12 @@ Proof.
   rewrite lookup_insert_Some.
   case => [[<- <-]|[?]] //.
   { move => k m hm.
-    pose (Γ := {|
-        type_of_this := ("Box", gen_targs (length (generics Box)));
-        ctxt := ∅;
-      |}
-      ).
-    assert (wf_lty Γ).
-    { split => //.
-      rewrite /this_type /=.
-      apply wf_ty_exact with true.
-      econstructor => //.
-      by constructor.
-    }
-    (* dummy Γ *)
-    exists Γ; split; first done.
+    assert (wf_lty ∅) by done.
+    exists ∅; split; first done.
     split.
     - apply FalseCmdTy => //.
-      + split => //.
-        rewrite /Γ /this_type /=.
-        constructor.
-        by repeat constructor.
-      + apply SubConstraint.
-        by set_solver.
+      apply SubConstraint.
+      by set_solver.
     - apply FalseTy => //.
       apply SubConstraint.
       by set_solver.
@@ -1623,57 +1610,25 @@ Proof.
   rewrite lookup_insert_Some.
   case => [[<- <-]|[?]] //.
   { move => k m hm.
-    pose (Γ := {|
-        type_of_this := ("IntBoxS", gen_targs (length (generics IntBoxS)));
-        ctxt := ∅;
-      |}
-      ).
-    assert (wf_lty Γ).
-    { split => //.
-      rewrite /this_type /=.
-      apply wf_ty_exact with true.
-      econstructor => //.
-      by constructor.
-    }
-    (* dummy Γ *)
-    exists Γ; split; first done.
+    assert (wf_lty ∅) by done.
+    exists ∅; split; first done.
     split.
     - apply FalseCmdTy => //.
-      + split => //.
-        rewrite /Γ /this_type /=.
-        constructor.
-        by repeat constructor.
-      + apply SubConstraint.
-        by set_solver.
+      apply SubConstraint.
+      by set_solver.
     - apply FalseTy => //.
       apply SubConstraint.
       by set_solver.
   }
   rewrite lookup_singleton_Some.
   case => <- <-.
-{ move => k m hm.
-    pose (Γ := {|
-        type_of_this := ("Main", gen_targs (length (generics Main)));
-        ctxt := ∅;
-      |}
-      ).
-    assert (wf_lty Γ).
-    { split => //.
-      rewrite /this_type /=.
-      apply wf_ty_exact with true.
-      econstructor => //.
-      by constructor.
-    }
-    (* dummy Γ *)
-    exists Γ; split; first done.
+  { move => k m hm.
+    assert (wf_lty ∅) by done.
+    exists ∅; split; first done.
     split.
     - apply FalseCmdTy => //.
-      + split => //.
-        rewrite /Γ /this_type /=.
-        constructor.
-        by repeat constructor.
-      + apply SubConstraint.
-        by set_solver.
+      apply SubConstraint.
+      by set_solver.
     - apply FalseTy => //.
       apply SubConstraint.
       by set_solver.
@@ -1688,6 +1643,7 @@ Proof.
   by apply wf_constraints_wf.
   by apply wf_constraints_ok.
   by apply wf_constraints_bounded.
+  by apply wf_constraints_no_this.
   by apply wf_override.
   by apply wf_fields.
   by apply wf_fields_bounded.
@@ -1710,41 +1666,42 @@ Qed.
  *)
 Theorem int_soundness cmd st lty n:
   cmd_eval "Main" (main_le, main_heap "Main") cmd st n →
-  cmd_has_ty "Main" [] Plain 0 (main_lty "Main") cmd lty →
-  ∀ v, lty.(ctxt) !! v = Some IntT →
+  cmd_has_ty "Main" MainC Plain 0 main_lty cmd lty →
+  ∀ v, lty !! v = Some IntT →
   ∃ z, st.1.(lenv) !! v = Some (IntV z).
 Proof.
-  assert (wfinit : wf_lty (main_lty "Main")).
-  { rewrite /main_lty; split => /=.
-    - rewrite /this_type /=.
-      by econstructor.
-    - by apply map_Forall_empty.
-  }
+  assert (wfinit : wf_lty main_lty ) by done.
   assert (hinit: pdefs !! "Main" = Some (main_cdef {["entry_point" := EntryPoint ]})) by done.
   move => he ht v hin.
   apply (@step_updN_soundness sem_heapΘ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
   iModIntro.
-  iAssert (Σinterp [] []) as "Σcoherency".
-  { iIntros (? ? h).
+  iAssert (□ interp_env_as_mixed [])%I as "#wfΣ".
+  { iModIntro; iIntros (? ? h).
     by rewrite lookup_nil in h.
   }
-  assert (wfΔ : Forall wf_constraint []) by by apply Forall_nil.
-  iAssert (interp_env_as_mixed []) as "wfΣ".
-  { iIntros (? ? h).
-    by rewrite lookup_nil in h.
+  iAssert (□ Σinterp
+     (interp_exact_tag interp_type "Main" []) [] MainC)%I as "Σcoherency".
+  { iModIntro; iIntros (? ? h).
+    apply list_lookup_singleton_Some in h as [-> <-] => /=.
+    iIntros (w) "hw".
+    rewrite interp_this_unfold interp_tag_unfold /=.
+    by iApply exact_subtype_is_inclusion_aux.
   }
-  assert (hbounded: bounded_lty 0 (main_lty "Main")).
-  { split; last by apply map_Forall_empty.
-    rewrite /main_lty /this_type /=.
-    constructor.
+  assert (wfΔ : Forall wf_constraint MainC).
+  { apply Forall_singleton.
+    split; first by constructor.
+    econstructor => //.
     by apply Forall_nil.
   }
-  assert (hokthis: ok_ty [] (this_type (main_lty "Main"))).
-  { by econstructor. }
-  assert (hΔb : Forall (bounded_constraint 0) []) by by apply Forall_nil.
-  iDestruct ((cmd_soundness "Main" [] _ [] _ _ _ wf wfinit hokthis hbounded wfΔ hΔb ht _ _ _ he)
-    with "wfΣ Σcoherency Hmain") as "H" => /=.
+  assert (hbounded: bounded_lty 0 main_lty).
+  { by repeat constructor. }
+  assert (hΔb : Forall (bounded_constraint 0) MainC).
+  { by repeat econstructor. }
+  assert (heqΣ: interp_list interp_nothing [] [] ≡ []) by done.
+  iDestruct ((cmd_soundness "Main" Main MainC _ _ _ _ [] wf wfinit
+    hbounded wfΔ hΔb _ "Main" Main [] _ _ _ _ ht  _ _ _ _ he)
+    $! heqΣ with "wfΣ wfΣ Σcoherency Hmain") as "H" => /=. 
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [Hthis Hl]]".
@@ -1753,6 +1710,14 @@ Proof.
   rewrite interp_type_unfold /=.
   iDestruct "Hw" as (z) "->".
   by eauto.
+  Unshelve.
+  - done.
+  - done.
+  - done.
+  - change [] with (gen_targs (length Main.(generics))).
+    by constructor.
+  - simpl.
+    by lia.
 Qed.
 
 (* Don't distinguish between exact and inexact classes.
@@ -1760,20 +1725,21 @@ Qed.
  *)
 Theorem class_soundness cmd st lty n:
   cmd_eval "Main" (main_le, main_heap "Main") cmd st n →
-  cmd_has_ty "Main" [] Plain 0 (main_lty "Main") cmd lty →
-  ∀ x exact_ t σ, lty.(ctxt) !! x = Some (ClassT exact_ t σ) →
+  cmd_has_ty "Main" MainC Plain 0 main_lty cmd lty →
+  ∀ x exact_ t σ, lty !! x = Some (ClassT exact_ t σ) →
   ∃ l Tdyn vs, st.1.(lenv) !! x = Some (LocV l) ∧
           st.2 !! l = Some (Tdyn, vs) ∧
           inherits Tdyn t.
 Proof.
-  assert (wfinit : wf_lty (main_lty "Main")).
-  { rewrite /main_lty; split => /=.
-    - rewrite /this_type /=.
-      by econstructor.
-    - by apply map_Forall_empty.
-  }
+  assert (wfinit : wf_lty main_lty ) by done.
   assert (hinit: pdefs !! "Main" = Some (main_cdef {["entry_point" := EntryPoint ]})) by done.
   move => he ht x exact_ t σ hin.
+  assert (wfΔ : Forall wf_constraint MainC).
+  { apply Forall_singleton.
+    split; first by constructor.
+    econstructor => //.
+    by apply Forall_nil.
+  }
   assert (hwflty : wf_lty lty).
   { apply cmd_has_ty_wf in ht => //.
     + by apply wf_parent.
@@ -1783,41 +1749,55 @@ Proof.
   apply (@step_updN_soundness sem_heapΘ n).
   iMod sem_heap_init as (Hheap) "Hmain" => //.
   iModIntro.
-  iAssert (Σinterp [] []) as "Σcoherency".
-  { iIntros (? ? h).
+  iAssert (□ interp_env_as_mixed [])%I as "#wfΣ".
+  { iModIntro; iIntros (? ? h).
     by rewrite lookup_nil in h.
+  }
+  pose (Σthis := interp_exact_tag interp_type "Main" []).
+  iAssert (□ Σinterp Σthis [] MainC)%I as "Σcoherency".
+  { iModIntro; iIntros (? ? h).
+    apply list_lookup_singleton_Some in h as [-> <-] => /=.
+    iIntros (w) "hw".
+    rewrite interp_this_unfold interp_tag_unfold /=.
+    by iApply exact_subtype_is_inclusion_aux.
+  }
+  assert (hwft: wf_ty (ClassT true t σ)).
+  { apply hwflty in hin.
+    by eapply wf_ty_exact.
   }
   assert (hx: ∃ Tdef, pdefs !! t = Some Tdef ∧
-              length (go interp_type [] <$> σ) = length Tdef.(generics)).
-  { apply hwflty in hin.
-    inv hin.
-    exists def; by rewrite map_length.
+              length (go interp_type Σthis [] <$> σ) = length Tdef.(generics)).
+  { apply wf_tyI in hwft as (Tdef & ? & ? & ?).
+    exists Tdef; by rewrite map_length.
   }
   destruct hx as (Tdef & hTdef & hlen).
-  assert (wfΔ : Forall wf_constraint []) by by apply Forall_nil.
-  iAssert (interp_env_as_mixed []) as "wfΣ".
-  { iIntros (? ? h).
-    by rewrite lookup_nil in h.
-  }
-  assert (hbounded: bounded_lty 0 (main_lty "Main")).
-  { split; last by apply map_Forall_empty.
-    rewrite /main_lty /this_type /=.
-    constructor.
-    by apply Forall_nil.
-  }
-  assert (hΔb : Forall (bounded_constraint 0) []) by by apply Forall_nil.
-  assert (hokthis: ok_ty [] (this_type (main_lty "Main"))).
-  { by econstructor. }
-  iDestruct ((cmd_soundness "Main" [] _ [] _ _ _ wf wfinit hokthis hbounded wfΔ hΔb ht _ _ _ he)
-     with "wfΣ Σcoherency Hmain") as "H" => /=.
+  assert (hbounded: bounded_lty 0 main_lty).
+  { by apply map_Forall_empty. }
+  assert (hΔb : Forall (bounded_constraint 0) MainC).
+  { by repeat econstructor. }
+  assert (heqΣ: interp_list interp_nothing [] [] ≡ []) by done.
+  iDestruct ((cmd_soundness "Main" Main MainC _ _ _ _ [] wf wfinit
+    hbounded wfΔ hΔb _ "Main" Main [] _ _ _ _ ht  _ _ _ _ he)
+    $! heqΣ with "wfΣ wfΣ Σcoherency Hmain") as "H" => /=. 
   iRevert "H".
   iApply updN_mono.
   iIntros "[Hh [_ Hl]]".
   iSpecialize ("Hl" $! x (ClassT exact_ t σ) hin).
   iDestruct "Hl" as (w hw) "Hw".
-  iDestruct (exact_subtype_is_inclusion with "Hw") as "Hw".
+  iAssert (□ interp_env_as_mixed [])%I as "#wfΣ".
+  { iModIntro; iIntros (? ? h).
+    by rewrite lookup_nil in h.
+  }
+  iAssert (□ interp_as_mixed Σthis)%I as "#hΣthis".
+  { iModIntro; iIntros (w0) "hw0".
+    iLeft; iRight; iRight.
+    iExists "Main", [], Main; iSplit; first done.
+    by iApply (exact_subtype_is_inclusion_aux with "wfΣ hw0").
+  }
+  iDestruct (exact_subtype_is_inclusion with "wfΣ hΣthis Hw") as "Hw" => //.
   rewrite interp_type_unfold /=.
-  rewrite interp_tag_equiv //; last by apply wf_parent.
+  rewrite interp_tag_equiv //; first last.
+  { by apply wf_parent. }
   iDestruct "Hw" as (l dynt cdef tdef σ0 Σt fields ifields) "(%hpure & #hmixed & #hΣt & #hinst & #hdyn & #Hl)".
   destruct hpure as (-> & hcdef & htdef & hl1 & hinherits & hfields & hidom).
   destruct st as [le h]; simpl in *.
@@ -1839,6 +1819,15 @@ Proof.
   iPureIntro.
   exists l, dynt, vs; repeat split => //.
   by apply inherits_using_erase in hinherits.
+  Unshelve.
+  - done.
+  - done.
+  - done.
+  - change [] with (gen_targs (length Main.(generics))).
+    by constructor.
+  - simpl.
+    by lia.
 Qed.
 
 Print Assumptions int_soundness.
+Print Assumptions class_soundness.
