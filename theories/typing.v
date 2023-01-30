@@ -217,9 +217,8 @@ Section Typing.
         bounded_lty rigid Γ0 →
         cmd_has_ty C Δ kd rigid Γ c Γ1 →
         cmd_has_ty C Δ kd rigid Γ c Γ0
-        (*
     | TagCheckTy Δ kd rigid Γ0 Γ1 v tv t def thn els:
-        Γ0.(ctxt) !! v = Some tv →
+        Γ0 !! v = Some tv →
         pdefs !! t = Some def →
         cmd_has_ty C (lift_constraints rigid def.(constraints) ++ Δ) kd (rigid + length def.(generics))
           (<[v:=InterT tv (ClassT false t (map GenT (seq rigid (length def.(generics)))))]> Γ0) thn Γ1 →
@@ -236,25 +235,26 @@ Section Typing.
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v (RCTag t) thn els) Γ1
     | IntCheckTy Δ kd rigid Γ0 Γ1 v tv thn els:
-        Γ0.(ctxt) !! v = Some tv →
+        Γ0 !! v = Some tv →
         cmd_has_ty C Δ kd rigid (<[v:=InterT tv IntT]> Γ0) thn Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCInt thn els) Γ1
     | BoolCheckTy Δ kd rigid Γ0 Γ1 v tv thn els:
-        Γ0.(ctxt) !! v = Some tv →
+        Γ0 !! v = Some tv →
         cmd_has_ty C Δ kd rigid (<[v:=InterT tv BoolT]> Γ0) thn Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCBool thn els) Γ1
     | NullCheckTy Δ kd rigid Γ0 Γ1 v tv thn els:
-        Γ0.(ctxt) !! v = Some tv →
+        Γ0 !! v = Some tv →
         cmd_has_ty C Δ kd rigid (<[v:=InterT tv NullT]> Γ0) thn Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCNull thn els) Γ1
     | NonNullCheckTy Δ kd rigid Γ0 Γ1 v tv thn els:
-        Γ0.(ctxt) !! v = Some tv →
+        Γ0 !! v = Some tv →
         cmd_has_ty C Δ kd rigid (<[v:=InterT tv NonNullT]> Γ0) thn Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCNonNull thn els) Γ1
+        (*
     (* Dynamic related typing rules *)
     | DynIfTy: ∀ Δ kd rigid Γ1 Γ2 cond thn els,
         expr_has_ty Δ Γ1 rigid kd cond DynamicT →
@@ -311,12 +311,16 @@ Section Typing.
       ????????????? he hm hex hvis hdom hargs |
       ????????? hcdef hm hvis hdom hargs |
       ??????? hsub hb h hi |
-      (*
       ??????????? hin hdef hthn hi0 hels hi1 |
-      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
-      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
-      ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
-      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis | *)
+      ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 helse hi1 |
+          (*
+      ???????? hcond hthn hi1 hels hi2 |
+      ??????? he hnotthis |
+      ??????? hrecv hrhs hnotthis |
+      ???????? he hargs hnotthis | *)
       ?????????
       ] => //=; try (by eauto).
     (* - apply hi2 => //. *)
@@ -383,11 +387,17 @@ Section Typing.
       ?????????? _ ht htb hok hf hdom hargs |
       ????????????? he hm hex hvis hdom hargs |
       ?????????? hm hvis hdom hargs |
-      ??????? hsub hΓb h hi | (* ??????????? hin hdef hthn hi0 hels hi1 |
-      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 hels hi1 |
-      ????????? hin hthn hi0 hels hi1 | ????????? hin hthn hi0 helse hi1 |
-      ???????? hcond hthn hi1 hels hi2 | ??????? he hnotthis |
-      ??????? hrecv hrhs hnotthis | ???????? he hargs hnotthis |*)
+      ??????? hsub hΓb h hi |
+      ??????????? hin hdef hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 hels hi1 |
+      ????????? hin hthn hi0 helse hi1 |
+    (*
+      ???????? hcond hthn hi1 hels hi2 |
+      ??????? he hnotthis |
+      ??????? hrecv hrhs hnotthis |
+      ???????? he hargs hnotthis |*)
       ?????????
       ] => //=; try (by eauto).
     - apply hi2 => //.

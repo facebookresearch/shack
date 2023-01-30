@@ -49,27 +49,27 @@ Section proofs.
     rigid ≥ length cdef.(generics) →
     cmd_eval C st (CallC lhs recv name args) st' n →
     let Σthis := interp_exact_tag interp_type t0 Σt0 in
-    ⌜interp_list interp_nothing Σt0 σ0 ≡ Σ⌝ -∗
+    ⌜interp_list interp_nothing Σt0 σ0 ≡ take (length cdef.(generics)) Σ⌝ -∗
     □ interp_env_as_mixed Σt0 -∗
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σthis Σ Δ -∗
 
-    □ (▷ ∀ C cdef Δ kd rigid Γ cmd Γ',
-         ⌜wf_lty Γ⌝ →
-         ⌜bounded_lty rigid Γ⌝ →
-         ⌜Forall wf_constraint Δ⌝ →
-         ⌜Forall (bounded_constraint rigid) Δ⌝ →
-         ⌜pdefs !! C = Some cdef⌝ →
-         ∀ t tdef Σt σ,
-         ⌜pdefs !! t = Some tdef⌝ →
-         ⌜length Σt = length tdef.(generics)⌝ →
-         ⌜inherits_using t C σ⌝ →
-         ⌜cmd_has_ty C Δ kd rigid Γ cmd Γ'⌝ →
-         ∀ Σ st st' n,
-         ⌜length Σ = rigid⌝ →
-         ⌜rigid ≥ length cdef.(generics)⌝ →
-         ⌜cmd_eval C st cmd st' n⌝ →
-         ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
+    □ (▷ ∀ C cdef Δ kd rigid Γ cmd Γ'
+         (_: wf_lty Γ)
+         (_: bounded_lty rigid Γ)
+         (_: Forall wf_constraint Δ)
+         (_: Forall (bounded_constraint rigid) Δ)
+         (_: pdefs !! C = Some cdef)
+         t tdef Σt σ
+         (_: pdefs !! t = Some tdef)
+         (_: length Σt = length tdef.(generics))
+         (_: inherits_using t C σ)
+         (_: cmd_has_ty C Δ kd rigid Γ cmd Γ')
+         Σ st st' n
+         (_: length Σ = rigid)
+         (_: rigid ≥ length cdef.(generics))
+         (_: cmd_eval C st cmd st' n),
+         ⌜interp_list interp_nothing Σt σ ≡ take (length cdef.(generics)) Σ⌝ -∗
          □ interp_env_as_mixed Σt -∗
          □ interp_env_as_mixed Σ -∗
          □ Σinterp (interp_exact_tag interp_type t Σt) Σ Δ -∗
@@ -260,7 +260,8 @@ Section proofs.
       assert (hge0 : length (generics odef) ≥ length (generics odef)) by constructor.
       assert (heqΣ :
         interp_list interp_nothing (interp_list Σthis Σ σ) σin ≡
-        interp_list interp_nothing (interp_list Σthis Σ σ) σin) by done.
+        take (length odef.(generics)) (interp_list interp_nothing (interp_list Σthis Σ σ) σin)).
+      { by rewrite -hl0 firstn_all. }
       iSpecialize ("IH" $! _ odef _ Plain _ _ _ _ hwf_lty0 hbounded hwfΔc hbΔc hodef).
       iSpecialize ("IH" $! t tdef (interp_list Σthis Σ σ) σin htdef hlt).
       iSpecialize ("IH" $! hin_t_orig hbody _ _ _ _ hl0 hge0 heval_body heqΣ).
@@ -530,7 +531,8 @@ Section proofs.
       { by rewrite /interp_list fmap_length -heq0. }
       assert (hge0: length (generics odef0) ≥ length (generics odef0)) by constructor.
       assert (heqΣ: interp_list interp_nothing Σt σt1_o0 ≡
-                    interp_list interp_nothing Σt σt1_o0) by reflexivity.
+                    take (length odef0.(generics)) (interp_list interp_nothing Σt σt1_o0)).
+      { by rewrite -hl0 firstn_all. }
       iSpecialize ("IH" $! orig0 _ _ Plain _ _ _ _ hwf_lty0 hbounded hΔ0 hΔb0 hodef0).
       iSpecialize ("IH" $! t1_ def1 Σt _ hdef1 hlen1 hin_t1_o0 hbody).
       iSpecialize ("IH" $! _ _ _ _ hl0 hge0 heval_body heqΣ with "hΣt hmixed0 hΣtΔ0"); simpl.

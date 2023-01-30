@@ -15,10 +15,8 @@ From shack Require Import eval heap modality interp typing.
 From shack.soundness Require Import expr defs.
 
 Section proofs.
-  (* assume a given set of class definitions *)
-  Context `{PDC: ProgDefContext}.
-  (* assume some SDT constraints and their properties *)
-  Context `{SDTCS: SDTClassSpec}.
+  (* assume a given set of class definitions and their SDT annotations. *)
+  Context `{SDTCVS: SDTClassVarianceSpec}.
 
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
@@ -36,7 +34,7 @@ Section proofs.
     | RCNonNull => NonNullT
     end.
 
-  Lemma rtc_prim_soundness C Δ kd rigid Γ0 Γ1 v tv rtk thn els:
+  Lemma rtc_prim_soundness C cdef Δ kd rigid Γ0 Γ1 v tv rtk thn els:
     match rtk with
     | RCTag _ => False
     | _ => True
@@ -44,49 +42,62 @@ Section proofs.
     wf_cdefs pdefs →
     wf_lty Γ0 →
     bounded_lty rigid Γ0 →
-    ok_ty Δ (this_type Γ0) →
     Forall wf_constraint Δ →
     Forall (bounded_constraint rigid) Δ →
-    ctxt Γ0 !! v = Some tv →
+    pdefs !! C = Some cdef →
+    ∀ t0 t0def Σt0 σ0,
+    pdefs !! t0 = Some t0def →
+    length Σt0 = length t0def.(generics) →
+    Γ0 !! v = Some tv →
     cmd_has_ty C Δ kd rigid (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0) thn Γ1 →
     cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
     ∀ Σ st st' n,
     length Σ = rigid →
+    rigid ≥ length cdef.(generics) →
     cmd_eval C st (RuntimeCheckC v rtk thn els) st' n →
+    let Σthis0 := interp_exact_tag interp_type t0 Σt0 in
+    ⌜interp_list interp_nothing Σt0 σ0 ≡ take (length cdef.(generics)) Σ⌝ -∗
+    □ interp_env_as_mixed Σt0 -∗
     □ interp_env_as_mixed Σ -∗
-    □ Σinterp Σ Δ -∗
-    □ ( ⌜wf_lty (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0)⌝
-         → ⌜bounded_lty rigid (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0)⌝
-           → ⌜ok_ty Δ (this_type (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0))⌝
-             → ⌜Forall wf_constraint Δ⌝
-               → ⌜Forall (bounded_constraint rigid) Δ⌝
-                 → ∀ (a : list (interp Θ)) (a0 a1 : local_env * heap)
-                     (a2 : nat),
-                     ⌜length a = rigid⌝ -∗
-                     ⌜cmd_eval C a0 thn a1 a2⌝ -∗
-                     □ interp_env_as_mixed a -∗
-                     □ Σinterp a Δ -∗
-                     heap_models a0.2 ∗
-                     interp_local_tys a (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0) a0.1 -∗
-                     |=▷^a2 heap_models a1.2 ∗ interp_local_tys a Γ1 a1.1) -∗
-    □ ( ⌜wf_lty Γ0⌝
-          → ⌜bounded_lty rigid Γ0⌝
-            → ⌜ok_ty Δ (this_type Γ0)⌝
-              → ⌜Forall wf_constraint Δ⌝
-                → ⌜Forall (bounded_constraint rigid) Δ⌝
-                  → ∀ (a : list (interp Θ)) (a0 a1 : local_env * heap)
-                      (a2 : nat),
-                      ⌜length a = rigid⌝ -∗
-                      ⌜cmd_eval C a0 els a1 a2⌝ -∗
-                      □ interp_env_as_mixed a -∗
-                      □ Σinterp a Δ -∗
-                      heap_models a0.2 ∗ interp_local_tys a Γ0 a0.1 -∗
-                      |=▷^a2 heap_models a1.2 ∗ interp_local_tys a Γ1 a1.1) -∗
-     heap_models st.2 ∗ interp_local_tys Σ Γ0 st.1 -∗
-     |=▷^n heap_models st'.2 ∗ interp_local_tys Σ Γ1 st'.1.
+    □ Σinterp Σthis0 Σ Δ -∗
+    □ (⌜wf_lty (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0)⌝ →
+       ⌜bounded_lty rigid (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0)⌝ →
+       ⌜Forall wf_constraint Δ⌝ →
+       ⌜Forall (bounded_constraint rigid) Δ⌝ →
+       ∀ Σ st st' n (_ : length Σ = rigid) 
+         (_ : rigid ≥ length cdef.(generics))
+         (_ : cmd_eval C st thn st' n),
+         ⌜interp_list interp_nothing Σt0 σ0 ≡ take (length cdef.(generics)) Σ⌝ -∗
+         □ interp_env_as_mixed Σt0 -∗
+         □ interp_env_as_mixed Σ -∗
+         □ Σinterp Σthis0 Σ Δ -∗
+         heap_models st.2 ∗
+         interp_local_tys Σthis0 Σ
+           (<[v:=InterT tv (typ_of_rtk rtk)]> Γ0) st.1 -∗
+         |=▷^n heap_models st'.2 ∗
+           interp_local_tys Σthis0 Σ Γ1 st'.1) -∗
+    □ (⌜wf_lty Γ0⌝ →
+       ⌜bounded_lty rigid Γ0⌝ →
+       ⌜Forall wf_constraint Δ⌝ →
+       ⌜Forall (bounded_constraint rigid) Δ⌝ →
+       ∀ Σ st st' n (_ : length Σ = rigid) 
+         (_ : rigid ≥ length cdef.(generics))
+         (_ : cmd_eval C st els st' n),
+         ⌜interp_list interp_nothing Σt0 σ0 ≡ take (length cdef.(generics)) Σ⌝ -∗
+         □ interp_env_as_mixed Σt0 -∗
+         □ interp_env_as_mixed Σ -∗
+         □ Σinterp Σthis0 Σ Δ -∗
+         heap_models st.2 ∗
+           interp_local_tys Σthis0 Σ Γ0 st.1 -∗
+         |=▷^n heap_models st'.2 ∗
+           interp_local_tys Σthis0 Σ Γ1 st'.1) -∗
+     heap_models st.2 ∗ interp_local_tys Σthis0 Σ Γ0 st.1 -∗
+     |=▷^n heap_models st'.2 ∗ interp_local_tys Σthis0 Σ Γ1 st'.1.
   Proof.
-    move => hkind wfpdefs wflty blty hokthis hΔ hΔb hv hthn hels Σ st st' n hrigid hc.
-    iIntros "#hΣ #hΣΔ #Hthn #Hels".
+    move => hkind wfpdefs wflty blty hΔ hΔb hcdef.
+    move => t0 t0def Σt0 σ0 ht0def hlenΣt0 hv hthn hels.
+    move => Σ st st' n hrigid hge hc Σthis0.
+    iIntros "%hΣeq #hΣt0 #hΣ #hΣΔ #Hthn #Hels".
     elim/cmd_eval_rtcI : hc; last first.
     { move => ??.
       iIntros "[Hh H]".
@@ -107,7 +118,7 @@ Section proofs.
       destruct rtk; (by elim hkind || by constructor).
     }
     iModIntro; iNext.
-    iApply ("Hthn" $! hwf hbounded hokthis hΔ hΔb with "[//]") => //.
+    iApply ("Hthn" $! hwf hbounded hΔ hΔb with "[//]") => //.
     clear htn.
     iDestruct "H" as "[H #Hle]".
     iDestruct "Hle" as "[Hthis Hle]".
@@ -149,15 +160,21 @@ Section proofs.
       by rewrite !interp_type_unfold.
     - simpl in hmatch.
       iFrame.
-      iAssert (interp_local_tys Σ Γ0 st.1) as "#Hle_"; first by iSplit.
-      iAssert (interp_type MixedT Σ val) as "Hmixed".
+      iAssert (□ interp_as_mixed Σthis0)%I as "#hΣthis".
+      { iModIntro; iIntros (w) "hw".
+        iLeft; iRight; iRight.
+        iExists t0, Σt0, t0def; iSplit; first done.
+        by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
+      }
+      iAssert (interp_local_tys Σthis0 Σ Γ0 st.1) as "#Hle_"; first by iSplit.
+      iAssert (interp_type MixedT Σthis0 Σ val) as "Hmixed".
       { destruct wfpdefs.
         assert (hsub : Δ ⊢ tv <: MixedT) by apply SubMixed.
         iApply subtype_is_inclusion => //.
         by apply wflty in hv.
       }
-      replace (interp_local_tys Σ (<[v:=InterT tv NonNullT]> Γ0) st.1) with
-              (interp_local_tys Σ (<[v:=InterT tv NonNullT]> Γ0) (<[v := val]>st.1)); last first.
+      replace (interp_local_tys Σthis0 Σ (<[v:=InterT tv NonNullT]> Γ0) st.1) with
+              (interp_local_tys Σthis0 Σ (<[v:=InterT tv NonNullT]> Γ0) (<[v := val]>st.1)); last first.
       { f_equal.
         destruct st as [[? ll] ?]; simpl in *.
         move : Hlev.

@@ -275,8 +275,9 @@ Section proofs.
     pdefs !! t0 = Some tdef0 →
     inherits_using t0 C σ0 →
     length Σt0 = length tdef0.(generics) →
+    length Σ ≥ length cdef.(generics) →
     let Σthis0 := interp_exact_tag interp_type t0 Σt0 in
-    ⌜interp_list interp_nothing Σt0 σ0 ≡ Σ⌝ -∗
+    ⌜interp_list interp_nothing Σt0 σ0 ≡ take (length cdef.(generics)) Σ⌝ -∗
     □ interp_env_as_mixed Σt0 -∗
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σthis0 Σ Δ -∗
@@ -286,7 +287,7 @@ Section proofs.
     heap_models (<[l:=(t1, <[f:=v]> vs)]> h).
   Proof.
     move => ?? hwfb ????? hheap hcdef hf.
-    move => t0 Σt0 tdef0 hdef0 hin hlenΣt0 Σthis0.
+    move => t0 Σt0 tdef0 hdef0 hin hlenΣt0 hge Σthis0.
     iIntros "%heqΣ #hΣt0 #hΣ #hΣΔ #hrecv #hv Hh".
     rewrite {2}/Σthis0 interp_exact_tag_unseal /interp_exact_tag_def /=.
     iDestruct "hrecv" as (? tdef' fields ifields hpure) "(#hconstr & #hfields & hl)".
@@ -358,7 +359,12 @@ Section proofs.
     iClear "hconstr hiF hiff hl hifs hmodfs hf' Hv".
     apply inherits_using_wf in hin => //.
     destruct hin as (? & ? & ? & hwf & ?); simplify_eq.
-    rewrite (interp_type_equivI _ Σ (interp_list interp_nothing Σt0 σ0)); last done.
+    rewrite -(interp_type_take fty _ Σ (length cdef.(generics))); first last.
+    { done. }
+    { apply hwfb in hcdef.
+      by apply hcdef in hf.
+    }
+    rewrite (interp_type_equivI _ (take (length cdef.(generics)) Σ) (interp_list interp_nothing Σt0 σ0)); last done.
     rewrite interp_type_subst; last first.
     { assert (h0 := hcdef).
       apply hwfb in h0.

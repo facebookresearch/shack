@@ -40,7 +40,7 @@ Section proofs.
     rigid ≥ length cdef.(generics) →
     cmd_eval C st c st' n →
     let Σthis := interp_exact_tag interp_type t0 Σt0 in
-    ⌜interp_list interp_nothing Σt0 σ0 ≡ Σ⌝ -∗
+    ⌜interp_list interp_nothing Σt0 σ0 ≡ take (length cdef.(generics)) Σ⌝ -∗
     □ interp_env_as_mixed Σt0 -∗
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σthis Σ Δ -∗
@@ -49,11 +49,11 @@ Section proofs.
        ⌜bounded_lty rigid Γ⌝ →
        ⌜Forall wf_constraint Δ⌝ →
        ⌜Forall (bounded_constraint rigid) Δ⌝ →
-       ∀ Σ st st' n,
-       ⌜length Σ = rigid⌝ →
-       ⌜rigid ≥ length (generics cdef)⌝ →
-       ⌜ cmd_eval C st c st' n⌝ →
-       ⌜interp_list interp_nothing Σt0 σ0 ≡ Σ⌝ -∗
+       ∀ Σ st st' n
+       (_: length Σ = rigid)
+       (_: rigid ≥ length (generics cdef))
+       (_: cmd_eval C st c st' n),
+       ⌜interp_list interp_nothing Σt0 σ0 ≡ take (length cdef.(generics)) Σ⌝ -∗
        □ interp_env_as_mixed Σt0 -∗
        □ interp_env_as_mixed Σ -∗
        □ Σinterp (interp_exact_tag interp_type t0 Σt0) Σ Δ -∗

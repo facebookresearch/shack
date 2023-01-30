@@ -2247,6 +2247,48 @@ Section proofs.
     by iApply "hh".
   Qed.
 
+  Lemma interp_type_pre_take ty:
+    ∀ Σthis Σ n,
+    bounded n ty →
+    length Σ ≥ n →
+    interp_type_pre interp_type ty Σthis (take n Σ) ≡
+    interp_type_pre interp_type ty Σthis Σ.
+  Proof.
+    elim: ty => //=.
+    - move => exact_ t σ /Forall_lookup hi Σthis Σ n /boundedI /Forall_lookup hb hlen v.
+      assert (go interp_type Σthis (take n Σ) <$> σ ≡ go interp_type Σthis Σ <$> σ).
+      { apply list_equiv_lookup => k.
+        rewrite !list_lookup_fmap.
+        destruct (σ !! k) as [ty | ] eqn:hk => //=.
+        f_equiv => w.
+        apply hi with k => //.
+        by apply hb in hk.
+      }
+      case: exact_.
+      + by apply interp_exact_tag_equivI.
+      + by apply interp_tag_equivI.
+    - move => s t hs ht Σthis Σ n /boundedI [hbs hbt] hlen w /=.
+      f_equiv.
+      + by apply hs.
+      + by apply ht.
+    - move => s t hs ht Σthis Σ n /boundedI [hbs hbt] hlen w /=.
+      f_equiv.
+      + by apply hs.
+      + by apply ht.
+    - rewrite /interp_generic => n _ Σ p /boundedI hb hge /=.
+      by rewrite lookup_take; last done.
+  Qed.
+
+  Lemma interp_type_take ty Σthis Σ n:
+    bounded n ty →
+    length Σ ≥ n →
+    interp_type ty Σthis (take n Σ) ≡ interp_type ty Σthis Σ.
+  Proof.
+    move => ?? w.
+    rewrite !interp_type_unfold_v.
+    by rewrite interp_type_pre_take.
+  Qed.
+
   Section Inclusion.
     Hypothesis Δ: list constraint.
     Hypothesis wfΣc: Forall wf_constraint Δ.

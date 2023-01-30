@@ -50,27 +50,27 @@ Section proofs.
     rigid ≥ length cdef.(generics) →
     cmd_eval C st (CallC lhs ThisE name args) st' n →
     let Σthis := interp_exact_tag interp_type t Σt in
-    ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
+    ⌜interp_list interp_nothing Σt σ ≡ take (length cdef.(generics)) Σ⌝ -∗
     □ interp_env_as_mixed Σt -∗
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σthis Σ Δ -∗
 
-    □ (▷ ∀ C cdef Δ kd rigid Γ cmd Γ',
-         ⌜wf_lty Γ⌝ →
-         ⌜bounded_lty rigid Γ⌝ →
-         ⌜Forall wf_constraint Δ⌝ →
-         ⌜Forall (bounded_constraint rigid) Δ⌝ →
-         ⌜pdefs !! C = Some cdef⌝ →
-         ∀ t tdef Σt σ,
-         ⌜pdefs !! t = Some tdef⌝ →
-         ⌜length Σt = length tdef.(generics)⌝ →
-         ⌜inherits_using t C σ⌝ →
-         ⌜cmd_has_ty C Δ kd rigid Γ cmd Γ'⌝ →
-         ∀ Σ st st' n,
-         ⌜length Σ = rigid⌝ →
-         ⌜rigid ≥ length cdef.(generics)⌝ →
-         ⌜cmd_eval C st cmd st' n⌝ →
-         ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
+    □ (▷ ∀ C cdef Δ kd rigid Γ cmd Γ'
+         (_: wf_lty Γ)
+         (_: bounded_lty rigid Γ)
+         (_: Forall wf_constraint Δ)
+         (_: Forall (bounded_constraint rigid) Δ)
+         (_: pdefs !! C = Some cdef)
+         t tdef Σt σ
+         (_: pdefs !! t = Some tdef)
+         (_: length Σt = length tdef.(generics))
+         (_: inherits_using t C σ)
+         (_: cmd_has_ty C Δ kd rigid Γ cmd Γ')
+         Σ st st' n
+         (_: length Σ = rigid)
+         (_: rigid ≥ length cdef.(generics))
+         (_: cmd_eval C st cmd st' n),
+         ⌜interp_list interp_nothing Σt σ ≡ take (length cdef.(generics)) Σ⌝ -∗
          □ interp_env_as_mixed Σt -∗
          □ interp_env_as_mixed Σ -∗
          □ Σinterp (interp_exact_tag interp_type t Σt) Σ Δ -∗
@@ -194,7 +194,9 @@ Section proofs.
     apply cmd_eval_subst in heval_body.
     rewrite expr_eval_subst in heval_ret.
     iModIntro; iNext.
-    assert (heq2: interp_list interp_nothing Σt σ ≡ interp_list interp_nothing Σt σ) by done.
+    assert (heq2: interp_list interp_nothing Σt σ ≡
+                  take (length cdef.(generics)) (interp_list interp_nothing Σt σ)).
+    { by rewrite heq take_idemp. }
     iAssert (□ interp_env_as_mixed (interp_list interp_nothing Σt σ))%I as "#hΣc".
     { iModIntro; iIntros (k phi hk w) "hw".
       apply list_lookup_fmap_inv in hk as [ty [-> hk]].
@@ -302,7 +304,11 @@ Section proofs.
           rewrite (map_args_lookup _ _ _ args vargs hmap v) ha /= in hvarg.
           move: (hty_args v _ _ hv ha) => haty.
           iDestruct (expr_soundness with "hΣthis hΣ hΣΔ Hle") as "he" => //.
-          by rewrite (interp_type_equivI _ _ _ heq).
+          rewrite (interp_type_equivI _ _ _ heq).
+          rewrite interp_type_take //.
+          apply wf_methods_bounded in hcdef.
+          apply hcdef in homdef0.
+          by apply homdef0 in hv.
     }
     iRevert "Hstep".
     iApply updN_mono_I.
@@ -310,6 +316,10 @@ Section proofs.
     iApply interp_local_tys_update; first by done.
     iDestruct ((expr_soundness ΔC _ Σthis (interp_list interp_nothing Σt σ)  _ _ Γ' run_env') with "hΣthis hΣc hΣΔc") as "hr" => //.
     rewrite (interp_type_equivI _ _ _ heq).
-    by iApply "hr".
+    rewrite interp_type_take //.
+    - by iApply "hr".
+    - apply wf_methods_bounded in hcdef.
+      apply hcdef in homdef0.
+      by apply homdef0.
   Qed.
 End proofs.

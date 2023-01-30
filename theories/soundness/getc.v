@@ -34,9 +34,10 @@ Section proofs.
     inherits_using t C σ →
     ∀ Σ st st' n,
     length Σ = rigid →
+    rigid ≥ length cdef.(generics) →
     cmd_eval C st (GetC lhs ThisE name) st' n →
     let Σthis := interp_exact_tag interp_type t Σt in
-    ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
+    ⌜interp_list interp_nothing Σt σ ≡ take (length cdef.(generics)) Σ⌝ -∗
     □ interp_as_mixed Σthis -∗
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σthis Σ Δ -∗
@@ -45,7 +46,7 @@ Section proofs.
   Proof.
     move => wfpdefs wflty hcdef hf.
     move => t tdef Σt σ htdef hlenΣt hin_t_C_σ.
-    move => Σ st st' n hrigid hc /=.
+    move => Σ st st' n hrigid hge hc /=.
     iIntros "%heq #hΣthis #hΣ #hΣΔ".
     elim/cmd_eval_getI: hc.
     move => {n}.
@@ -108,7 +109,14 @@ Section proofs.
         apply hcdef in hf.
         by rewrite hlen.
       }
-      assert (heq2: interp_list (interp_exact_tag interp_type t Σt) Σt σ ≡ Σ).
+      rewrite -(interp_type_take fty _ Σ); first last.
+      { exact hge. }
+      { destruct wfpdefs.
+        apply wf_fields_bounded in hcdef.
+        by apply hcdef in hf.
+      }
+      assert (heq2: interp_list (interp_exact_tag interp_type t Σt) Σt σ ≡
+                    take (length cdef.(generics)) Σ).
       { rewrite -heq.
         by apply interp_list_no_this.
       }

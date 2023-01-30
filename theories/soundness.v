@@ -14,7 +14,7 @@ From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp.
 From shack.soundness Require Import expr defs.
 From shack.soundness Require Import getc setc newc call priv_call sub.
-(* From shack.soundness Require Import rtc_tag rtc_prim. *)
+From shack.soundness Require Import rtc_tag rtc_prim.
 (* From shack.soundness Require Import dyn_getc dyn_setc dyn_call. *)
 
 Section proofs.
@@ -41,7 +41,7 @@ Section proofs.
     rigid ≥ length cdef.(generics) →
     cmd_eval C st cmd st' n →
     let Σthis := interp_exact_tag interp_type t Σt in
-    ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
+    ⌜interp_list interp_nothing Σt σ ≡ take (length cdef.(generics)) Σ⌝ -∗
     □ interp_env_as_mixed Σt -∗
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σthis Σ Δ -∗
@@ -64,11 +64,11 @@ Section proofs.
         Δ kd rigid Γ lhs recv exact_ t targs name orig mdef args hrecv hhasm hex hvis hdom hargs |
         Δ kd rigid _cdef Γ lhs name mdef args _hcdef hm hvis hdom hargs |
         Δ kd rigid Γ c Γ0 Γ1 hsub hb h |
-        (* Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hthn hi0 hels hi1 | *)
-        (* Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 | *)
-        (* Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 | *)
-        (* Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 | *)
-        (* Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 | *)
+        Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hthn hi0 hels hi1 |
+        Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
+        Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
+        Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
+        Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
         (* Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 | *)
         (* Δ kd rigid Γ lhs recv name he hnotthis | *)
         (* Δ kd rigid Γ recv fld rhs hrecv hrhs hnotthis | *)
@@ -112,7 +112,8 @@ Section proofs.
         iExists t0, Σt0, t0def; iSplit; first done.
         by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
       }
-      by iApply get_priv_soundness.
+      simplify_eq.
+      by iApply (get_priv_soundness C cdef).
     - iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
       { iModIntro; iIntros (w) "hw".
         iLeft; iRight; iRight.
@@ -120,8 +121,9 @@ Section proofs.
         by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
       }
       by iApply get_pub_soundness.
-    - by iApply set_priv_soundness.
-    - by iApply set_pub_soundness.
+    - simplify_eq.
+      by iApply (set_priv_soundness C).
+    - by iApply (set_pub_soundness C cdef).
     - iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
       { iModIntro; iIntros (w) "hw".
         iLeft; iRight; iRight.
@@ -129,43 +131,15 @@ Section proofs.
         by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
       }
       by iApply new_soundness.
-    - iApply ((call_soundness C cdef)) => //.
-      iModIntro; iNext.
-      (* Dunno why I have to do all that, helping iris. *)
-      iIntros (C0 cdef0 Δ0 kd0 rigid0 Γ0 cmd0 Γ'0).
-      iSpecialize ("IH" $! C0 cdef0 Δ0 kd0 rigid0 Γ0 cmd0 Γ'0).
-      iIntros (hwf0 hb0 hD0 hDb0 hcdef0).
-      iSpecialize ("IH" $! hwf0 hb0 hD0 hDb0 hcdef0).
-      iIntros (z zdef Σz σz hzdef hlenz hinz hc0).
-      iSpecialize ("IH" $! z zdef Σz σz hzdef hlenz hinz hc0).
-      iIntros (Σ0 st0 st0' n0 hl0 hg0 he0 heq0).
-      iSpecialize ("IH" $! Σ0 st0 st0' n0 hl0 hg0 he0 heq0).
-      by iApply "IH".
+    - by iApply ((call_soundness C cdef)).
     - simplify_eq.
-      iApply ((priv_call_soundness C cdef)) => //.
-      iModIntro; iNext.
-      (* Dunno why I have to do all that, helping iris. *)
-      iIntros (C0 cdef0 Δ0 kd0 rigid0 Γ0 cmd0 Γ'0).
-      iSpecialize ("IH" $! C0 cdef0 Δ0 kd0 rigid0 Γ0 cmd0 Γ'0).
-      iIntros (hwf0 hb0 hD0 hDb0 hcdef0).
-      iSpecialize ("IH" $! hwf0 hb0 hD0 hDb0 hcdef0).
-      iIntros (z zdef Σz σz hzdef hlenz hinz hc0).
-      iSpecialize ("IH" $! z zdef Σz σz hzdef hlenz hinz hc0).
-      iIntros (Σ0 st0 st0' n0 hl0 hg0 he0 heq0).
-      iSpecialize ("IH" $! Σ0 st0 st0' n0 hl0 hg0 he0 heq0).
-      by iApply "IH".
-    - iApply (sub_soundness C cdef) => //.
-      iModIntro.
-      iIntros (hwf0 hb0 hD0 hDb0 Σ0 st0 st0' n0).
-      iSpecialize ("IHty" $! hwf0 hb0 hD0 hDb0 Σ0 st0 st0' n0).
-      iIntros (hl0 hge0 hc0 heq0).
-      iSpecialize ("IHty" $! hl0 hge0 hc0 heq0).
-      by iApply "IHty".
-    (* - by iApply rtc_tag_soundness. *)
-    (* - by iApply rtc_prim_soundness => //. *)
-    (* - by iApply rtc_prim_soundness => //. *)
-    (* - by iApply rtc_prim_soundness => //. *)
-    (* - by iApply rtc_prim_soundness => //. *)
+      by iApply ((priv_call_soundness C cdef)).
+    - by iApply (sub_soundness C cdef).
+    - by iApply (rtc_tag_soundness C cdef).
+    - by iApply (rtc_prim_soundness C cdef) => //.
+    - by iApply (rtc_prim_soundness C cdef) => //.
+    - by iApply (rtc_prim_soundness C cdef) => //.
+    - by iApply (rtc_prim_soundness C cdef) => //.
     (* - (1* Dynamic ifC *1) *)
     (*   inv hc. *)
     (*   + iIntros "H". by iApply "IHty". *)
@@ -199,7 +173,7 @@ Section proofs.
     length Σ ≥ length cdef.(generics) →
     cmd_eval C st cmd st' n →
     let Σthis := interp_exact_tag interp_type t Σt in
-    ⌜interp_list interp_nothing Σt σ ≡ Σ⌝ -∗
+    ⌜interp_list interp_nothing Σt σ ≡ take (length cdef.(generics)) Σ⌝ -∗
     □ interp_env_as_mixed Σt -∗
     □ interp_env_as_mixed Σ -∗
     □ Σinterp Σthis Σ Δ -∗
