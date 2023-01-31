@@ -372,7 +372,6 @@ Section proofs.
     iIntros "[Hmodels Hle2]"; iFrame.
     iApply interp_local_tys_update; first by done.
     rewrite /to_dyn in hret.
-    Check expr_soundness.
     iDestruct (expr_soundness ΔC _ Σthis1 (interp_list interp_nothing Σt σ0)
       _ _ rty with "hΣthis1 hmixed0 hΣt_") as "hh" => //.
     rewrite !interp_dynamic_unfold.

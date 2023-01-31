@@ -154,7 +154,6 @@ Section Typing.
         cmd_has_ty C Δ kd rigid Γ1 thn Γ2 →
         cmd_has_ty C Δ kd rigid Γ1 els Γ2 →
         cmd_has_ty C Δ kd rigid Γ1 (IfC cond thn els) Γ2
-    (* TODO: We need a case for `this` too *)
     | GetPrivTy: ∀ Δ kd rigid cdef Γ lhs name fty,
         pdefs !! C = Some cdef →
         cdef.(classfields) !! name = Some (Private, fty) →
@@ -164,6 +163,12 @@ Section Typing.
         has_field name t Public fty orig →
         (is_true exact_ ∨ no_this fty) →
         cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := subst_fty exact_ t σ fty]>Γ)
+    | GetThisTy: ∀ Δ kd rigid cdef Γ lhs recv name fty orig,
+        expr_has_ty Δ Γ rigid kd recv ThisT →
+        pdefs !! C = Some cdef →
+        (cdef.(classfields) !! name = Some (Private, fty) ∨
+         has_field name C Public fty orig) →
+        cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := fty]>Γ)
     | SetPrivTy: ∀ Δ kd rigid cdef Γ fld rhs fty,
         pdefs !! C = Some cdef →
         cdef.(classfields) !! fld = Some (Private, fty) →
@@ -303,7 +308,10 @@ Section Typing.
   Proof.
     move => hp hfields hmethods hΔ hwf.
     induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
-      ???????? he h1 hi1 h2 hi2 | ???????? hcdef hf | ???????????? he hf hex |
+      ???????? he h1 hi1 h2 hi2 |
+      ???????? hcdef hf |
+      ???????????? he hf hex |
+      ?????????? hrecv hcdef hf |
       ???????? hcdef hf hr | ???????????? he hf hex hr |
       ?????????? _ ht hb hok hf hdom hargs |
       ????????????? he hm hex hvis hdom hargs |
@@ -335,6 +343,10 @@ Section Typing.
         by rewrite length_gen_targs.
       }
       by apply has_field_wf in hf.
+    - apply insert_wf_lty => //.
+      case: hf => hf.
+      + apply hfields in hcdef; by apply hcdef in hf.
+      + by apply has_field_wf in hf.
     - by apply map_Forall_insert_2.
     - apply map_Forall_insert_2 => //.
       apply expr_has_ty_wf in he => //.
@@ -376,7 +388,10 @@ Section Typing.
   Proof.
     move => hp ?? hfields hmethods hΔ hwf hcdef hge hb.
     induction 1 as [ | | ???????? h1 hi1 h2 hi2 | ??????? he |
-      ???????? he h1 hi1 h2 hi2 | ????????? hf | ???????????? he hf hex |
+      ???????? he h1 hi1 h2 hi2 |
+      ????????? hf |
+      ???????????? he hf hex |
+      ?????????? hrecv ? hf |
       ???????? _ hf hr | ???????????? he hf hex hr |
       ?????????? _ ht htb hok hf hdom hargs |
       ????????????? he hm hex hvis hdom hargs |
@@ -418,6 +433,15 @@ Section Typing.
         by simplify_eq.
       + apply expr_has_ty_bounded in he => //.
         by apply boundedI in he.
+    - simplify_eq.
+      apply insert_bounded_lty => //.
+      case: hf => hf.
+      + apply hfields in hcdef.
+        apply hcdef in hf.
+        by eapply bounded_ge.
+      + apply has_field_bounded in hf => //.
+        destruct hf as (? & ? & hf); simplify_eq.
+        by eapply bounded_ge.
     - by apply insert_bounded_lty.
     - apply map_Forall_insert_2 => //.
       apply has_method_from_def in hm => //.
