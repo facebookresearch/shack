@@ -703,6 +703,19 @@ Section proofs.
     (∀ i c, ⌜Δ !! i = Some c⌝ →
     ∀ v, interp_type c.1 Σthis Σ v -∗ interp_type c.2 Σthis Σ v)%I.
 
+  Lemma Σinterp_cons Σthis Σ c Δ:
+    interp_inclusion (interp_type c.1 Σthis Σ) (interp_type c.2 Σthis Σ) -∗
+    Σinterp Σthis Σ Δ -∗
+    Σinterp Σthis Σ (c :: Δ).
+  Proof.
+    iIntros "hc hΔ".
+    iIntros (i c0 hc0 v) "#h".
+    destruct i as [ | i].
+    - case: hc0 => <- {c0}.
+      by iApply "hc".
+    - by iApply "hΔ".
+  Qed.
+
   Lemma Σinterp_app Σthis Σ Δ0 Δ1:
     Σinterp Σthis Σ Δ0 -∗ Σinterp Σthis Σ Δ1 -∗ Σinterp Σthis Σ (Δ0 ++ Δ1).
   Proof.
@@ -1194,6 +1207,21 @@ Section proofs.
     f_equiv; last by apply hi.
     move => v.
     by apply interp_type_no_this.
+  Qed.
+
+  Lemma Σinterp_no_this (Σ0 Σ1: interp Θ) Σ Δ:
+    Forall no_this_constraint Δ →
+    Σinterp Σ0 Σ Δ -∗
+    Σinterp Σ1 Σ Δ.
+  Proof.
+    move => /Forall_lookup hno.
+    iIntros "h0".
+    iIntros (k c hc w) "hw".
+    assert (hc0 := hc).
+    apply hno in hc0 as [].
+    rewrite (interp_type_no_this _ _ _ Σ1 Σ0); last done.
+    rewrite (interp_type_no_this _ _ _ Σ1 Σ0); last done.
+    by iApply "h0".
   Qed.
 
   Lemma interp_type_subst_this t tdef Σthis Σ ty v:

@@ -377,48 +377,48 @@ Section proofs.
     by rewrite (interp_type_equivI _ _ _ heq_).
   Qed.
 
-  (*
   (* This is dynamic related. Once a [| dynamic |] is open,
    * we want to use facts about the Σt and Σdyn to show that
    * Σt models the SDT constraints of the runtime type.
    *)
   (* Show that Σt |= Δt ∧ Δsdt^t *)
-  Lemma Σt_models_sdt t A tdef adef σ (Σt ΣA: list (interp Θ)):
+  Lemma Σt_models_sdt t A tdef adef σ Σthis  (Σt ΣA: list (interp Θ)):
     wf_cdefs pdefs →
     pdefs !! t = Some tdef →
     pdefs !! A = Some adef →
     length Σt = length tdef.(generics) →
     length ΣA = length adef.(generics) →
     inherits_using t A σ →
-    □iForall3 interp_variance adef.(generics) (interp_list Σt σ) ΣA -∗
+    □ interp_as_mixed Σthis -∗
+    □iForall3 interp_variance adef.(generics) (interp_list Σthis Σt σ) ΣA -∗
     □ interp_env_as_mixed ΣA -∗
-    □ Σinterp ΣA adef.(constraints) -∗
-    □ Σinterp ΣA (Δsdt A) -∗
+    □ Σinterp Σthis ΣA adef.(constraints) -∗
+    □ Σinterp Σthis ΣA (Δsdt A) -∗
     □ interp_env_as_mixed Σt -∗
-    □ Σinterp Σt tdef.(constraints) -∗
-    □ Σinterp Σt (Δsdt t).
+    □ Σinterp Σthis Σt tdef.(constraints) -∗
+    □ Σinterp Σthis Σt (Δsdt t).
   Proof.
     move => wfpdefs htdef hadef hlt htA hin.
-    iIntros "#hF #hmA #hΣΔA #hΣΔsdtA #hmt #ΣΔt".
+    iIntros "#hΣthis #hF #hmA #hΣΔA #hΣΔsdtA #hmt #ΣΔt".
     assert (hh: Forall wf_ty σ ∧ length adef.(generics) = length σ).
     { apply inherits_using_wf in hin; try (by apply wfpdefs).
-      destruct hin as (?&?&?&hh).
+      destruct hin as (?&?&?&hh&?).
       split; first by apply wf_ty_classI in hh.
       apply wf_tyI in hh as (? & ? & ? & ?); by simplify_eq.
     }
     destruct hh as [hwfσ hl].
     assert (hwfc: Forall wf_constraint tdef.(constraints)) by by apply wf_constraints_wf in htdef.
     pose (Δsdt_A := subst_constraints σ (Δsdt A)).
-    iAssert (□ Σinterp Σt Δsdt_A)%I as "#hΣt_sdt_A".
-    { iAssert (interp_env_as_mixed (interp_list Σt σ)) as "hmixed0".
+    iAssert (□ Σinterp Σthis Σt Δsdt_A)%I as "#hΣt_sdt_A".
+    { iAssert (interp_env_as_mixed (interp_list Σthis Σt σ)) as "hmixed0".
       { iIntros (k phi hk w) "hphi".
         apply list_lookup_fmap_inv in hk as [ty0 [-> hty0]].
-        rewrite -(interp_type_unfold Σt MixedT w).
-        iApply (submixed_is_inclusion_aux Σt ty0 w) => //.
+        rewrite -(interp_type_unfold _ Σt MixedT w).
+        iApply (submixed_is_inclusion_aux _ Σt ty0 w) => //.
         rewrite Forall_lookup in hwfσ.
         by apply hwfσ in hty0.
       }
-      iAssert (□ Σinterp (interp_list Σt σ) adef.(constraints))%I as "#hΣ0".
+      iAssert (□ Σinterp Σthis (interp_list Σthis Σt σ) adef.(constraints))%I as "#hΣ0".
       { iModIntro.
         apply inherits_using_ok in hin => //; try by apply wfpdefs.
         destruct hin as (? & ? & hok); simplify_eq.
@@ -451,11 +451,12 @@ Section proofs.
       destruct hbc as [].
       rewrite !interp_type_subst //.
       destruct wfpdefs.
-      by iApply ((Δsdt_variance_interp _ _ _ _
-      wf_mono wf_parent wf_constraints_bounded wf_constraints_wf hadef)
-      with "hmixed0 hmA hF hΣ0 hΣΔA hΣΔsdtA").
+      by iApply ((Δsdt_variance_interp _ _ _ _ _
+        wf_mono wf_parent wf_constraints_no_this wf_constraints_bounded
+        wf_constraints_wf wf_fields_wf hadef)
+      with "hΣthis hmixed0 hmA hF hΣ0 hΣΔA hΣΔsdtA").
     }
-    iAssert (□ Σinterp Σt (constraints tdef ++ Δsdt_A))%I as "#hconstr_".
+    iAssert (□ Σinterp Σthis Σt (constraints tdef ++ Δsdt_A))%I as "#hconstr_".
     { iModIntro.
       by iApply Σinterp_app.
     }
@@ -483,7 +484,6 @@ Section proofs.
     { rewrite Forall_lookup in hwfΔ0.
       by apply hwfΔ0 in hc as [].
     }
-    iApply (subtype_is_inclusion with "hmt hconstr_ h") => //; by apply wfpdefs.
+    iApply (subtype_is_inclusion with "hΣthis hmt hconstr_ h") => //; by apply wfpdefs.
   Qed.
-  *)
 End proofs.

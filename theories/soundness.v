@@ -15,7 +15,7 @@ From shack Require Import eval heap modality interp.
 From shack.soundness Require Import expr defs.
 From shack.soundness Require Import getc setc newc call priv_call sub.
 From shack.soundness Require Import rtc_tag rtc_prim.
-(* From shack.soundness Require Import dyn_getc dyn_setc dyn_call. *)
+From shack.soundness Require Import dyn_getc dyn_setc dyn_call.
 
 Section proofs.
   (* assume a given set of class definitions and their SDT annotations. *)
@@ -69,10 +69,10 @@ Section proofs.
         Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
         Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
         Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
-        (* Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 | *)
-        (* Δ kd rigid Γ lhs recv name he hnotthis | *)
-        (* Δ kd rigid Γ recv fld rhs hrecv hrhs hnotthis | *)
-        (* Δ kd rigid Γ lhs recv name args hrecv hi hnotthis | *)
+        Δ kd rigid Γ1 Γ2 cond thn els hcond hthn hi1 hels hi2 |
+        Δ kd rigid Γ lhs recv name he hnotthis |
+        Δ kd rigid Γ recv fld rhs hrecv hrhs hnotthis |
+        Δ kd rigid Γ lhs recv name args hrecv hi hnotthis |
         Δ kd rigid Γ0 cmd Γ1 hwf hb hsub
       ] "IHty"; iIntros (Σ st st' n hrigid hge hc) "%hΣeq #hΣt0 #hΣ #hΣΔ".
     - (* Skip *)
@@ -140,13 +140,25 @@ Section proofs.
     - by iApply (rtc_prim_soundness C cdef) => //.
     - by iApply (rtc_prim_soundness C cdef) => //.
     - by iApply (rtc_prim_soundness C cdef) => //.
-    (* - (1* Dynamic ifC *1) *)
-    (*   inv hc. *)
-    (*   + iIntros "H". by iApply "IHty". *)
-    (*   + iIntros "H". by iApply "IHty1". *)
-    (* - by iApply dyn_get_soundness. *)
-    (* - by iApply (dyn_set_soundness _ _ _ _ _ recv). *)
-    (* - by iApply dyn_call_soundness. *)
+    - (* Dynamic ifC *)
+      inv hc.
+      + iIntros "H". by iApply "IHty".
+      + iIntros "H". by iApply "IHty1".
+    - iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
+      { iModIntro; iIntros (w) "hw".
+        iLeft; iRight; iRight.
+        iExists t0, Σt0, t0def; iSplit; first done.
+        by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
+      }
+      by iApply (dyn_get_soundness C).
+    - iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
+      { iModIntro; iIntros (w) "hw".
+        iLeft; iRight; iRight.
+        iExists t0, Σt0, t0def; iSplit; first done.
+        by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
+      }
+      by iApply (dyn_set_soundness _ _ _ _ _ recv).
+    - by iApply (dyn_call_soundness C).
     - destruct wfpdefs.
       iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
       { iModIntro; iIntros (w) "hw".

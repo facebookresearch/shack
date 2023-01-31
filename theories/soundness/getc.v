@@ -21,8 +21,6 @@ Section proofs.
   (* Iris semantic context *)
   Context `{!sem_heapGS Θ}.
 
-  Notation "X ≡≡ Y" := (∀ (w: value), X w ∗-∗ Y w)%I (at level 50, no associativity).
-
   Lemma get_priv_soundness C cdef Δ rigid Γ lhs name fty:
     wf_cdefs pdefs →
     wf_lty Γ →

@@ -254,7 +254,6 @@ Section Typing.
         cmd_has_ty C Δ kd rigid (<[v:=InterT tv NonNullT]> Γ0) thn Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 els Γ1 →
         cmd_has_ty C Δ kd rigid Γ0 (RuntimeCheckC v RCNonNull thn els) Γ1
-        (*
     (* Dynamic related typing rules *)
     | DynIfTy: ∀ Δ kd rigid Γ1 Γ2 cond thn els,
         expr_has_ty Δ Γ1 rigid kd cond DynamicT →
@@ -286,7 +285,6 @@ Section Typing.
          | _ => True
          end) →
         cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := DynamicT]>Γ)
-   *)
     | FalseCmdTy: ∀ Δ kd rigid Γ0 cmd Γ1,
         wf_lty Γ1 →
         bounded_lty rigid Γ1 →
@@ -316,16 +314,12 @@ Section Typing.
       ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 helse hi1 |
-          (*
       ???????? hcond hthn hi1 hels hi2 |
       ??????? he hnotthis |
       ??????? hrecv hrhs hnotthis |
-      ???????? he hargs hnotthis | *)
+      ???????? he hargs hnotthis | 
       ?????????
       ] => //=; try (by eauto).
-    (* - apply hi2 => //. *)
-    (*   + by apply hi1. *)
-    (*   + by apply hi1. *)
     - apply insert_wf_lty => //.
       by apply expr_has_ty_wf in he.
     - apply insert_wf_lty => //.
@@ -362,8 +356,8 @@ Section Typing.
       destruct hty as [ty' [ hty' hsub']].
       apply hwf in hty'.
       by eapply subtype_wf.
-    (* - by apply insert_wf_lty. *)
-    (* - by apply insert_wf_lty. *)
+    - by apply insert_wf_lty.
+    - by apply insert_wf_lty.
   Qed.
 
   Lemma cmd_has_ty_bounded C cdef Δ kd rigid Γ0 cmd Γ1:
@@ -393,11 +387,10 @@ Section Typing.
       ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 |
       ????????? hin hthn hi0 helse hi1 |
-    (*
       ???????? hcond hthn hi1 hels hi2 |
       ??????? he hnotthis |
       ??????? hrecv hrhs hnotthis |
-      ???????? he hargs hnotthis |*)
+      ???????? he hargs hnotthis |
       ?????????
       ] => //=; try (by eauto).
     - apply hi2 => //.
@@ -457,8 +450,8 @@ Section Typing.
       apply hcdef in hm.
       eapply bounded_ge; first by apply hm.
       done.
-    (* - by apply insert_bounded_lty. *)
-    (* - by apply insert_bounded_lty. *)
+    - by apply insert_bounded_lty.
+    - by apply insert_bounded_lty.
   Qed.
 
   (* Consider a class C<T0, ..., Tn>,
