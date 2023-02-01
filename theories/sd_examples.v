@@ -225,6 +225,52 @@ Proof.
     }
     rewrite list_lookup_singleton_Some => [[<- <-]].
     by repeat constructor.
+  - rewrite /Δsdt /= /SDT => A k c.
+    destruct (A =? "Box")%string.
+    { rewrite /BoxSDT.
+      case : k => [ | [ | k]] /=.
+      - case => <-; by repeat constructor.
+      - case => <-; by repeat constructor.
+      - by rewrite lookup_nil.
+    }
+    destruct (A =? "ROBox")%string.
+    { rewrite /ROBoxSDT.
+      rewrite list_lookup_singleton.
+      case : k => [ | k] //=.
+      case => <-; by repeat constructor.
+    }
+    rewrite list_lookup_singleton.
+    case : k => [ | k] //=.
+    case => <-; by repeat constructor.
+  - rewrite /Δsdt_m /= /SDT_M => A m k c.
+    destruct (A =? "Box")%string eqn:h0 => /=.
+    { destruct (m =? "get")%string => /=.
+      { case : k => [ | k] /=.
+        - case => <-; by repeat constructor.
+        - by rewrite lookup_nil.
+      }
+      destruct (m =? "set")%string => /=.
+      { case : k => [ | k] /=.
+        - case => <-; by repeat constructor.
+        - by rewrite lookup_nil.
+      }
+      destruct (A =? "ROBox")%string => //=.
+      - rewrite list_lookup_singleton.
+        case : k => [ | k] //=.
+        case => <-; by repeat constructor.
+      - rewrite list_lookup_singleton.
+        case : k => [ | k] //=.
+        case => <-; by repeat constructor.
+    }
+    destruct (A =? "ROBox")%string eqn:h1 => /=.
+    { destruct (m =? "set")%string => /=.
+      { by case : k => [ | k]. }
+      rewrite list_lookup_singleton.
+      case : k => [ | k] //=.
+      case => <-; by repeat constructor.
+    }
+    rewrite list_lookup_singleton_Some => [[? <-]].
+    by repeat constructor.
 Qed.
 
 Local Instance SDTCVS : SDTClassVarianceSpec.
@@ -440,26 +486,17 @@ Proof.
     rewrite lookup_singleton_Some in hm.
     case : hm => <- <-.
     rewrite /ROBox /= /ROBoxSet /SDT_M /= /ROBoxSetSDT /wf_mdef_dyn_ty /=.
-    pose (Γ := {|
-        type_of_this := ("ROBox", gen_targs 1);
-        ctxt := to_dyn <$> {["$y" := MixedT]};
-      |}
-      ).
+    pose (Γ := (to_dyn <$> {["$y" := MixedT]} : local_tys)).
     assert (wf_lty Γ).
-    { split => //.
-      - rewrite /this_type /=.
-        econstructor => //.
-        by apply gen_targs_wf_2.
-      - rewrite /Γ /=.
-        apply map_Forall_lookup => i ty.
-        rewrite lookup_fmap fmap_Some => [[ty0]].
-        rewrite lookup_singleton_Some.
-        by case => [[? <-]] ->.
+    { rewrite /Γ /=.
+      apply map_Forall_lookup => i ty.
+      rewrite lookup_fmap fmap_Some => [[ty0]].
+      rewrite lookup_singleton_Some.
+      by case => [[? <-]] ->.
     }
     exists Γ; split; first done.
     split.
     - constructor => //.
-      constructor; first by repeat constructor.
       apply map_Forall_lookup => i ty.
       rewrite lookup_fmap fmap_Some => [[ty0]].
       rewrite lookup_singleton_Some.
@@ -475,35 +512,25 @@ Proof.
     rewrite lookup_insert_Some in hm.
     case : hm => [[<- <-] | ].
     - rewrite /wf_mdef_dyn_ty.
-      pose (Γ := {|
-        type_of_this := ("Box", gen_targs 1);
-        ctxt := to_dyn <$> {[ "$y" := GenT 0 ]};
-      |}
-      ).
+      pose (Γ := (to_dyn <$> {[ "$y" := GenT 0 ]} : local_tys)).
       assert (wf_lty Γ).
-      { split => //.
-        - rewrite /this_type /=.
-          econstructor => //.
-          by apply gen_targs_wf_2.
-        - rewrite /Γ /=.
-          apply map_Forall_lookup => i ty.
-          rewrite lookup_fmap fmap_Some => [[ty0]].
-          rewrite lookup_singleton_Some.
-          by case => [[? <-]] ->.
+      { rewrite /Γ /=.
+        apply map_Forall_lookup => i ty.
+        rewrite lookup_fmap fmap_Some => [[ty0]].
+        rewrite lookup_singleton_Some.
+        by case => [[? <-]] ->.
       }
       exists Γ; split; first done.
       rewrite /BoxSet /= /SDT_M /= /BoxSetSDT /=.
       split.
       + eapply SetPrivTy => //.
-        * change Private with (Private, GenT 0).1.
-          by econstructor.
-        * apply ESubTy with DynamicT => //=.
-          { by constructor. }
-          { constructor. by lia. }
-          { by constructor. }
-          { apply SubConstraint.
-            by set_solver.
-          }
+        apply ESubTy with DynamicT => //=.
+        { by constructor. }
+        { constructor. by lia. }
+        { by constructor. }
+        { apply SubConstraint.
+          by set_solver.
+        }
       + apply ESubTy with NullT => //=.
         * by constructor.
         * by constructor.
@@ -511,31 +538,21 @@ Proof.
     - case => ?.
       rewrite lookup_singleton_Some => [[<- <-]].
       rewrite /wf_mdef_dyn_ty.
-      pose (Γ := {|
-        type_of_this := ("Box", gen_targs 1);
-        ctxt := {[ "$ret" := GenT 0 ]};
-      |}
-      ).
+      pose (Γ := ({[ "$ret" := GenT 0 ]}: local_tys)).
       assert (wf_lty Γ).
-      { split => //.
-        - rewrite /this_type /=.
-          econstructor => //.
-          by apply gen_targs_wf_2.
-        - rewrite /Γ /=.
-          by apply map_Forall_singleton.
+      { rewrite /Γ /=.
+        by apply map_Forall_singleton.
       }
-      pose (Γ0 := {| type_of_this := ("Box", gen_targs 1); ctxt := to_dyn <$> ∅ |}).
+      pose (Γ0 := (to_dyn <$> ∅ : local_tys)).
       exists Γ; split; first done.
       rewrite /Get /= /SDT_M /= /BoxGetSDT /=.
       split.
       + replace Γ with (<[ "$ret" := subst_ty (gen_targs 1) (GenT 0)]> Γ0) ; last first.
-        { rewrite /Γ0 /Γ /= /local_tys_insert /=.
+        { rewrite /Γ0 /Γ /=.
           f_equal.
           by rewrite fmap_empty insert_empty.
         }
-        eapply GetPrivTy => //.
-        change Private with (Private, GenT 0).1.
-        by econstructor.
+        by eapply GetPrivTy.
       + apply ESubTy with (GenT 0) => //=.
         * by constructor.
         * by constructor.
@@ -829,23 +846,14 @@ Proof.
     rewrite lookup_singleton_Some in hm.
     case : hm => ? <-.
     rewrite /ROBox /= /ROBoxSet /wf_mdef_dyn_ty /=.
-    pose (Γ := {|
-        type_of_this := ("ROBox", gen_targs 1);
-        ctxt := {["$y" := MixedT]};
-      |}
-      ).
+    pose (Γ := ({["$y" := MixedT]}: local_tys)).
     assert (wf_lty Γ).
-    { split => //.
-      - rewrite /this_type /=.
-        econstructor => //.
-        by apply gen_targs_wf_2.
-      - rewrite /Γ /=.
-        by apply map_Forall_singleton.
+    { rewrite /Γ /=.
+      by apply map_Forall_singleton.
     }
     exists Γ; split; first done.
     split.
     - constructor => //.
-      constructor; first by repeat constructor.
       by apply map_Forall_singleton.
     - by constructor.
   }
@@ -855,54 +863,35 @@ Proof.
     rewrite lookup_insert_Some in hm.
     case : hm => [[? <-] | ].
     - rewrite /wf_mdef_dyn_ty.
-      pose (Γ := {|
-        type_of_this := ("Box", gen_targs 1);
-        ctxt := {[ "$y" := GenT 0 ]};
-      |}
-      ).
+      pose (Γ := ({[ "$y" := GenT 0 ]}: local_tys)).
       assert (wf_lty Γ).
-      { split => //.
-        - rewrite /this_type /=.
-          econstructor => //.
-          by apply gen_targs_wf_2.
-        - rewrite /Γ /=.
-          by apply map_Forall_singleton.
+      { rewrite /Γ /=.
+        by apply map_Forall_singleton.
       }
       exists Γ; split; first done.
       rewrite /BoxSet /= /BoxSetSDT /=.
       split.
       + eapply SetPrivTy => //.
-        * change Private with (Private, GenT 0).1.
-          by econstructor.
-        * by constructor.
+        change Private with (Private, GenT 0).1.
+        by econstructor.
       + by constructor.
     - case => ?.
       rewrite lookup_singleton_Some => [[? <-]].
       rewrite /wf_mdef_dyn_ty.
-      pose (Γ := {|
-        type_of_this := ("Box", gen_targs 1);
-        ctxt := {[ "$ret" := GenT 0 ]};
-      |}
-      ).
+      pose (Γ := ({[ "$ret" := GenT 0 ]} : local_tys)).
       assert (wf_lty Γ).
-      { split => //.
-        - rewrite /this_type /=.
-          econstructor => //.
-          by apply gen_targs_wf_2.
-        - rewrite /Γ /=.
-          by apply map_Forall_singleton.
+      { rewrite /Γ /=.
+        by apply map_Forall_singleton.
       }
-      pose (Γ0 := {| type_of_this := ("Box", gen_targs 1); ctxt := ∅ |}).
+      pose (Γ0 := (∅ : local_tys)).
       exists Γ; split; first done.
       rewrite /Get /= /BoxGetSDT /=.
       split.
       + replace Γ with (<[ "$ret" := subst_ty (gen_targs 1) (GenT 0)]> Γ0) ; last first.
-        { rewrite /Γ0 /Γ /= /local_tys_insert /=.
+        { rewrite /Γ0 /Γ /=.
           by f_equal.
         }
-        eapply GetPrivTy => //.
-        change Private with (Private, GenT 0).1.
-        by econstructor.
+        by eapply GetPrivTy.
       + by constructor.
   }
 Qed.
@@ -1007,6 +996,21 @@ Proof.
     by constructor.
 Qed.
 
+Lemma wf_constraints_no_this:
+  map_Forall (λ _ : string, wf_cdef_constraints_no_this) pdefs.
+Proof.
+  rewrite map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-]|[?]].
+  {  rewrite /wf_cdef_constraints_no_this /ROBox /=.
+    by constructor.
+  }
+  rewrite lookup_singleton_Some => [[? <-]].
+  { rewrite /wf_cdef_constraints_no_this /Box /=.
+    by constructor.
+  }
+Qed.
+
 Lemma wf: wf_cdefs pdefs.
 Proof.
   split.
@@ -1015,6 +1019,7 @@ Proof.
   by apply wf_constraints_wf.
   by apply wf_constraints_ok.
   by apply wf_constraints_bounded.
+  by apply wf_constraints_no_this.
   by apply wf_override.
   by apply wf_fields.
   by apply wf_fields_bounded.

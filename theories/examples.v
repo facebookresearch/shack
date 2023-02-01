@@ -1112,23 +1112,12 @@ Proof.
       eexists.
       split; first last.
       { split ; last by constructor.
-        eapply SetPubTy.
-        - eapply ESubTy; last first.
-          + apply SubConstraint.
-            by apply elem_of_list_singleton.
-          + econstructor.
-            * move => i ty /lookup_gen_targs ->.
-              by constructor.
-            * done.
-            * by rewrite /Box => /= i c.
-          + by repeat constructor.
-          + econstructor => //.
-            by constructor.
-          + by constructor.
-        - simpl.
+        eapply SetThisTy.
+        - by constructor.
+        - done.
+        - simpl; right.
           change Public with (Public, GenT 0).1.
           by eapply HasField.
-        - by constructor.
         - by constructor.
       }
       rewrite /wf_lty map_Forall_lookup => k t /=.
@@ -1140,22 +1129,11 @@ Proof.
       rewrite /wf_mdef_ty /Get /=.
       eexists; split; first last.
       { split.
-        - eapply GetPubTy.
-          + eapply ESubTy; last first.
-            * apply SubConstraint.
-              by apply elem_of_list_singleton.
-            * econstructor.
-              { move => i ty /lookup_gen_targs ->.
-                by constructor. }
-              { done. }
-              { by rewrite /Box => /= i c. }
-            * by repeat constructor.
-            * econstructor => //.
-              by constructor.
-            * by constructor.
-          + change Public with (Public, GenT 0).1.
-            by eapply HasField.
+        - eapply GetThisTy.
           + by constructor.
+          + done.
+          + right; change Public with (Public, GenT 0).1.
+            by eapply HasField.
         - by constructor.
       }
       rewrite /wf_lty map_Forall_lookup => k t /=.
@@ -1171,23 +1149,12 @@ Proof.
     split; first last.
     - split; last by constructor.
       rewrite /IntBoxSSet /=.
-      eapply SetPubTy.
-      + eapply ESubTy; last first.
-        * apply SubConstraint.
-          by apply elem_of_list_singleton.
-        * econstructor.
-          -- move => i ty /lookup_gen_targs ->.
-              by constructor.
-          -- done.
-          -- by rewrite /Box => /= i c.
-        * by repeat constructor.
-        * econstructor => //.
-          by constructor.
-        * by constructor.
-      + eapply InheritsField => //.
+      eapply SetThisTy.
+      + by constructor.
+      + done.
+      + right; eapply InheritsField => //.
         change Public with (Public, GenT 0).1.
         by eapply HasField.
-      + by right.
       + constructor => //.
         * constructor.
           by rewrite /= lookup_insert.

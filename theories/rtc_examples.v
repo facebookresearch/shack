@@ -121,6 +121,8 @@ Proof.
   - move => ????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
   - move => ?????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
   - move => ??????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+  - move => ???; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
+  - move => ????; rewrite list_lookup_singleton_Some => [[? <-]]; by constructor.
 Qed.
 
 Local Instance SDTCVS : SDTClassVarianceSpec.
@@ -167,23 +169,17 @@ Proof.
   - by rewrite lookup_empty in h.
 Qed.
 
-Lemma wf_mdef_ty_f: wf_mdef_ty "Test" [] 0 (gen_targs 0) F.
+Lemma wf_mdef_ty_f: wf_mdef_ty "Test" [(ThisT, ClassT false "Test" [])] 0 F.
 Proof.
   rewrite /wf_mdef_ty.
-  exists {| type_of_this := ("Test", gen_targs 0);
-    ctxt := <["$v" := ClassT true "V" [IntT]]> F.(methodargs); |}.
+  exists (<["$v" := ClassT true "V" [IntT]]> F.(methodargs)).
   split.
-  { split.
-    - rewrite /this_type /=.
-      apply wf_ty_exact with true.
-      eapply WfClass => //.
-      by apply gen_targs_wf_2.
-    - rewrite /=.
-      rewrite map_Forall_insert; last done.
-      split.
-      + eapply WfClass => //.
-        by constructor.
-      + by apply map_Forall_singleton.
+  {rewrite /= /wf_lty.
+    rewrite map_Forall_insert; last done.
+    split.
+    + eapply WfClass => //.
+      by constructor.
+    + by apply map_Forall_singleton.
   }
   split.
   { rewrite /F /= /f.
@@ -205,9 +201,7 @@ Proof.
       + done.
       + rewrite /=.
         eapply SeqTy.
-        { eapply GetPubTy with (t := "C") (σ := [GenT 0]); last first.
-          - change Public with (Public, GenT 0).1.
-            by eapply HasField.
+        { eapply GetPubTy with (t := "C") (σ := [GenT 0]) (fty := GenT 0).
           - eapply ESubTy.
             + by constructor.
             + econstructor => //.
@@ -227,6 +221,9 @@ Proof.
                 apply SubConstraint.
                 by set_solver.
             + by econstructor.
+          - change Public with (Public, GenT 0).1.
+            by eapply HasField.
+          - by right.
         }
         eapply SubTy; last first.
         * eapply CallPubTy.
@@ -234,6 +231,7 @@ Proof.
             by rewrite /= lookup_insert_ne.
           }
           { by econstructor. }
+          { by left. }
           { done. }
           { by set_solver. }
           { move => k ty arg hk0 hk1.
@@ -243,7 +241,8 @@ Proof.
             eapply ESubTy.
             - by constructor.
             - apply wf_ty_subst => //.
-              by apply Forall_singleton.
+              + by apply Forall_singleton.
+              + by constructor.
             - eapply bounded_subst => //; last by apply Forall_singleton.
               constructor; simpl.
               by lia.
@@ -252,21 +251,14 @@ Proof.
               apply SubConstraint.
               by set_solver.
           }
-        * split.
-          { rewrite /this_type /=.
-            constructor.
-            by apply Forall_nil.
-          }
-          rewrite /= map_Forall_insert; last done.
+        * rewrite /bounded_lty /= map_Forall_insert; last done.
           split.
           { constructor.
             by apply Forall_singleton.
           }
           apply map_Forall_singleton.
           by constructor.
-        * split => /=.
-          { by rewrite /local_tys_insert /= /this_type /=. }
-          move => k ty h.
+        * move => k ty h.
           apply lookup_insert_Some in h as [[<- <-] | [? h]].
           { by eexists. }
           apply lookup_singleton_Some in h as [<- <-].

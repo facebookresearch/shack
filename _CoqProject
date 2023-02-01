@@ -28,5 +28,5 @@ theories/soundness/dyn_getc.v
 theories/soundness/dyn_setc.v
 theories/soundness.v
 theories/examples.v
-# theories/sd_examples.v
-# theories/rtc_examples.v
+theories/sd_examples.v
+theories/rtc_examples.v
