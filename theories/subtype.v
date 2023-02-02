@@ -45,6 +45,11 @@ Section Subtype.
         Forall wf_ty σ1 →
         subtype_targs Δ kd adef.(generics) σ0 σ1 →
         subtype Δ kd (ClassT false A σ0) (ClassT false A σ1)
+    | SubExactVariance: ∀ kd A adef σ0 σ1,
+        pdefs !! A = Some adef →
+        Forall wf_ty σ1 →
+        subtype_targs Δ kd ((λ _, Invariant) <$> adef.(generics)) σ0 σ1 →
+        subtype Δ kd (ClassT true A σ0) (ClassT true A σ1)
     | SubMixed2 kd: subtype Δ kd MixedT (UnionT NonNullT NullT)
     | SubIntNonNull kd: subtype Δ kd IntT NonNullT
     | SubBoolNonNull kd: subtype Δ kd BoolT NonNullT
@@ -149,10 +154,13 @@ Section SubtypeFacts.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A σA adef hadef hL
-      | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
+      | kd A adef σ0 σ1 hadef hwf hσ
+      | kd A adef σ0 σ1 hadef hwf hσ
+      | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
       | kd s | kd s t u hs ht | kd s t hin | kd ? A adef σA hpdefs hwfA hf0 hf1
       | | | | | | kd A B hwf h]; try by econstructor.
+      + econstructor => //; by eapply subtype_targs_to_Aware.
       + econstructor => //; by eapply subtype_targs_to_Aware.
       + econstructor; by eapply subtype_to_Aware.
       + econstructor; by eapply subtype_to_Aware.
@@ -182,10 +190,14 @@ Section SubtypeFacts.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σA hadef hL
-      | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
+      | kd A adef σ0 σ1 hadef hwf hσ
+      | kd A adef σ0 σ1 hadef hwf hσ
+      | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
       | kd s | kd s t u hs ht | kd s t hin | kd ? A adef σA hpdefs hwfA hf0 hf1
       | | | | | | kd A B hwf h] => Δ' hΔ; try by econstructor.
+      + econstructor; [ done | done | ].
+        by eapply subtype_targs_weaken.
       + econstructor; [ done | done | ].
         by eapply subtype_targs_weaken.
       + econstructor; by eapply subtype_weaken.
@@ -223,11 +235,15 @@ Section SubtypeFacts.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A adef σA hadef hL
-      | kd A adef σ0 σ1 hadef hwf hσ | kd | kd | kd | kd |  kd A targs
+      | kd A adef σ0 σ1 hadef hwf hσ
+      | kd A adef σ0 σ1 hadef hwf hσ
+      | kd | kd | kd | kd |  kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
       | kd s t u hs ht | kd s t hin | kd ? A adef σA hpdefs hwfA hf0 hf1
       | | | | | | kd A B hwf h ]
       => Δ Δ' heq hΔ; subst; try by econstructor.
+      + econstructor; [done | done | ].
+        by eapply subtype_targs_constraint_elim_.
       + econstructor; [done | done | ].
         by eapply subtype_targs_constraint_elim_.
       + econstructor; by eapply subtype_constraint_elim_.
@@ -269,11 +285,17 @@ Section SubtypeFacts.
   Proof.
     - destruct 1 as [ kd ty | kd ty hwf | kd A σA B σB adef hadef hL hext
       | kd A σA adef hadef hL
-      | kd A adef σ0 σ1 hadef hwf hσ | | | | | kd A targs
+      | kd A adef σ0 σ1 hadef hwf hσ
+      | kd A adef σ0 σ1 hadef hwf hσ
+      | | | | | kd A targs
       | kd s t ht | kd s t hs | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht
       | kd s | kd s t u hs ht | kd s t hin | kd ? A adef σA hpdefs hwfA hf0 hf1
       | | | | | | kd A B hwf h] => Δ' hΔ; try by econstructor.
       + eapply SubVariance; [exact hadef | assumption | ].
+        eapply subtype_targs_constraint_trans.
+        * by apply hσ.
+        * exact hΔ.
+      + eapply SubExactVariance; [exact hadef | assumption | ].
         eapply subtype_targs_constraint_trans.
         * by apply hσ.
         * exact hΔ.
@@ -570,7 +592,9 @@ Section SubtypeFacts.
     move => hp hΔ hwf.
     induction 1 as [ kd ty | kd ty h | kd A σA B σB adef hadef hA hext
       | kd A σA adef hadef hL
-      | kd A adef σ0 σ1 hadef hwfσ hσ | | | | | kd A args | kd s t h
+      | kd A adef σ0 σ1 hadef hwfσ hσ
+      | kd A adef σ0 σ1 hadef hwfσ hσ
+      | | | | | kd A args | kd s t h
       | kd s t h | kd s t u hs his ht hit | kd s t | kd s t | kd s t u hs his ht hit | kd s
       | kd s t u hst hist htu hitu | kd s t hin | kd ? A adef σA hwfA hadef hf hi
       | | | | | | kd A B ? h hi ]
@@ -595,6 +619,13 @@ Section SubtypeFacts.
       apply wf_tyI in hwf as [? [hadef' [? hwf0]]]; simplify_eq; econstructor.
       + exact hadef'.
       + by rewrite hσ.
+      + rewrite Forall_lookup => k ty hty.
+        rewrite !Forall_lookup in hwfσ, hwf0.
+        by eauto.
+    - apply length_subtype_targs_v1 in hσ.
+      apply wf_tyI in hwf as [? [hadef' [? hwf0]]]; simplify_eq; econstructor.
+      + exact hadef'.
+      + by rewrite -hσ fmap_length.
       + rewrite Forall_lookup => k ty hty.
         rewrite !Forall_lookup in hwfσ, hwf0.
         by eauto.
@@ -623,7 +654,9 @@ Section SubtypeFacts.
     - move => hp hb.
       destruct 1 as [ kd ty | kd ty h | kd A σA B σB adef hadef hA hext
       | kd A σA adef hadef hL
-      | kd A adef σ0 σ1 hadef hwfσ hσ01 | | | | | kd A args
+      | kd A adef σ0 σ1 hadef hwfσ hσ01
+      | kd A adef σ0 σ1 hadef hwfσ hσ01
+      | | | | | kd A args
       | kd s t h | kd s t h | kd s t u hs ht | kd s t | kd s t | kd s t u hs ht | kd s
       | kd s t u hst htu | kd s t hin | kd ? A adef σA hadef hwfA hf0 hf1
       | | | | | | kd A B hwf h ]
@@ -640,6 +673,12 @@ Section SubtypeFacts.
       + eapply SubExact => //.
         by rewrite fmap_length.
       + eapply SubVariance.
+        * exact hadef.
+        * rewrite Forall_forall => ty /elem_of_list_fmap [ty' [-> hin]].
+          apply wf_ty_subst => //.
+          rewrite Forall_forall in hwfσ; by apply hwfσ in hin.
+        * apply subtype_targs_subst; by assumption.
+      + eapply SubExactVariance.
         * exact hadef.
         * rewrite Forall_forall => ty /elem_of_list_fmap [ty' [-> hin]].
           apply wf_ty_subst => //.
