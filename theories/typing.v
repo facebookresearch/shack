@@ -166,8 +166,7 @@ Section Typing.
     | GetThisTy: ∀ Δ kd rigid cdef Γ lhs recv name fty orig,
         expr_has_ty Δ Γ rigid kd recv ThisT →
         pdefs !! C = Some cdef →
-        (cdef.(classfields) !! name = Some (Private, fty) ∨
-         has_field name C Public fty orig) →
+        has_field name C Public fty orig →
         cmd_has_ty C Δ kd rigid Γ (GetC lhs recv name) (<[lhs := fty]>Γ)
     | SetPrivTy: ∀ Δ kd rigid cdef Γ fld rhs fty,
         pdefs !! C = Some cdef →
@@ -183,8 +182,7 @@ Section Typing.
     | SetThisTy: ∀ Δ kd rigid cdef Γ recv fld rhs fty orig,
         expr_has_ty Δ Γ rigid kd recv ThisT →
         pdefs !! C = Some cdef →
-        (cdef.(classfields) !! fld = Some (Private, fty) ∨
-         has_field fld C Public fty orig) →
+        has_field fld C Public fty orig →
         expr_has_ty Δ Γ rigid kd rhs fty →
         cmd_has_ty C Δ kd rigid Γ (SetC recv fld rhs) Γ
     | NewTy: ∀ Δ kd rigid Γ lhs t otargs targs args fields,
@@ -353,9 +351,7 @@ Section Typing.
       }
       by apply has_field_wf in hf.
     - apply insert_wf_lty => //.
-      case: hf => hf.
-      + apply hfields in hcdef; by apply hcdef in hf.
-      + by apply has_field_wf in hf.
+      by apply has_field_wf in hf.
     - by apply map_Forall_insert_2.
     - apply map_Forall_insert_2 => //.
       apply expr_has_ty_wf in he => //.
@@ -446,13 +442,9 @@ Section Typing.
         by apply boundedI in he.
     - simplify_eq.
       apply insert_bounded_lty => //.
-      case: hf => hf.
-      + apply hfields in hcdef.
-        apply hcdef in hf.
-        by eapply bounded_ge.
-      + apply has_field_bounded in hf => //.
-        destruct hf as (? & ? & hf); simplify_eq.
-        by eapply bounded_ge.
+      apply has_field_bounded in hf => //.
+      destruct hf as (? & ? & hf); simplify_eq.
+      by eapply bounded_ge.
     - by apply insert_bounded_lty.
     - apply map_Forall_insert_2 => //.
       apply has_method_from_def in hm => //.

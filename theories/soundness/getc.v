@@ -286,8 +286,7 @@ Section proofs.
     Forall wf_constraint Δ →
     pdefs !! C = Some cdef →
     expr_has_ty Δ Γ rigid kd recv ThisT →
-    (cdef.(classfields) !! name = Some (Private, fty) ∨
-     has_field name C Public fty orig) →
+    has_field name C Public fty orig →
     ∀ t tdef Σt σ,
     pdefs !! t = Some tdef →
     length Σt = length tdef.(generics) →
@@ -338,83 +337,41 @@ Section proofs.
       fold_leibniz; subst.
       iSplitR; first done.
       iSplitL. { iExists _. iFrame. by iSplit. }
-      destruct hf as [hpriv | hpub].
-      - assert (hfC: has_field name t Private (subst_ty σ fty) C).
-        { destruct wfpdefs.
-          apply has_field_inherits_using with C => //.
-          change Private with (Private, fty).1.
-          by apply HasField with cdef.
-        }
-        case: (has_field_fun _ _ _ _ _ hf0 _ _ _ hfC) => hvis_ [hfty horig].
-        simplify_eq.
-        iSpecialize ("hf0" $! name Private (subst_ty σ fty) C hfC).
-        iDestruct "H▷" as "[hdf h]".
-        rewrite later_equivI.
-        iNext.
-        iDestruct "hf0" as (iF) "[hf0 hiff]".
-        iRewrite -"HΦ" in "hf0".
-        iSpecialize ("h" $! name _ with "[hf0]"); first done.
-        iDestruct "h" as (w) "[%hw hiw]".
-        simplify_eq.
-        iDestruct ("hiff" with "hiw") as "hiw_"; iClear "hiw".
-        iAssert (interp_type (subst_ty σ fty) (interp_exact_tag interp_type t Σt) Σt v) with "[hiw_]" as "#hiw".
-        { rewrite /subst_gen -hlenΣt.
-          by iApply interp_type_subst_this.
-        }
-        iClear "hiw_".
-        rewrite interp_type_subst; last first.
-        { destruct wfpdefs.
-          apply wf_fields_bounded in hcdef.
-          apply hcdef in hpriv.
-          by rewrite hlen.
-        }
-        rewrite -(interp_type_take fty _ Σ); first last.
-        { exact hge. }
-        { destruct wfpdefs.
-          apply wf_fields_bounded in hcdef.
-          by apply hcdef in hpriv.
-        }
-        assert (heq2: interp_list (interp_exact_tag interp_type t Σt) Σt σ ≡
-        take (length cdef.(generics)) Σ).
-        { rewrite -hΣeq.
-          by apply interp_list_no_this.
-        }
-        by rewrite heq2.
-      - assert (hff: has_field name t Public (subst_ty σ fty) orig).
-        { apply has_field_inherits_using
-            with (A := t) (σB := σ) in hpub => //; by apply wfpdefs.
-        }
-        iSpecialize ("hf0" $! name Public (subst_ty σ fty) orig hff).
-        iDestruct "hf0" as (iF) "[hf0 hiff]".
-        iNext.
-        iDestruct "H▷" as "[%hdf h]".
-        iRewrite -"HΦ" in "hf0".
-        iSpecialize ("h" $! name _ with "[hf0]"); first done.
-        iDestruct "h" as (w) "[%hw hiw]".
-        iDestruct ("hiff" with "hiw") as "hw".
-        simplify_eq.
-        rewrite /subst_gen -hlenΣt.
-        iAssert (□ interp_type
-          (subst_ty σ fty) (interp_exact_tag interp_type t Σt) Σt v)%I as "#hw2".
-        { iModIntro.
-          by rewrite -interp_type_subst_this.
-        }
-        iClear "hiw hiff hw".
-        rewrite interp_type_subst; last first.
-        { apply has_field_bounded in hpub => //; try by apply wfpdefs.
-          destruct hpub as (? & ? & ?); simplify_eq.
-          by rewrite hlen.
-        }
-        assert (heq:
-          interp_list (interp_exact_tag interp_type t Σt) Σt σ ≡
-          interp_list interp_nothing Σt σ).
-        { by apply interp_list_no_this. }
-        rewrite (interp_type_equivI _ _ _ heq).
-        rewrite (interp_type_equivI _ _ _ hΣeq).
-        rewrite interp_type_take //.
-        { apply has_field_bounded in hpub => //; try by apply wfpdefs.
-          by destruct hpub as (? & ? & ?); simplify_eq.
-        }
+      assert (hff: has_field name t Public (subst_ty σ fty) orig).
+      { apply has_field_inherits_using
+        with (A := t) (σB := σ) in hf => //; by apply wfpdefs.
+      }
+      iSpecialize ("hf0" $! name Public (subst_ty σ fty) orig hff).
+      iDestruct "hf0" as (iF) "[hf0 hiff]".
+      iNext.
+      iDestruct "H▷" as "[%hdf h]".
+      iRewrite -"HΦ" in "hf0".
+      iSpecialize ("h" $! name _ with "[hf0]"); first done.
+      iDestruct "h" as (w) "[%hw hiw]".
+      iDestruct ("hiff" with "hiw") as "hw".
+      simplify_eq.
+      rewrite /subst_gen -hlenΣt.
+      iAssert (□ interp_type
+        (subst_ty σ fty) (interp_exact_tag interp_type t Σt) Σt v)%I as "#hw2".
+      { iModIntro.
+        by rewrite -interp_type_subst_this.
+      }
+      iClear "hiw hiff hw".
+      rewrite interp_type_subst; last first.
+      { apply has_field_bounded in hf => //; try by apply wfpdefs.
+        destruct hf as (? & ? & ?); simplify_eq.
+        by rewrite hlen.
+      }
+      assert (heq:
+        interp_list (interp_exact_tag interp_type t Σt) Σt σ ≡
+        interp_list interp_nothing Σt σ).
+      { by apply interp_list_no_this. }
+      rewrite (interp_type_equivI _ _ _ heq).
+      rewrite (interp_type_equivI _ _ _ hΣeq).
+      rewrite interp_type_take //.
+      { apply has_field_bounded in hf => //; try by apply wfpdefs.
+        by destruct hf as (? & ? & ?); simplify_eq.
+      }
     }
     subst; simpl.
     iNext.

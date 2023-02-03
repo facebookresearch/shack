@@ -1115,7 +1115,7 @@ Proof.
         eapply SetThisTy.
         - by constructor.
         - done.
-        - simpl; right.
+        - simpl.
           change Public with (Public, GenT 0).1.
           by eapply HasField.
         - by constructor.
@@ -1132,7 +1132,7 @@ Proof.
         - eapply GetThisTy.
           + by constructor.
           + done.
-          + right; change Public with (Public, GenT 0).1.
+          + change Public with (Public, GenT 0).1.
             by eapply HasField.
         - by constructor.
       }
@@ -1152,7 +1152,7 @@ Proof.
       eapply SetThisTy.
       + by constructor.
       + done.
-      + right; eapply InheritsField => //.
+      + eapply InheritsField => //.
         change Public with (Public, GenT 0).1.
         by eapply HasField.
       + constructor => //.
