@@ -13,6 +13,7 @@ theories/heap.v
 theories/modality.v
 theories/interp.v
 theories/typing.v
+theories/soundness/this_call.v
 theories/soundness/dyn_call.v
 theories/soundness/call.v
 theories/soundness/priv_call.v

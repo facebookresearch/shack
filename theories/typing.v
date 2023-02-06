@@ -200,7 +200,6 @@ Section Typing.
           args !! f = Some arg →
           expr_has_ty Δ Γ rigid kd arg (subst_fty true t targs fty.1.2)) →
         cmd_has_ty C Δ kd rigid Γ (NewC lhs t otargs args) (<[lhs := ClassT true t targs]>Γ)
-    (* TODO: We need a case for `this` too *)
     | CallPubTy: ∀ Δ kd rigid Γ lhs recv exact_ t σ name orig mdef args,
         expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
         has_method name t orig mdef →
@@ -222,6 +221,17 @@ Section Typing.
           args !! x = Some arg →
           expr_has_ty Δ Γ rigid kd arg ty) →
         cmd_has_ty C Δ kd rigid Γ (CallC lhs ThisE name args) (<[lhs := mdef.(methodrettype)]>Γ)
+    | CallThisTy: ∀ Δ kd rigid cdef Γ lhs recv name orig mdef args,
+        pdefs !! C = Some cdef →
+        expr_has_ty Δ Γ rigid kd recv ThisT →
+        has_method name C orig mdef →
+        mdef.(methodvisibility) = Public →
+        dom mdef.(methodargs) = dom args →
+        (∀ x ty arg,
+          mdef.(methodargs) !! x = Some ty →
+          args !! x = Some arg →
+          expr_has_ty Δ Γ rigid kd arg ty) →
+        cmd_has_ty C Δ kd rigid Γ (CallC lhs recv name args) (<[lhs := mdef.(methodrettype)]>Γ)
     | SubTy: ∀ Δ kd rigid Γ c Γ0 Γ1,
         lty_sub Δ kd Γ1 Γ0 →
         bounded_lty rigid Γ0 →
@@ -323,6 +333,7 @@ Section Typing.
       ?????????? _ ht hb hok hf hdom hargs |
       ????????????? he hm hex hvis hdom hargs |
       ????????? hcdef hm hvis hdom hargs |
+      ??????????? hcdef hrecv hm hvis hdom hargs |
       ??????? hsub hb h hi |
       ??????????? hin hdef hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 |
@@ -367,6 +378,8 @@ Section Typing.
       apply hmethods in hcdef.
       apply hcdef in hm.
       by apply hm.
+    - apply map_Forall_insert_2 => //.
+      by apply has_method_wf in hm as [].
     - apply hi in hwf => //; clear hi h.
       rewrite /wf_lty map_Forall_lookup => k ty hty.
       apply hsub in hty.
@@ -403,6 +416,7 @@ Section Typing.
       ?????????? _ ht htb hok hf hdom hargs |
       ????????????? he hm hex hvis hdom hargs |
       ?????????? hm hvis hdom hargs |
+      ??????????? _hcdef hrecv hm hvis hdom hargs |
       ??????? hsub hΓb h hi |
       ??????????? hin hdef hthn hi0 hels hi1 |
       ????????? hin hthn hi0 hels hi1 |
@@ -477,6 +491,23 @@ Section Typing.
       apply hcdef in hm.
       eapply bounded_ge; first by apply hm.
       done.
+    - apply map_Forall_insert_2 => //.
+      simplify_eq.
+      apply has_method_from_def in hm => //.
+      destruct hm as (odef & m & hodef & hmdef & hm & [σm [hin ->]]).
+      rewrite /subst_mdef /=.
+      apply bounded_subst with (length odef.(generics)) => //.
+      * apply hmethods in hodef.
+        apply hodef in hmdef.
+        by apply hmdef.
+      * apply inherits_using_wf in hin => //.
+        destruct hin as (? & ? & ? & h & _); simplify_eq.
+        apply wf_tyI in h as (? & ? & ? & ?); by simplify_eq.
+      * apply inherits_using_wf in hin => //.
+        destruct hin as (? & ? & h & ?); simplify_eq.
+        rewrite Forall_lookup => k ty hty.
+        rewrite Forall_lookup in h; apply h in hty.
+        by eapply bounded_ge.
     - by apply insert_bounded_lty.
     - by apply insert_bounded_lty.
   Qed.

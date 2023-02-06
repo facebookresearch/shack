@@ -13,7 +13,8 @@ From iris.proofmode Require Import tactics.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp.
 From shack.soundness Require Import expr defs.
-From shack.soundness Require Import getc setc newc call priv_call sub.
+From shack.soundness Require Import getc setc newc sub.
+From shack.soundness Require Import call priv_call this_call.
 From shack.soundness Require Import rtc_tag rtc_prim.
 From shack.soundness Require Import dyn_getc dyn_setc dyn_call.
 
@@ -65,6 +66,7 @@ Section proofs.
         Δ kd rigid Γ lhs t otargs targs args fields htargs hwf hb hok hf hdom harg |
         Δ kd rigid Γ lhs recv exact_ t targs name orig mdef args hrecv hhasm hex hvis hdom hargs |
         Δ kd rigid _cdef Γ lhs name mdef args _hcdef hm hvis hdom hargs |
+        Δ kd rigid _cdef Γ lhs recv name orig mdef args _hcdef hrecv hm hpub hdom hargs |
         Δ kd rigid Γ c Γ0 Γ1 hsub hb h |
         Δ kd rigid Γ0 Γ1 v tv t def thn els hv hdef hthn hi0 hels hi1 |
         Δ kd rigid Γ0 Γ1 v tv thn els hv hthn hi0 hels hi1 |
@@ -146,6 +148,8 @@ Section proofs.
     - by iApply ((call_soundness C cdef)).
     - simplify_eq.
       by iApply ((priv_call_soundness C cdef)).
+    - simplify_eq.
+      by iApply ((this_call_soundness C cdef)).
     - by iApply (sub_soundness C cdef).
     - by iApply (rtc_tag_soundness C cdef).
     - by iApply (rtc_prim_soundness C cdef) => //.

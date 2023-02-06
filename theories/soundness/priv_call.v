@@ -284,31 +284,31 @@ Section proofs.
         iSplit; last done.
         by rewrite Hdom.
       - iSplit => /=; first done.
-        + iIntros (v ty hv).
-          assert (ha: ∃ arg, args !! v = Some arg).
-          { apply elem_of_dom.
-            rewrite /subst_mdef /= !dom_fmap_L in hmdom.
-            rewrite -hdom.
-            by apply elem_of_dom.
-          }
-          destruct ha as [arg ha].
-          assert (hvarg: ∃ varg, vargs !! v = Some varg).
-          { apply elem_of_dom.
-            apply dom_map_args in hmap.
-            rewrite hmap.
-            apply elem_of_dom.
-            now rewrite ha.
-          }
-          destruct hvarg as [varg hvarg].
-          iExists varg; rewrite hvarg; iSplitR; first done.
-          rewrite (map_args_lookup _ _ _ args vargs hmap v) ha /= in hvarg.
-          move: (hty_args v _ _ hv ha) => haty.
-          iDestruct (expr_soundness with "hΣthis hΣ hΣΔ Hle") as "he" => //.
-          rewrite (interp_type_equivI _ _ _ heq).
-          rewrite interp_type_take //.
-          apply wf_methods_bounded in hcdef.
-          apply hcdef in homdef0.
-          by apply homdef0 in hv.
+        iIntros (v ty hv).
+        assert (ha: ∃ arg, args !! v = Some arg).
+        { apply elem_of_dom.
+          rewrite /subst_mdef /= !dom_fmap_L in hmdom.
+          rewrite -hdom.
+          by apply elem_of_dom.
+        }
+        destruct ha as [arg ha].
+        assert (hvarg: ∃ varg, vargs !! v = Some varg).
+        { apply elem_of_dom.
+          apply dom_map_args in hmap.
+          rewrite hmap.
+          apply elem_of_dom.
+          now rewrite ha.
+        }
+        destruct hvarg as [varg hvarg].
+        iExists varg; rewrite hvarg; iSplitR; first done.
+        rewrite (map_args_lookup _ _ _ args vargs hmap v) ha /= in hvarg.
+        move: (hty_args v _ _ hv ha) => haty.
+        iDestruct (expr_soundness with "hΣthis hΣ hΣΔ Hle") as "he" => //.
+        rewrite (interp_type_equivI _ _ _ heq).
+        rewrite interp_type_take //.
+        apply wf_methods_bounded in hcdef.
+        apply hcdef in homdef0.
+        by apply homdef0 in hv.
     }
     iRevert "Hstep".
     iApply updN_mono_I.
