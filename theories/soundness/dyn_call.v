@@ -145,8 +145,6 @@ Section proofs.
     { apply inherits_using_ok in htdyn_orig_σ0 => //.
       by destruct htdyn_orig_σ0 as (? & ? & hok); simplify_eq.
     }
-    (* assert (hokσ0 : Forall (ok_ty def0.(constraints)) σ0). *)
-    (* { by apply ok_ty_classI in hok0. } *)
     assert (hh: length σ0 = length (generics odef) ∧
       wf_ty (ClassT true orig σ0) ∧
       Forall no_this σ0).

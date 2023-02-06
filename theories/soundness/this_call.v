@@ -356,25 +356,6 @@ Section proofs.
     iApply updN_mono_I.
     iIntros "[Hmodels Hle2]"; iFrame.
     iApply interp_local_tys_update; first by done.
-    (* rewrite interp_type_subst; last first. *)
-    (* { apply bounded_subst with (length odef.(generics)) => //. *)
-    (*   + apply wf_methods_bounded in hodef. *)
-    (*     apply hodef in homdef. *)
-    (*     by apply homdef. *)
-    (*   + apply inherits_using_wf in hin_t_o => //. *)
-    (*     destruct hin_t_o as (?& ? & hF & hL); simplify_eq. *)
-    (*     by rewrite -heq3. *)
-    (* } *)
-    (* rewrite (interp_type_equivI _ _ _ heq_1). *)
-    (* rewrite -interp_type_subst; last first. *)
-    (* { apply bounded_subst with (length odef.(generics)) => //. *)
-    (*   + apply wf_methods_bounded in hodef. *)
-    (*     apply hodef in homdef. *)
-    (*     by apply homdef. *)
-    (*   + apply inherits_using_wf in hin_t_o => //. *)
-    (*     destruct hin_t_o as (?&?&hF&?); simplify_eq. *)
-    (*     by rewrite -heq2. *)
-    (* } *)
     assert (hmret0 :
       t0def.(constraints) ⊢ methodrettype (subst_mdef σt0_o0 omdef0) <D:
       methodrettype (subst_mdef σ0 (subst_mdef σt_o omdef))).
