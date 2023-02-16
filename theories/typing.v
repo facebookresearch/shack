@@ -200,6 +200,18 @@ Section Typing.
           args !! f = Some arg →
           expr_has_ty Δ Γ rigid kd arg (subst_fty true t targs fty.1.2)) →
         cmd_has_ty C Δ kd rigid Γ (NewC lhs t otargs args) (<[lhs := ClassT true t targs]>Γ)
+    (* Here we disregard the source annotation otargs under dyn context *)
+    | DynNewTyAlt: ∀ Δ rigid Γ lhs t otargs targs args fields,
+        wf_ty (ClassT true t targs) →
+        bounded rigid (ClassT true t targs) →
+        ok_ty Δ (ClassT true t targs) →
+        has_fields t fields →
+        dom fields = dom args →
+        (∀ f fty arg,
+          fields !! f = Some fty →
+          args !! f = Some arg →
+          expr_has_ty Δ Γ rigid Aware arg (subst_fty true t targs fty.1.2)) →
+        cmd_has_ty C Δ Aware rigid Γ (NewC lhs t otargs args) (<[lhs := ClassT true t targs]>Γ)
     | CallPubTy: ∀ Δ kd rigid Γ lhs recv exact_ t σ name orig mdef args,
         expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
         has_method name t orig mdef →
@@ -331,6 +343,7 @@ Section Typing.
       ???????????? he hf hex hr |
       ?????????? hrecv hcdef hf hrhs |
       ?????????? _ ht hb hok hf hdom hargs |
+      ????????? ht hb hok hf hdom hargs |
       ????????????? he hm hex hvis hdom hargs |
       ????????? hcdef hm hvis hdom hargs |
       ??????????? hcdef hrecv hm hvis hdom hargs |
@@ -363,6 +376,7 @@ Section Typing.
       by apply has_field_wf in hf.
     - apply insert_wf_lty => //.
       by apply has_field_wf in hf.
+    - by apply map_Forall_insert_2.
     - by apply map_Forall_insert_2.
     - apply map_Forall_insert_2 => //.
       apply expr_has_ty_wf in he => //.
@@ -414,6 +428,7 @@ Section Typing.
       ???????????? he hf hex hr |
       ?????????? hrecv _hcdef hf hrhs |
       ?????????? _ ht htb hok hf hdom hargs |
+      ????????? ht htb hok hf hdom hargs |
       ????????????? he hm hex hvis hdom hargs |
       ?????????? hm hvis hdom hargs |
       ??????????? _hcdef hrecv hm hvis hdom hargs |
@@ -459,6 +474,7 @@ Section Typing.
       apply has_field_bounded in hf => //.
       destruct hf as (? & ? & hf); simplify_eq.
       by eapply bounded_ge.
+    - by apply insert_bounded_lty.
     - by apply insert_bounded_lty.
     - apply map_Forall_insert_2 => //.
       apply has_method_from_def in hm => //.

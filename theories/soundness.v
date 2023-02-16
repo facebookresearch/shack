@@ -64,6 +64,7 @@ Section proofs.
         Δ kd rigid Γ recv fld rhs fty orig exact_ t σ hrecv hf hex hrhs |
         Δ kd rigid _cdef Γ recv fld rhs fty orig hrecv _hcdef hf hrhs |
         Δ kd rigid Γ lhs t otargs targs args fields htargs hwf hb hok hf hdom harg |
+        Δ rigid Γ lhs t otargs targs args fields hwf hb hok hf hdom harg |
         Δ kd rigid Γ lhs recv exact_ t targs name orig mdef args hrecv hhasm hex hvis hdom hargs |
         Δ kd rigid _cdef Γ lhs name mdef args _hcdef hm hvis hdom hargs |
         Δ kd rigid _cdef Γ lhs recv name orig mdef args _hcdef hrecv hm hpub hdom hargs |
@@ -139,6 +140,14 @@ Section proofs.
     - simplify_eq.
       by iApply (set_this_soundness C cdef).
     - iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
+      { iModIntro; iIntros (w) "hw".
+        iLeft; iRight; iRight.
+        iExists t0, Σt0, t0def; iSplit; first done.
+        by iApply (exact_subtype_is_inclusion_aux with "hΣt0 hw").
+      }
+      by iApply new_soundness.
+    - (* Dynamic Alternative New *)
+      iAssert (□ interp_as_mixed (interp_exact_tag interp_type t0 Σt0))%I as "#hΣthis".
       { iModIntro; iIntros (w) "hw".
         iLeft; iRight; iRight.
         iExists t0, Σt0, t0def; iSplit; first done.
