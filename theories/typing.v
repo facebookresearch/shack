@@ -626,7 +626,7 @@ Section Typing.
       wf_cdef_extends_dyn_targs A adef B σ.
   Proof.
     move => ?? hok hwf.
-    induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
+    induction 1 as [ A adef hpdefs | A B σ C σC hext h hi ].
     - exists adef; repeat split => //.
       move => k [??] heq.
       eapply subtype_weaken.
@@ -635,7 +635,6 @@ Section Typing.
       + rewrite subst_constraints_gen_targs; first by set_solver.
         rewrite Forall_lookup => ? ty.
         by apply Δsdt_bounded.
-    - by apply extends_using_extends_dyn in hext.
     - destruct hi as (bdef & hbdef & h1).
       assert (hσ : Forall wf_ty σ ∧ length bdef.(generics) = length σ).
       { apply extends_using_wf in hext => //.

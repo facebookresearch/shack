@@ -495,7 +495,7 @@ Section SubtypeFacts.
     mono def.(generics) (ClassT false B σ).
   Proof.
     move => ? hmono.
-    induction 1 as [A adef h | A B σ h | A B σ C σC hext h hi ] => def hdef.
+    induction 1 as [A adef h | A B σ C σC hext h hi ] => def hdef.
     - simplify_eq.
       econstructor => //.
       + move => i wi ti hgi /lookup_gen_targs -> hc.
@@ -508,7 +508,6 @@ Section SubtypeFacts.
           by rewrite list_lookup_fmap hgi.
         * apply MonoVCoGen.
           by rewrite list_lookup_fmap hgi.
-    - by apply extends_using_mono with (def := def) in h.
     - apply inherits_using_wf in h => //.
       destruct h as (bdef & hbdef & hF & hwf).
       assert (hbdef' := hbdef).

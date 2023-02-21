@@ -207,7 +207,7 @@ Section Ok.
     ok_ty adef.(constraints) (ClassT true B σ).
   Proof.
     move => hp hok hcb.
-    induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
+    induction 1 as [ A adef hpdefs | A B σ C σC hext h hi ].
     - exists adef; split => //.
       econstructor => //.
       + by apply gen_targs_ok.
@@ -222,7 +222,6 @@ Section Ok.
         * apply hcb in hpdefs.
           rewrite /wf_cdef_constraints_bounded Forall_lookup in hpdefs.
           by apply hpdefs in hc as [].
-    - by apply extends_using_ok in hext.
     - destruct hi as (bdef & hB & hokB).
       assert (hwfB: wf_ty (ClassT true B σ)).
       { apply extends_using_wf in hext => //.

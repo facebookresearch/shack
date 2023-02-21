@@ -619,8 +619,6 @@ Proof.
     by simplify_eq.
   + apply helper_ext in H.
     destruct H; discriminate.
-  + apply helper_ext in H.
-    destruct H; discriminate.
 Qed.
 
 Lemma helper_in_Main : ∀ T σt, inherits_using "Main" T σt → T = "Main" ∧ σt = [].
@@ -632,8 +630,6 @@ Proof.
     by case : H => _ <-.
   + apply helper_ext in H.
     destruct H; discriminate.
-  + apply helper_ext in H.
-    destruct H; discriminate.
 Qed.
 
 Lemma helper_in_Box : ∀ T σt, inherits_using "Box" T σt → T = "Box" ∧ σt = [GenT 0].
@@ -643,8 +639,6 @@ Proof.
     do 1 (rewrite lookup_insert_ne // in H).
     rewrite lookup_insert in H.
     by simplify_eq.
-  + apply helper_ext in H.
-    destruct H; discriminate.
   + apply helper_ext in H.
     destruct H; discriminate.
 Qed.
@@ -659,8 +653,6 @@ Proof.
     rewrite lookup_insert in H.
     left.
     by simplify_eq.
-  + apply helper_ext in H.
-    destruct H; right; by simplify_eq.
   + apply helper_ext in H.
     destruct H as [_ [-> ->]]; right.
     apply helper_in_Box in H0 as [-> ->].
@@ -687,8 +679,6 @@ Proof.
     destruct H as [[<- ?]|[? H]]; last by (by rewrite lookup_empty in H).
     right; right; right; right; by rewrite -H.
   + apply helper_ext in H as [-> [-> ->]].
-    by left.
-  + apply helper_ext in H as [-> [-> ->]].
     apply helper_in_Box in H0 as [-> ->].
     by left.
 Qed.
@@ -711,6 +701,8 @@ Proof.
   rewrite lookup_singleton_Some.
   by case => [? <-].
 Qed.
+
+Global Hint Resolve wf_parent : core.
 
 Lemma wf_override : wf_method_override.
 Proof.
@@ -1473,13 +1465,19 @@ Proof.
   { move => m o mdef hm.
     apply has_method_IntBoxS in hm as [(-> & -> & ->) | [(-> & -> & ->) | (-> & -> & ->)]].
     + exists σ.
-      split; first by eauto.
+      split.
+      { apply inherits_using_extends => //.
+        by econstructor.
+      }
       move => i c /=.
       rewrite list_lookup_singleton_Some.
       case => ? <-.
       constructor; by set_solver.
     + exists σ.
-      split; first by eauto.
+      split.
+      { apply inherits_using_extends => //.
+        by econstructor.
+      }
       move => i c /=.
       rewrite list_lookup_singleton_Some.
       case => ? <-.
@@ -1709,7 +1707,6 @@ Proof.
   }
   assert (hwflty : wf_lty lty).
   { apply cmd_has_ty_wf in ht => //.
-    + by apply wf_parent.
     + by apply wf_fields_wf.
     + by apply wf_methods_wf.
   }
@@ -1764,7 +1761,6 @@ Proof.
   iDestruct (exact_subtype_is_inclusion with "wfΣ hΣthis Hw") as "Hw" => //.
   rewrite interp_type_unfold /=.
   rewrite interp_tag_equiv //; first last.
-  { by apply wf_parent. }
   iDestruct "Hw" as (l dynt cdef tdef σ0 Σt fields ifields) "(%hpure & #hmixed & #hΣt & #hinst & #hdyn & #Hl)".
   destruct hpure as (-> & hcdef & htdef & hl1 & hinherits & hfields & hidom).
   destruct st as [le h]; simpl in *.

@@ -2189,7 +2189,7 @@ Section proofs.
     iExists ℓ, t, bdef, tdef, (subst_ty σ <$> σB), Σt, fields, ifields.
     iSplit.
     { iPureIntro; repeat split => //.
-      by eapply inherits_using_trans; last by econstructor.
+      by eapply inherits_using_trans; last by apply inherits_using_extends.
     }
     iSplitR => //.
     iSplitR => //.
@@ -2278,12 +2278,10 @@ Section proofs.
   Proof.
     move => ???? Σthis Σ A B σA σB v h.
     move : σA v.
-    induction h as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ]
+    induction h as [ A adef hpdefs | A B σ C σC hext h hi ]
         => σA v hwf.
     - rewrite subst_ty_gen_targs; first done.
       apply wf_tyI in hwf as (? & ? & ? & ?); by simplify_eq.
-    - iIntros "h".
-      by iApply extends_using_is_inclusion.
     - iIntros "h".
       iDestruct (extends_using_is_inclusion with "h") as "he" => //.
       apply extends_using_wf in hext => //.

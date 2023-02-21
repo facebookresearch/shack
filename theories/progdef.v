@@ -251,9 +251,6 @@ Section ProgDef.
     | InheritsRefl A adef:
         pdefs !! A = Some adef →
         inherits_using A A (gen_targs (length (adef.(generics))))
-    | InheritsExtends A B σ:
-        extends_using A B σ →
-        inherits_using A B σ
     | InheritsTrans A B σB C σC:
         extends_using A B σB →
         inherits_using B C σC →
@@ -261,6 +258,20 @@ Section ProgDef.
   .
 
   Hint Constructors inherits_using : core.
+
+  Lemma inherits_using_extends A B σ:
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
+    extends_using A B σ → inherits_using A B σ.
+  Proof.
+    move => hwf h.
+    assert (h0 := h).
+    apply extends_using_wf in h => //.
+    destruct h as (adef & hadef & ? & hwfb & ?).
+    apply wf_tyI in hwfb as (bdef & hbdef & hlen & hwfσ).
+    rewrite -(subst_ty_gen_targs _ σ hlen).
+    econstructor; first done.
+    by constructor.
+  Qed.
 
   Lemma inherits_using_wf A B σ:
     map_Forall (λ _cname, wf_cdef_parent) pdefs →
@@ -272,14 +283,13 @@ Section ProgDef.
     Forall no_this σ.
   Proof.
     move => hwf.
-    induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
+    induction 1 as [ A adef hpdefs | A B σ C σC hext h hi ].
     - exists adef; repeat split => //.
       + by apply bounded_gen_targs.
       + econstructor => //; first by rewrite length_gen_targs.
         rewrite Forall_lookup => x hx h.
         by apply gen_targs_wf in h.
       + by apply gen_targs_has_no_this.
-    - by apply extends_using_wf.
     - apply extends_using_wf in hext => //.
       destruct hext as (adef & hadef & hF0 & hwfB & hnothisB).
       destruct hi as (bdef & hbdef & hF1 & hwfC & hnothis).
@@ -308,12 +318,11 @@ Section ProgDef.
   Proof.
     move => hwf h;
     move : h C σC.
-    induction 1 as [ A cdef hpdefs | A B s hext | A B s C t hext h hi] => Z σ' hin.
+    induction 1 as [ A cdef hpdefs | A B s C t hext h hi] => Z σ' hin.
     - rewrite subst_tys_id //.
       apply inherits_using_wf in hin => //.
       destruct hin as (? & ? & hF & _ ).
       by simplify_eq.
-    - by econstructor.
     - assert (hCZ := hin).
       apply hi in hin; clear hi.
       rewrite -map_subst_ty_subst; first by eapply InheritsTrans.
@@ -345,10 +354,8 @@ Section ProgDef.
 
   Lemma inherits_using_erase t t' σ: inherits_using t t' σ → inherits t t'.
   Proof.
-    induction 1 as [ A adef hpdefs | A B σ hext | A B σ C σC hext h hi ].
+    induction 1 as [ A adef hpdefs | A B σ C σC hext h hi ].
     - by constructor.
-    - apply extends_using_erase in hext.
-      by econstructor.
     - apply extends_using_erase in hext.
       by econstructor.
   Qed.
@@ -509,31 +516,12 @@ Section ProgDef2.
             (subst_ty σ' <$> σ'' = σ ∧ inherits_using C B σ'')).
   Proof.
     move => hwf.
-    induction 1 as [ A adef hpdefs | A B s hext | A B s C t hext h hi] => Z σ' hz.
+    induction 1 as [ A adef hpdefs | A B s C t hext h hi] => Z σ' hz.
     - exists σ'; left; split => //.
       apply subst_tys_id.
       apply inherits_using_wf in hz => //.
       destruct hz as (? & ? & hF & _ ).
       by simplify_eq.
-    - destruct hext as [A B adef σ hadef hsuper].
-      elim/inherits_usingI: hz hadef hsuper.
-      + move => zdef hzdef hzdef' hsuper; simplify_eq.
-        exists σ; right; split; last by econstructor; econstructor.
-        apply subst_tys_id.
-        apply hwf in hzdef.
-        rewrite /wf_cdef_parent hsuper in hzdef.
-        by destruct hzdef as (_ & hF & _).
-      + case => {A}{Z}{σ'}.
-        move => A Z adef' σ' hadef hsuper ? ?; simplify_eq.
-        apply hwf in hadef.
-        rewrite /wf_cdef_parent hsuper in hadef.
-        destruct hadef as (hwfB & hF).
-        apply wf_tyI in hwfB as (zdef & ? & ? & ?).
-        exists (gen_targs (length zdef.(generics))); left; split; last by econstructor.
-        by rewrite subst_ty_gen_targs.
-      + move => B0 σB σC. case => {A}{B0}{σ'}{σB}.
-        move => A B0 adef' σB hadef' hsuper0 hin hadef hsuper; simplify_eq.
-        exists σC; by left.
     - destruct (inherits_using_wf _ _ _ hwf hz) as (adef & hadef & hF0 & hwfZ & _).
       destruct hext as [A B adef' σ hadef' hsuper]; simplify_eq.
       elim/inherits_usingI: hz hadef' hsuper hF0 hwfZ.
@@ -552,9 +540,6 @@ Section ProgDef2.
         apply inherits_using_wf in h => //.
         destruct h as (? & ? & hF2 & hwfC); simplify_eq.
         rewrite Forall_lookup in hF2; by eauto.
-      + case => {A}{Z}{σ'}.
-        move => A B0 adef σB hadef hsuper ? ? hF0 hwfZ; simplify_eq.
-        exists t; by right.
       + move => B0 σB σC.
         case => {A}{B0}{σB}{σ'}.
         move => A B0 adef σB hadef hsuper hin ? ? hF0 hwfZ; simplify_eq.
@@ -588,8 +573,6 @@ Section ProgDef2.
     assert (h: ∃ adef, pdefs !! A = Some adef).
     { elim/inherits_usingI : hA.
       - move => adef hadef; by exists adef.
-      - move/extends_using_erase => hext.
-        by apply extends_is_not_reflexive in hext.
       - move => B0 σB σC.
         case => {A}{σB}.
         move => A B adef σB hadef ? ?; by exists adef.
@@ -598,8 +581,6 @@ Section ProgDef2.
     exists adef; split => //.
     elim/inherits_usingI : hA adef hpdefs.
     - move => adef hadef ? ?; by simplify_eq.
-    - move/extends_using_erase => hext.
-      by apply extends_is_not_reflexive in hext.
     - move => B σB σC /extends_using_erase hext /inherits_using_erase hin.
       move => adef hadef.
       replace B with A in *; last first.
@@ -624,25 +605,9 @@ Section ProgDef2.
     ∀ σ', inherits_using A B σ' → σ = σ'.
   Proof.
     move => hp.
-    induction 1 as [ A adef hpdefs | A B s hext | A B s C t hext h hi ] => σ' hother.
+    induction 1 as [ A adef hpdefs | A B s C t hext h hi ] => σ' hother.
     - apply inherits_using_refl in hother as [? [h ->]] => //.
       by simplify_eq.
-    - elim/inherits_usingI : hother s hext.
-      + move => bdef hbdef σB hext.
-        apply extends_using_erase in hext.
-        by apply extends_is_not_reflexive in hext.
-      + move => hext σB hext'.
-        by destruct (extends_using_fun _ _ _ hext _ _ hext') as [? ->].
-      + move => B0 σB σC hext hin σ hext'.
-        destruct (extends_using_fun _ _ _ hext _ _ hext') as [-> ->].
-        apply inherits_using_refl in hin as [bdef [hb ->]].
-        rewrite subst_ty_gen_targs //.
-        destruct hext as [A B0 adef σB hadef hsuper].
-        apply hp in hadef.
-        rewrite /wf_cdef_parent hsuper in hadef.
-        destruct hadef as [hwfb ?].
-        apply wf_tyI in hwfb as (? & ? & ? & ?).
-        by simplify_eq.
     - elim/inherits_usingI : hother B s hext h hi.
       + move => cdef hcdef B σB hext hin hi.
         apply extends_using_erase in hext.
@@ -652,17 +617,6 @@ Section ProgDef2.
           by econstructor.
         }
         by apply extends_is_not_reflexive in hext.
-      + move => hext B σB hext' hin hi.
-        destruct (extends_using_fun _ _ _ hext _ _ hext') as [-> ->].
-        apply inherits_using_refl in hin => //.
-        destruct hin as [bdef [hB ->]].
-        rewrite subst_ty_gen_targs //.
-        destruct hext' as [A C adef σ' hadef hsuper].
-        apply hp in hadef.
-        rewrite /wf_cdef_parent hsuper in hadef.
-        destruct hadef as [hwfc ?].
-        apply wf_tyI in hwfc as (? & ? & ? & ?).
-        by simplify_eq.
       + move => B0 σB σC hext hin B σ hext' hin' hi.
         destruct (extends_using_fun _ _ _ hext _ _ hext') as [-> ->].
         apply hi in hin; by subst.
@@ -801,12 +755,11 @@ Section ProgDef2.
     has_field f A vis (subst_ty σB typ) orig.
   Proof.
     move => hp hfs hfb hf A σB hin.
-    induction hin as [ A adef | A B σ hext | A B σ C σC hext h hi].
+    induction hin as [ A adef | A B σ C σC hext h hi].
     - rewrite subst_ty_id //.
       apply has_field_bounded in hf => //.
       destruct hf as [? [? h]].
       by simplify_eq.
-    - by eapply has_field_extends_using.
     - destruct (has_field_bounded _ _ _ _ _ hp hfb hf) as (cdef & hcdef & hc).
       apply hi in hf; clear hi.
       apply has_field_extends_using with (A := A) (σB := σ) in hf => //.
@@ -993,12 +946,6 @@ Section ProgDef2.
           apply hodef in hmo.
           rewrite map_length in hlen.
           by rewrite hlen.
-      + case => {A}{B}{σA}.
-        move => A B adef ? hadef hsuper ?? hm hs _ hBO; simplify_eq.
-        destruct (has_method_from_def _ _ _ _ hp hb h) as (odef & modef & ? & hmo & _ & [σo [hin ->]]).
-        exists odef, modef, (subst_mdef σo modef); repeat split => //.
-        replace σB with σo; first done.
-        by eapply inherits_using_fun.
       + move => B0 σB0 σC.
         case => {A}{B0}{σB0}{σA}.
         move => A B0 adef ? hadef hsuper hin ?? hm hsuper' hi hBO; simplify_eq.

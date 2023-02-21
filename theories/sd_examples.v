@@ -422,6 +422,22 @@ Proof.
     by case => h; subst.
 Qed.
 
+Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent) pdefs.
+Proof.
+  apply map_Forall_lookup => c0 d0.
+  rewrite lookup_insert_Some.
+  case => [[? <-] | [?]].
+  { split.
+    + econstructor => //.
+      by repeat constructor.
+    + by repeat constructor.
+  }
+  rewrite lookup_insert_Some.
+  by case => [[? <-] | [?]].
+Qed.
+
+Global Hint Resolve wf_parent : core.
+
 Lemma wf_methods_dyn : map_Forall wf_cdef_methods_dyn_wf pdefs.
 Proof.
   rewrite map_Forall_lookup => c0 d0.
@@ -430,7 +446,10 @@ Proof.
   { move => m o mdef hm.
     apply has_method_ROBox in hm as [(-> & -> & ->) | (-> & -> & ->)].
     - exists [GenT 0].
-      split; first by eauto.
+      split.
+      { apply inherits_using_extends => //.
+        by econstructor.
+      }
       move => i c /=.
       rewrite list_lookup_singleton_Some.
       case => ? <- /=.
@@ -583,8 +602,6 @@ Proof.
     by simplify_eq.
   + apply helper_ext in H.
     destruct H; discriminate.
-  + apply helper_ext in H.
-    destruct H; discriminate.
 Qed.
 
 Lemma helper_in_ROBox : ∀ T σt, inherits_using "ROBox" T σt →
@@ -596,8 +613,6 @@ Proof.
     rewrite lookup_insert in H.
     left.
     by simplify_eq.
-  + apply helper_ext in H.
-    destruct H; right; by simplify_eq.
   + apply helper_ext in H.
     destruct H as [_ [-> ->]]; right.
     apply helper_in_Box in H0 as [-> ->].
@@ -618,8 +633,6 @@ Proof.
     rewrite lookup_singleton_Some in H.
     case : H => <- <-.
     by left.
-  + apply helper_ext in H as [-> [-> ->]].
-    by right; left.
   + apply helper_ext in H as [-> [-> ->]].
     apply helper_in_Box in H0 as [-> ->].
     by right; left.
@@ -693,20 +706,6 @@ Proof.
     by repeat constructor.
   - case => ?.
     by rewrite lookup_empty.
-Qed.
-
-Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent) pdefs.
-Proof.
-  apply map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-] | [?]].
-  { split.
-    + econstructor => //.
-      by repeat constructor.
-    + by repeat constructor.
-  }
-  rewrite lookup_insert_Some.
-  by case => [[? <-] | [?]].
 Qed.
 
 Lemma wf_fields : map_Forall (λ _cname, wf_cdef_fields) pdefs.
