@@ -26,7 +26,7 @@ Section proofs.
   Context `{!sem_heapGS Θ}.
 
   Lemma new_soundness oσ σ C Δ kd rigid Γ lhs t args fields:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     wf_ty (ClassT true t σ) →

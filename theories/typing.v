@@ -748,30 +748,30 @@ Section Typing.
    * - every substitution's domain/codomain is valid
    * - variance is checked
    *)
-  Record wf_cdefs (prog: stringmap classDef) := {
-    wf_parent : map_Forall (λ _cname, wf_cdef_parent) prog;
-    wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) prog;
-    wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) prog;
-    wf_constraints_ok : map_Forall (λ _cname, wf_cdef_constraints_ok) prog;
-    wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) prog;
-    wf_constraints_no_this : map_Forall (λ _cname, wf_cdef_constraints_no_this) prog;
-    wf_override : wf_method_override prog;
-    wf_fields : map_Forall (λ _cname, wf_cdef_fields) prog;
-    wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) prog;
-    wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) prog;
+  Record wf_cdefs := {
+    wf_parent : map_Forall (λ _cname, wf_cdef_parent) pdefs;
+    wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) pdefs;
+    wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs;
+    wf_constraints_ok : map_Forall (λ _cname, wf_cdef_constraints_ok) pdefs;
+    wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) pdefs;
+    wf_constraints_no_this : map_Forall (λ _cname, wf_cdef_constraints_no_this) pdefs;
+    wf_override : wf_method_override;
+    wf_fields : map_Forall (λ _cname, wf_cdef_fields) pdefs;
+    wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs;
+    wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) pdefs;
     (* because all public fields are mutable *)
-    wf_fields_mono : map_Forall (λ _cname, wf_field_mono) prog;
-    wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) prog;
-    wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) prog;
-    wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) prog;
-    wf_methods_ok : map_Forall (λ _cname, cdef_methods_ok) prog;
-    wf_mdefs : map_Forall cdef_wf_mdef_ty prog;
-    wf_mono : map_Forall (λ _cname, wf_cdef_mono) prog;
+    wf_fields_mono : map_Forall (λ _cname, wf_field_mono) pdefs;
+    wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) pdefs;
+    wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) pdefs;
+    wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) pdefs;
+    wf_methods_ok : map_Forall (λ _cname, cdef_methods_ok) pdefs;
+    wf_mdefs : map_Forall cdef_wf_mdef_ty pdefs;
+    wf_mono : map_Forall (λ _cname, wf_cdef_mono) pdefs;
     (* Dynamic related invariant *)
-    wf_extends_dyn : map_Forall wf_cdef_extends_dyn prog;
-    wf_methods_dyn : map_Forall wf_cdef_methods_dyn_wf prog;
-    wf_fields_dyn : map_Forall wf_cdef_fields_dyn_wf prog;
-    wf_mdefs_dyn : map_Forall cdef_wf_mdef_dyn_ty prog;
+    wf_extends_dyn : map_Forall wf_cdef_extends_dyn pdefs;
+    wf_methods_dyn : map_Forall wf_cdef_methods_dyn_wf pdefs;
+    wf_fields_dyn : map_Forall wf_cdef_fields_dyn_wf pdefs;
+    wf_mdefs_dyn : map_Forall cdef_wf_mdef_dyn_ty pdefs;
   }
   .
 End Typing.

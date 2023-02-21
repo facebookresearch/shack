@@ -39,7 +39,7 @@ Section proofs.
     | RCTag _ => False
     | _ => True
     end →
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ0 →
     bounded_lty rigid Γ0 →
     Forall wf_constraint Δ →

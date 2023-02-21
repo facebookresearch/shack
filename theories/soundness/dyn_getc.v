@@ -26,7 +26,7 @@ Section proofs.
   Local Notation "Δ ⊢ s <D: t" := (@subtype _ _ Δ Aware s t) (at level 70, s at next level, no associativity).
 
   Lemma dyn_get_soundness C Δ kd rigid Γ lhs recv name:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     expr_has_ty Δ Γ rigid kd recv DynamicT →

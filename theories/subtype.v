@@ -896,10 +896,10 @@ Section SubtypeFacts.
    * TODO: remove this restriction and allow private methods to
    * be redefined in sub classes.
    *)
-  Definition wf_method_override (prog: stringmap classDef) :=
+  Definition wf_method_override :=
     ∀ A B adef bdef m σ mA mB,
-    prog !! A = Some adef →
-    prog !! B = Some bdef →
+    pdefs !! A = Some adef →
+    pdefs !! B = Some bdef →
     inherits_using A B σ →
     adef.(classmethods) !! m = Some mA →
     bdef.(classmethods) !! m = Some mB →
@@ -916,7 +916,7 @@ Section SubtypeFacts.
    * This implies some relations on all the inheritance substitution.
    *)
   Lemma has_method_ordered A B σAB m origA mdefA origB mdefB:
-    wf_method_override pdefs →
+    wf_method_override →
     map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     map_Forall (λ _cname, cdef_methods_bounded) pdefs →

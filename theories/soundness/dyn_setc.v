@@ -26,7 +26,7 @@ Section proofs.
   Context `{!sem_heapGS Θ}.
 
   Lemma dyn_set_soundness C Δ kd rigid Γ recv fld rhs:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     expr_has_ty Δ Γ rigid kd recv DynamicT →

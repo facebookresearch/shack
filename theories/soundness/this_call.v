@@ -26,7 +26,7 @@ Section proofs.
   Context `{!sem_heapGS Θ}.
 
   Lemma this_call_soundness C cdef Δ kd rigid Γ lhs recv name orig mdef args:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     Forall (bounded_constraint rigid) Δ →

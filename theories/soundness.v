@@ -26,7 +26,7 @@ Section proofs.
   Context `{!sem_heapGS Θ}.
 
   Lemma cmd_soundness_ C cdef Δ kd rigid Γ cmd Γ' :
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     bounded_lty rigid Γ →
     Forall wf_constraint Δ →
@@ -195,7 +195,7 @@ Section proofs.
   Qed.
 
   Lemma cmd_soundness C cdef Δ kd Γ cmd Γ' Σ :
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     bounded_lty (length Σ) Γ →
     Forall wf_constraint Δ →

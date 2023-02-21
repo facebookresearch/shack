@@ -22,7 +22,7 @@ Section proofs.
   Context `{!sem_heapGS Θ}.
 
   Lemma sub_soundness C cdef Δ kd Γ rigid Γ0 Γ1 c:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     bounded_lty rigid Γ →
     Forall wf_constraint Δ →

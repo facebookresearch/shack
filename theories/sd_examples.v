@@ -625,7 +625,7 @@ Proof.
     by right; left.
 Qed.
 
-Lemma wf_override : wf_method_override pdefs.
+Lemma wf_override : wf_method_override.
 Proof.
   move => A B adef bdef m σ0 mA mB hA hB hin hmA hmB.
   apply helper_in in hin.
@@ -1011,7 +1011,7 @@ Proof.
   }
 Qed.
 
-Lemma wf: wf_cdefs pdefs.
+Lemma wf: wf_cdefs.
 Proof.
   split.
   by apply wf_parent.

@@ -29,7 +29,7 @@ Section proofs.
    * possible and refactor.
    *)
   Lemma priv_call_soundness C cdef Δ kd rigid Γ lhs name mdef args:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     Forall (bounded_constraint rigid) Δ →

@@ -22,7 +22,7 @@ Section proofs.
   Context `{!sem_heapGS Θ}.
 
   Lemma get_priv_soundness C cdef Δ rigid Γ lhs name fty:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     pdefs !! C = Some cdef →
     cdef.(classfields) !! name = Some (Private, fty) →
@@ -128,7 +128,7 @@ Section proofs.
   Qed.
 
   Lemma get_pub_soundness C Δ kd rigid Γ lhs recv exact_ t σ name fty orig:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     expr_has_ty Δ Γ rigid kd recv (ClassT exact_ t σ) →
@@ -281,7 +281,7 @@ Section proofs.
 
   (* TODO: factorize the priv vs pub mechanics. This proof is using both *)
   Lemma get_this_soundness C cdef Δ kd rigid Γ lhs recv name fty orig:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     pdefs !! C = Some cdef →

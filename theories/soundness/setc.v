@@ -22,7 +22,7 @@ Section proofs.
   Context `{!sem_heapGS Θ}.
 
   Lemma set_priv_soundness C Δ kd cdef rigid Γ fld rhs fty:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     pdefs !! C = Some cdef →
@@ -70,7 +70,7 @@ Section proofs.
   Qed.
 
   Lemma set_pub_soundness C cdef Δ kd rigid Γ recv fld rhs fty exact_ t σ orig:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     pdefs !! C = Some cdef →
@@ -117,7 +117,7 @@ Section proofs.
 
   (* TODO: factorize the priv vs pub mechanics. This proof is using both *)
   Lemma set_this_soundness C cdef Δ kd rigid Γ recv fld rhs fty orig:
-    wf_cdefs pdefs →
+    wf_cdefs →
     wf_lty Γ →
     Forall wf_constraint Δ →
     pdefs !! C = Some cdef →

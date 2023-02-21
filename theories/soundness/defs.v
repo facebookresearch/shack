@@ -383,7 +383,7 @@ Section proofs.
    *)
   (* Show that Σt |= Δt ∧ Δsdt^t *)
   Lemma Σt_models_sdt t A tdef adef σ Σthis  (Σt ΣA: list (interp Θ)):
-    wf_cdefs pdefs →
+    wf_cdefs →
     pdefs !! t = Some tdef →
     pdefs !! A = Some adef →
     length Σt = length tdef.(generics) →
