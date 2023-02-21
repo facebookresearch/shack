@@ -56,7 +56,7 @@ Section proofs.
 
   (* TODO: try to refactor them up like before *)
   Lemma heap_models_update_pub Δ Σ h l t1 vs exact_ t σ  f fty orig v:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _cname, wf_cdef_fields) pdefs →
     map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
@@ -259,7 +259,7 @@ Section proofs.
   Qed.
 
   Lemma heap_models_update_priv Δ Σ h l t1 C σ0 cdef vs f fty v:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _cname, wf_cdef_fields) pdefs →
     map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →

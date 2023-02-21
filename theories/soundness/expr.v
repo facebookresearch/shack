@@ -22,7 +22,7 @@ Section proofs.
 
   Lemma expr_soundness (Δ: list constraint) rigid (Σthis: interp Θ)
     (Σ: list (interp Θ)) kd e Γ Ω ty val :
-    map_Forall (λ _, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _, wf_cdef_parent) pdefs →
     map_Forall (λ _, wf_cdef_mono) pdefs →
     map_Forall (λ _ : string, wf_cdef_constraints_wf) pdefs →
     map_Forall (λ _ : string, wf_cdef_constraints_no_this) pdefs →

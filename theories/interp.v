@@ -851,7 +851,7 @@ Section proofs.
     ).
 
   Lemma interp_tag_equiv A Σ v:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     ∀ adef, pdefs !! A = Some adef →
     length Σ = length adef.(generics) →
     interp_tag interp_type A Σ v ⊣⊢
@@ -993,7 +993,7 @@ Section proofs.
       interp_tag_alt A Σa v))%I.
 
   Lemma interp_sdt_equiv v:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     interp_sdt interp_type v ⊣⊢
     interp_sdt_alt v.
   Proof.
@@ -1075,7 +1075,7 @@ Section proofs.
   Qed.
 
   Lemma interp_tag_alt_equivI (Σ0 Σ1: list (interp Θ)):
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     Σ0 ≡ Σ1 →
     ∀ A adef v,
     pdefs !! A = Some adef →
@@ -1415,7 +1415,7 @@ Section proofs.
   Qed.
 
   Lemma interp_type_rigid Σthis (Σ0 Σ1 : list (interp Θ)) t:
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     wf_ty (ClassT true t (map GenT (seq (length Σ0) (length Σ1)))) →
     interp_tag interp_type t Σ1 ≡
     interp_type (ClassT false t (map GenT (seq (length Σ0) (length Σ1)))) Σthis (Σ0 ++ Σ1).
@@ -1563,7 +1563,7 @@ Section proofs.
 
   (* TODO: Find a better name *)
   Lemma interp_with_mono_helper:
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →
     ∀ (Σ0 Σ1: list (interp Θ)),
@@ -1825,7 +1825,7 @@ Section proofs.
   Qed.
 
   Lemma iForall3_inv_equiv vs Σ0 Σ1:
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →
     □ iForall3 interp_variance ((λ _ : variance, Invariant) <$> vs) Σ0 Σ1 -∗
@@ -1853,7 +1853,7 @@ Section proofs.
 
   Lemma interp_with_mono ty vs:
     map_Forall (λ _ : string, wf_cdef_mono) pdefs →
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →
     ∀ (Σ0 Σ1: list (interp Θ)) (Σthis: interp Θ),
@@ -2115,7 +2115,7 @@ Section proofs.
 
   Lemma interp_env_with_mono :
     map_Forall (λ _ : string, wf_cdef_mono) pdefs →
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →
     ∀ σ vs (Σthis : interp Θ) (Σ0 Σ1: list (interp Θ)) ws,
@@ -2163,7 +2163,7 @@ Section proofs.
   Qed.
 
   Lemma tag_extends_using_is_inclusion:
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _ : string, wf_cdef_mono) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →
@@ -2228,7 +2228,7 @@ Section proofs.
    * [| A<σA> |] ⊆ [| B<σA o σB> |]
    *)
   Lemma extends_using_is_inclusion:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _ : string, wf_cdef_mono) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →
@@ -2267,7 +2267,7 @@ Section proofs.
   Qed.
 
   Lemma inherits_using_is_inclusion:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _ : string, wf_cdef_mono) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →
@@ -2304,7 +2304,7 @@ Section proofs.
   Qed.
 
   Lemma tag_inherits_using_is_inclusion:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _ : string, wf_cdef_mono) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →
@@ -2383,7 +2383,7 @@ Section proofs.
   Section Inclusion.
     Hypothesis Δ: list constraint.
     Hypothesis wfΣc: Forall wf_constraint Δ.
-    Hypothesis wf_parent : map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs.
+    Hypothesis wf_parent : map_Forall (λ _cname, wf_cdef_parent) pdefs.
     Hypothesis wf_mono : map_Forall (λ _ : string, wf_cdef_mono) pdefs.
     Hypothesis wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs.
     Hypothesis wf_constraints_no_this : map_Forall (λ _cname, wf_cdef_constraints_no_this) pdefs.
@@ -3140,7 +3140,7 @@ Section proofs.
 
   Lemma Δsdt_variance_interp: ∀ Σthis (Σ0 Σ1: list (interp Θ)) A adef,
     map_Forall (λ _ : string, wf_cdef_mono) pdefs →
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_no_this) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_bounded) pdefs →
     map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs →

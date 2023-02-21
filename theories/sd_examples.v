@@ -695,7 +695,7 @@ Proof.
     by rewrite lookup_empty.
 Qed.
 
-Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs.
+Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent) pdefs.
 Proof.
   apply map_Forall_lookup => c0 d0.
   rewrite lookup_insert_Some.

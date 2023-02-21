@@ -79,7 +79,7 @@ Section Ok.
   Qed.
 
   Lemma ok_ty_subst Δ t:
-    map_Forall (λ _, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _, wf_cdef_parent) pdefs →
     map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     ok_ty Δ t →
     wf_ty t →
@@ -198,7 +198,7 @@ Section Ok.
   Qed.
 
   Lemma inherits_using_ok A B σ:
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _cname, wf_cdef_parent_ok) pdefs →
     map_Forall (λ _ : string, wf_cdef_constraints_bounded) pdefs →
     inherits_using A B σ →

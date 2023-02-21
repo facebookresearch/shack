@@ -206,7 +206,7 @@ Section ProgDef.
    * - respect variance (see wf_cdef_mono)
    * - the substitution doesn't refer to the `ThisT` type
    *)
-  Definition wf_cdef_parent (prog: stringmap classDef) cdef : Prop :=
+  Definition wf_cdef_parent cdef : Prop :=
     match cdef.(superclass) with
     | None => True
     | Some (parent, σ) =>
@@ -230,7 +230,7 @@ Section ProgDef.
   Hint Constructors extends_using : core.
 
   Lemma extends_using_wf A B σ:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     extends_using A B σ →
     ∃ adef,
     pdefs !! A = Some adef ∧
@@ -263,7 +263,7 @@ Section ProgDef.
   Hint Constructors inherits_using : core.
 
   Lemma inherits_using_wf A B σ:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     inherits_using A B σ →
     ∃ adef,
     pdefs !! A = Some adef ∧
@@ -301,7 +301,7 @@ Section ProgDef.
   Qed.
 
   Lemma inherits_using_trans A B C σB σC:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     inherits_using A B σB →
     inherits_using B C σC →
     inherits_using A C (subst_ty σB <$> σC).
@@ -354,7 +354,7 @@ Section ProgDef.
   Qed.
 
   Lemma inherits_using_ex t t' def:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     pdefs !! t = Some def →
     inherits t t' → ∃ σ, inherits_using t t' σ.
   Proof.
@@ -490,7 +490,7 @@ Section ProgDef2.
     cs tag extends parent parent_spec PDA.(pacc).
 
   Lemma parents_spec A B adef:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     pdefs !! A = Some adef →
     B ∈ parents A → ∃ σ, inherits_using A B σ.
   Proof.
@@ -502,7 +502,7 @@ Section ProgDef2.
   (* if A inherits B and A inherits C,
    * then either B inherits C or C inherits B *)
   Lemma inherits_using_chain A B σ:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     inherits_using A B σ →
     ∀ C σ', inherits_using A C σ' →
     (∃ σ'', (subst_ty σ <$> σ'' = σ' ∧ inherits_using B C σ'') ∨
@@ -619,7 +619,7 @@ Section ProgDef2.
   Qed.
 
   Lemma inherits_using_fun A B σ:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     inherits_using A B σ →
     ∀ σ', inherits_using A B σ' → σ = σ'.
   Proof.
@@ -736,7 +736,7 @@ Section ProgDef2.
     map_Forall (λ _fname vfty, wf_ty vfty.2) cdef.(classfields).
 
   Lemma has_field_wf f t vis fty orig:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _, wf_cdef_fields_wf) pdefs →
     has_field f t vis fty orig →
     wf_ty fty.
@@ -770,7 +770,7 @@ Section ProgDef2.
   Qed.
 
   Lemma has_field_bounded f t vis fty orig:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
     has_field f t vis fty orig →
     ∃ def, pdefs !! t = Some def ∧ bounded (length def.(generics)) fty.
@@ -792,7 +792,7 @@ Section ProgDef2.
 
   (* like has_field_extends_using, for any chain of inheritance. *)
   Lemma has_field_inherits_using f B vis typ orig:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _cname, wf_cdef_fields) pdefs →
     map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
     has_field f B vis typ orig →
@@ -873,7 +873,7 @@ Section ProgDef2.
     map_Forall (λ _mname, mdef_wf) cdef.(classmethods).
 
   Lemma has_method_wf m t orig mdef:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _, wf_cdef_methods_wf) pdefs →
     has_method m t orig mdef →
     map_Forall (λ _mname, wf_ty) mdef.(methodargs) ∧
@@ -921,7 +921,7 @@ Section ProgDef2.
    *   location.
    *)
   Lemma has_method_from_def A m orig mdef:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _cname, cdef_methods_bounded) pdefs →
     has_method m A orig mdef →
     ∃ cdef mdef_orig,
@@ -956,7 +956,7 @@ Section ProgDef2.
    * A <: B <: orig, then B must also inherits method m from orig.
    *)
   Lemma has_method_below_orig A m orig mdef:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _cname, cdef_methods_bounded) pdefs →
     has_method m A orig mdef →
     ∀ B σ σ', inherits_using A B σ → inherits_using B orig σ' →

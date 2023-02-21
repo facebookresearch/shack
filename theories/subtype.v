@@ -488,7 +488,7 @@ Section SubtypeFacts.
     (∀ vs ex t σ, mono vs (ClassT ex t σ)) Sort Prop.
 
   Lemma inherits_using_mono A B σ :
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _cname, wf_cdef_mono) pdefs →
     inherits_using A B σ →
     ∀ def, pdefs !! A = Some def →
@@ -531,7 +531,7 @@ Section SubtypeFacts.
   Lemma has_field_mono f t vis ty orig:
     map_Forall (λ _cname, wf_field_mono) pdefs →
     map_Forall (λ _cname, wf_cdef_mono) pdefs →
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs →
     has_field f t vis ty orig →
     ∃ def, pdefs !! t = Some def ∧
@@ -585,7 +585,7 @@ Section SubtypeFacts.
   Qed.
 
   Lemma subtype_wf Δ kd A B:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     Forall wf_constraint Δ →
     wf_ty A → subtype Δ kd A B → wf_ty B.
   Proof.
@@ -639,13 +639,13 @@ Section SubtypeFacts.
   Qed.
 
   Lemma subtype_subst Δ kd A B:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     subtype Δ kd A B → ∀ σ,
     Forall wf_ty σ →
     subtype (subst_constraints σ Δ) kd (subst_ty σ A) (subst_ty σ B)
   with subtype_targs_subst Δ kd vs As Bs:
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     subtype_targs Δ kd vs As Bs → ∀ σ,
     Forall wf_ty σ →
@@ -863,7 +863,7 @@ Section SubtypeFacts.
   Qed.
 
   Lemma mdef_incl_subst Δ mdef0 mdef1 σ :
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     Forall wf_ty σ →
     mdef_incl Δ mdef0 mdef1 →
@@ -917,7 +917,7 @@ Section SubtypeFacts.
    *)
   Lemma has_method_ordered A B σAB m origA mdefA origB mdefB:
     wf_method_override pdefs →
-    map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _cname, wf_cdef_parent) pdefs →
     map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     map_Forall (λ _cname, cdef_methods_bounded) pdefs →
     inherits_using A B σAB →

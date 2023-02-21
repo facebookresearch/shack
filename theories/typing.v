@@ -325,7 +325,7 @@ Section Typing.
   .
 
   Lemma cmd_has_ty_wf C Δ kd rigid Γ0 cmd Γ1:
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _ : string, wf_cdef_methods_wf) pdefs →
     Forall wf_constraint Δ →
@@ -405,7 +405,7 @@ Section Typing.
   Qed.
 
   Lemma cmd_has_ty_bounded C cdef Δ kd rigid Γ0 cmd Γ1:
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_wf) pdefs →
     map_Forall (λ _ : string, wf_cdef_methods_wf) pdefs →
     map_Forall (λ _ : string, wf_cdef_fields_bounded) pdefs →
@@ -596,7 +596,7 @@ Section Typing.
     end.
 
   Lemma extends_using_extends_dyn A B σ:
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall wf_cdef_extends_dyn pdefs →
     extends_using A B σ →
     ∃ adef,
@@ -616,7 +616,7 @@ Section Typing.
   Qed.
 
   Lemma inherits_using_extends_dyn A B σ:
-    map_Forall (λ _ : string, wf_cdef_parent pdefs) pdefs →
+    map_Forall (λ _ : string, wf_cdef_parent) pdefs →
     map_Forall (λ _, wf_cdef_constraints_bounded) pdefs →
     map_Forall (λ _cname, wf_cdef_parent_ok) pdefs →
     map_Forall wf_cdef_extends_dyn pdefs →
@@ -749,7 +749,7 @@ Section Typing.
    * - variance is checked
    *)
   Record wf_cdefs (prog: stringmap classDef) := {
-    wf_parent : map_Forall (λ _cname, wf_cdef_parent prog) prog;
+    wf_parent : map_Forall (λ _cname, wf_cdef_parent) prog;
     wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) prog;
     wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) prog;
     wf_constraints_ok : map_Forall (λ _cname, wf_cdef_constraints_ok) prog;
