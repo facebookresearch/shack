@@ -1,5 +1,105 @@
-class Main extends C<> where int as bool {
+// TODO generics
+class ROBox {
+  // Hello world
   public #T f;
 
-  function get() : null {} return 42
+  function Get() : #T {
+    let $ret = $this->data
+  } return $ret;
+
+  function Set(#T $x): null {
+    $this->f = $x
+  }
+  return null
 }
+
+// Definition arraykey := UnionT IntT BoolT.
+
+// Definition Get := {|
+//   methodargs := ∅;
+//   methodrettype := GenT 0;
+//   methodbody := GetC "$ret" ThisE "$data";
+//   methodret := VarE "$ret";
+//   methodvisibility := Public;
+// |}.
+
+// Definition ROBox := {|
+//   superclass := None;
+//   generics := [Covariant];
+//   constraints := [(GenT 0, arraykey)];
+//   classfields := {["$data" := (Private, GenT 0)]};
+//   classmethods := {["get" := Get]};
+// |}.
+
+// Definition BoxSet := {|
+//   methodargs := {["$data" := GenT 0 ]};
+//   methodrettype := NullT;
+//   methodbody := SetC ThisE "$data" (VarE "$data");
+//   methodret := NullE;
+//   methodvisibility := Public;
+// |}.
+
+// Definition Box := {|
+//   superclass := None;
+//   generics := [Invariant];
+//   constraints := [];
+//   classfields := {["$data" := (Public, GenT 0)]};
+//   classmethods := {["set" := BoxSet; "get" := Get]};
+// |}.
+
+// Definition σ : list lang_ty := [IntT].
+
+// Definition IntBoxSSet := {|
+//   methodargs := {["$data" := IntT ]};
+//   methodrettype := NullT;
+//   methodbody := SetC ThisE "$data" (BinOpE PlusO (VarE "$data") (IntE 1%Z));
+//   methodret := NullE;
+//   methodvisibility := Public;
+// |}.
+
+// Definition IntBoxS := {|
+//   superclass := Some ("Box", σ);
+//   generics := [];
+//   constraints := [];
+//   classfields := ∅;
+//   classmethods := {["set" := IntBoxSSet]};
+// |}.
+
+// (* Main program:
+//  * function main(): bool {
+//  *   $robox = new ROBox(43);
+//  *   $init = $robox->get();
+//  *   $box = new IntBoxS($init);
+//  *   $tmp = $box->get();
+//  *   $tmp = $tmp + 20;
+//  *   $_ = $box->set($tmp - 10);
+//  *   $tmp = $box->data;
+//  *   return ($tmp == 43);
+//  * }
+//  *)
+// Definition ProgramBody :=
+//    SeqC (NewC "$robox" "ROBox" (Some [IntT]) {["$data" := IntE 32]})
+//   (SeqC (CallC "$init" (VarE "$robox") "get" ∅)
+//   (SeqC (NewC "$box" "IntBoxS" None {["$data" := VarE "$init"]})
+//   (SeqC (CallC "$tmp" (VarE "$box") "get" ∅)
+//   (SeqC (LetC "$tmp" (BinOpE PlusO (VarE "$tmp") (IntE 20)))
+//   (SeqC (CallC "$_" (VarE "$box") "set"
+//            {["$data" := BinOpE MinusO (VarE "$tmp") (IntE 10)]})
+//         (GetC "$tmp" (VarE "$box") "$data")
+//   ))))).
+
+// Definition EntryPoint := {|
+//   methodargs := ∅;
+//   methodrettype := BoolT;
+//   methodbody := ProgramBody;
+//   methodret := BinOpE EqO (VarE "$tmp") (IntE 43);
+//   methodvisibility := Public;
+// |}.
+
+// Definition Main := {|
+//   superclass := None;
+//   generics := [];
+//   constraints := [];
+//   classfields := ∅;
+//   classmethods := {["entry_point" := EntryPoint]};
+//  |}.

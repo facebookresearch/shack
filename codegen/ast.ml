@@ -12,6 +12,7 @@ type tag = string
 type loc = int
 [@@deriving eq, show]
 
+(* TODO: exact types *)
 type lang_ty =
   | IntT
   | BoolT
@@ -32,10 +33,10 @@ type var = string
 
 type binop =
   | PlusO | MinusO | TimesO | DivO | LtO | GtO | EqO
-[@@deriving show]
+[@@deriving show {with_path = false}]
 
 type uniop = NotO
-[@@deriving show]
+[@@deriving show {with_path = false}]
 
 type expr =
   | IntE of int
@@ -101,9 +102,10 @@ type cmd =
   | ErrorC
 [@@deriving show]
 
+(* TODO: visibility *)
 type methodDef = {
   name : string;
-  args : lang_ty SMap.t;
+  args : (lang_ty * string) list;
   return_type : lang_ty;
   body : cmd;
   return : expr;
@@ -111,10 +113,10 @@ type methodDef = {
 [@@deriving show]
 
 type variance = Invariant | Covariant | Contravariant
-[@@deriving show]
+[@@deriving show {with_path = false}]
 
 type visibility = Public | Private
-[@@deriving show]
+[@@deriving show {with_path = false}]
 
 type constr = As | Super | Eq
 [@@deriving show]
@@ -125,12 +127,12 @@ type ty_constraint = constr * lang_ty * lang_ty
 type classDef = {
   name : tag;
   (* variance of the generics *)
-  generics: variance list;
+  generics: (variance * string) list;
   (* set of class level constraints *)
   constraints: ty_constraint list;
   super : (tag * lang_ty list) option;
-  fields : (visibility * lang_ty) SMap.t;
-  methods : methodDef SMap.t;
+  fields : (visibility * lang_ty * string) list;
+  methods : methodDef list;
 }
 [@@deriving show]
 
