@@ -9,9 +9,7 @@ let name_of_error = function
   | SyntaxError -> "Syntax error"
 
 let raise_error err loc msg = raise @@ TError (err, loc, msg)
-
 let lexing_error = raise_error LexingError
-
 let syntax_error = raise_error SyntaxError
 
 let msg_of_error e loc msg =

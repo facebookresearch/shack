@@ -74,24 +74,22 @@ let show_token token =
   | Arrow -> "Arrow"
   | Ampersand -> "Ampersand"
 
-let is_eof = function
-  | Some Parser.Eof -> true
-  | _ -> false
+let is_eof = function Some Parser.Eof -> true | _ -> false
 
 let _process filename =
   try
     let inx = In_channel.create filename in
     let lexbuf = Lexing.from_channel inx in
     let token = ref None in
-    while not (is_eof (!token)) do
+    while not (is_eof !token) do
       let tok = Lexer.lexer lexbuf in
       printf "%s\n" (show_token tok);
-      token := Some tok;
+      token := Some tok
     done;
     let () = In_channel.close inx in
     ()
   with
   | TError (e, l, m) -> printf "Error: %s\n" (msg_of_error e l m)
   | Sys_error s -> printf "System Error: %s\n" s
-let () =
-  process "./test.lang"
+
+let () = process "./test.lang"
