@@ -136,9 +136,10 @@ Lemma pacc__:
   (uncurry (λ (c : tag) (_ : classDef), Acc (λ x y : tag, extends y x) c))
   (map_to_list pdefs).
 Proof.
-  replace (map_to_list pdefs)
-  with [("Box", Box); ("ROBox", ROBox); ("IntBoxS", IntBoxS); ("Main", Main)]; last first.
-  { by vm_compute. }
+  rewrite /pdefs /= /pdefs0.
+  apply pacc_helper.
+  vm_compute map_to_list.
+  simpl.
   rewrite Forall_lookup => k c /=.
   by repeat (rewrite /lookup /=; step_pacc).
 Qed.

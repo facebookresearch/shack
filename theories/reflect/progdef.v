@@ -33,4 +33,14 @@ Section Reflect.
       destruct (B =? B) eqn:h; first done.
       by rewrite eqb_neq in h.
   Qed.
+
+  Lemma pacc_helper (P: tag → Prop) (xdefs: stringmap classDef):
+    Forall P (map fst (map_to_list xdefs)) →
+    Forall (uncurry (λ c _, P c)) (map_to_list xdefs).
+  Proof.
+    rewrite Forall_lookup => h.
+  rewrite Forall_lookup => k [c ?] hk /=.
+  apply h with k.
+  by rewrite list_lookup_fmap hk.
+  Qed.
 End Reflect.
