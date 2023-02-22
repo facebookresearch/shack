@@ -81,7 +81,6 @@
 (* %token <string> String *)
 %token <string> Id
 
-%right Else
 %left Pipe
 %left Ampersand
 %nonassoc Eq Gt Lt
@@ -144,15 +143,13 @@ rtc :
     | Is tag = Id { Ast.RCTag tag }
 
 cmd :
-    | LBrace seq = separated_list(Semi, cmd) RBrace {
-        to_sequence seq
-    }
     | Let v = symbol Eq e = exp { Ast.LetC { lhs = v; e = e } }
-    | If cond = exp Then if_true = cmd {
-        Ast.IfC {cond = cond; thn = if_true; els = Ast.SkipC }
-    } %prec Else
-    | If cond = exp Then if_true = cmd Else if_false = cmd {
-        Ast.IfC { cond = cond; thn = if_true; els = if_false }
+    | If cond = exp Then LBrace if_true = cmd_seq RBrace {
+        Ast.IfC {cond = cond; thn = to_sequence if_true; els = Ast.SkipC }
+    }
+    | If cond = exp Then LBrace if_true = cmd_seq RBrace
+        Else LBrace if_false = cmd_seq RBrace {
+        Ast.IfC { cond = cond; thn = to_sequence if_true; els = to_sequence if_false }
     }
     | Let lhs = symbol Eq recv = exp Arrow mname = Id LPar args = separated_list(Comma, arg) RPar {
         Ast.CallC { lhs = lhs; recv = recv; name = mname; args = args }
@@ -167,13 +164,19 @@ cmd :
     | recv = exp Arrow field = Id Eq rhs = exp {
         Ast.SetC { recv = recv; name = field; rhs = rhs }
     }
-    | If v = symbol check = rtc Then if_true = cmd {
-        Ast.RuntimeCheckC { v = v; rc = check; thn = if_true; els = SkipC }
-      } %prec Else
-    | If v = symbol check = rtc Then if_true = cmd Else if_false = cmd {
-        Ast.RuntimeCheckC { v = v; rc = check; thn = if_true; els = if_false }
+    | If v = symbol check = rtc Then LBrace if_true = cmd_seq RBrace {
+        Ast.RuntimeCheckC { v = v; rc = check; thn = to_sequence if_true; els = SkipC }
+    }
+    | If v = symbol check = rtc Then LBrace if_true = cmd_seq RBrace
+        Else LBrace if_false = cmd_seq RBrace {
+        Ast.RuntimeCheckC { v = v; rc = check; thn = to_sequence if_true; els = to_sequence if_false }
       }
     | ErrorCmd { Ast.ErrorC }
+
+cmd_seq:
+    | (* empty *) { [] }
+    | cmd { [$1] }
+    | cmd Semi cmd_seq { $1 :: $3 }
 
 %inline op :
     | Plus { Ast.PlusO }
@@ -189,9 +192,9 @@ farg :
 
 methodDef :
     | Function mname = Id LPar args = separated_list(Comma, farg) RPar
-        Colon retty = ty body = cmd Return ret = exp {
+        Colon retty = ty LBrace body = cmd_seq RBrace Return ret = exp {
         Ast.{name = mname; args; return_type = retty;
-             body = body; return = ret }
+             body = to_sequence body; return = ret }
       }
 
 extends_clause :

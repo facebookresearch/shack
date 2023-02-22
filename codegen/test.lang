@@ -3,7 +3,7 @@ class ROBox<+T> {
   public #T data;
 
   function get() : #T {
-    let $ret = $this->data
+    let $ret = $this->data;
   } return $ret
 }
 
