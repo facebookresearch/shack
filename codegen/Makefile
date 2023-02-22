@@ -4,7 +4,7 @@ build:
 	dune build codegen.exe
 
 test: build
-	./_build/default/codegen.exe
+	./_build/default/codegen.exe --file test.lang
 
 format:
 	for i in *.ml; do ocamlformat --enable-outside-detected-project -i $$i; done

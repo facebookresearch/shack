@@ -39,6 +39,7 @@ jobs:
       - run: opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
       - run: opam update
       - run: opam install coq.8.16.1 coq-stdpp coq-iris coq-iris-heap-lang
+      - run: opam install menhir cmdliner
 # TODO: move to build using dune ?
       - run: opam exec -- make
 

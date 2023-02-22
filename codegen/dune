@@ -8,5 +8,5 @@
 (executable
  (name codegen)
  (preprocess (pps ppx_deriving.std))
- (libraries core_kernel)
+ (libraries core_kernel cmdliner)
 )
