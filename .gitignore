@@ -6,3 +6,4 @@
 *.vo
 *.vos
 Makefile.conf
+codegen/_build
