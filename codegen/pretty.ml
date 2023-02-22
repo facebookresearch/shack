@@ -32,9 +32,7 @@ let rec fmt_ty ppf = function
       Format.fprintf ppf "@[UnionT@ (%a)@ (%a)@]" fmt_ty s fmt_ty t
   | InterT (s, t) ->
       Format.fprintf ppf "@[InterT@ (%a)@ (%a)@]" fmt_ty s fmt_ty t
-  | GenT s ->
-      (* TODO deBruijn *)
-      Format.fprintf ppf "@[GenT@ %a@]" fmt_str s
+  | GenT (n, _) -> Format.fprintf ppf "@[GenT@ %a@]" fmt_int n
   | DynamicT -> Format.fprintf ppf "%a" fmt_kw "DynamicT"
   | SupportDynT -> Format.fprintf ppf "%a" fmt_kw "SupportDynT"
 
@@ -127,8 +125,9 @@ let mdef_pretty cname mdef = Format.asprintf "%a" (fmt_mdef cname) mdef
 let fmt_field ppf (vis, ty) =
   Format.fprintf ppf "@[(%a, %a)@]" fmt_kw (show_visibility vis) fmt_ty ty
 
-let fmt_cdef ppf { name; generics = _; constraints; super; fields; methods } =
-  (* TODO generics *)
+let fmt_variance ppf var = Format.fprintf ppf "%a" fmt_kw (show_variance var)
+
+let fmt_cdef ppf { name; generics; constraints; super; fields; methods } =
   (* TODO constraints *)
   (* let _cs = *)
   (*   List.flatten *)
@@ -144,6 +143,7 @@ let fmt_cdef ppf { name; generics = _; constraints; super; fields; methods } =
   (* in *)
   (* let _cs = List.map (fun (l, r) -> Printf.sprintf "(%s, %s)" l r) _cs in *)
   (* let _cs = Printf.sprintf "[%s]" (String.concat ";" _cs) in *)
+  let generics = List.map fst generics in
   let _ = constraints in
   let mnames =
     List.map (fun (mname, _) -> (mname, mk_mdef_name name mname)) methods
@@ -156,7 +156,8 @@ let fmt_cdef ppf { name; generics = _; constraints; super; fields; methods } =
       Format.fprintf ppf "Some(%a, " fmt_str t;
       Format.fprintf ppf "%a)" (fmt_list fmt_ty) targs);
   Format.fprintf ppf ";@]@,";
-  Format.fprintf ppf "@[%a@ := [];@]@," fmt_kw "generics" (* TODO *);
+  Format.fprintf ppf "@[%a@ := %a;@]@," fmt_kw "generics"
+    (fmt_list fmt_variance) generics;
   Format.fprintf ppf "@[%a@ := [];@]@," fmt_kw "constraints" (* TODO *);
   Format.fprintf ppf "@[%a@ := " fmt_kw "classfields";
   (match fields with

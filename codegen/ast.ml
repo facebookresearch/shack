@@ -20,7 +20,8 @@ type lang_ty =
   | NonNullT
   | UnionT of lang_ty * lang_ty
   | InterT of lang_ty * lang_ty
-  | GenT of string
+  (* The parser sets 0's for any GenT. We'll replace them in a second phase *)
+  | GenT of (int * string)
   | DynamicT
   | SupportDynT
 [@@deriving show]
@@ -99,3 +100,104 @@ type classDef = {
 [@@deriving show]
 
 type program = classDef list [@@deriving show]
+
+exception UnknownGeneric of string
+
+(* Take a source description and replaces all the type variable #T with
+ * the right debruijn index. Make a few checks along the way.
+ *)
+let rec mk_dbruijn dbs = function
+  | ClassT { name; tyargs } ->
+      ClassT { name; tyargs = List.map (mk_dbruijn dbs) tyargs }
+  | UnionT (s, t) -> UnionT (mk_dbruijn dbs s, mk_dbruijn dbs t)
+  | InterT (s, t) -> InterT (mk_dbruijn dbs s, mk_dbruijn dbs t)
+  | GenT (_, t) -> (
+      match List.find_opt (fun (_, s) -> String.equal s t) dbs with
+      | Some (n, _) -> GenT (n, t)
+      | None -> raise (UnknownGeneric t))
+  | ty -> ty
+
+let rec mk_dbruijn_expr dbs = function
+  | BinOpE { op; lhs; rhs } ->
+      BinOpE
+        { op; lhs = mk_dbruijn_expr dbs lhs; rhs = mk_dbruijn_expr dbs rhs }
+  | UniOpE { op; e } -> UniOpE { op; e = mk_dbruijn_expr dbs e }
+  | UpcastE { e; ty } ->
+      UpcastE { e = mk_dbruijn_expr dbs e; ty = mk_dbruijn dbs ty }
+  | e -> e
+
+let rec mk_dbruijn_cmd dbs = function
+  | SkipC -> SkipC
+  | SeqC { fstc; sndc } ->
+      SeqC { fstc = mk_dbruijn_cmd dbs fstc; sndc = mk_dbruijn_cmd dbs sndc }
+  | LetC { lhs; e } -> LetC { lhs; e = mk_dbruijn_expr dbs e }
+  | IfC { cond; thn; els } ->
+      IfC
+        {
+          cond = mk_dbruijn_expr dbs cond;
+          thn = mk_dbruijn_cmd dbs thn;
+          els = mk_dbruijn_cmd dbs els;
+        }
+  | CallC { lhs; recv; name; args } ->
+      CallC
+        {
+          lhs;
+          recv = mk_dbruijn_expr dbs recv;
+          name;
+          args = List.map (fun (k, e) -> (k, mk_dbruijn_expr dbs e)) args;
+        }
+  | NewC { lhs; name; ty_args; args } ->
+      NewC
+        {
+          lhs;
+          name;
+          ty_args = List.map (mk_dbruijn dbs) ty_args;
+          args = List.map (fun (k, e) -> (k, mk_dbruijn_expr dbs e)) args;
+        }
+  | GetC { lhs; recv; name } ->
+      GetC { lhs; recv = mk_dbruijn_expr dbs recv; name }
+  | SetC { recv; name; rhs } ->
+      SetC
+        { recv = mk_dbruijn_expr dbs recv; name; rhs = mk_dbruijn_expr dbs rhs }
+  | RuntimeCheckC { v; rc; thn; els } ->
+      RuntimeCheckC
+        { v; rc; thn = mk_dbruijn_cmd dbs thn; els = mk_dbruijn_cmd dbs els }
+  | ErrorC -> ErrorC
+
+(* (TODO) Update if we ever support method level generics *)
+let mk_dbruijn_mdef dbs { name; args; return_type; body; return } =
+  {
+    name;
+    args = List.map (fun (k, ty) -> (k, mk_dbruijn dbs ty)) args;
+    return_type = mk_dbruijn dbs return_type;
+    body = mk_dbruijn_cmd dbs body;
+    return = mk_dbruijn_expr dbs return;
+  }
+
+exception DuplicatedGeneric of string
+
+let rec mk_dbs n seen = function
+  | [] -> []
+  | (_, t) :: tl ->
+      if List.exists (String.equal t) seen then raise (DuplicatedGeneric t)
+      else (n, t) :: mk_dbs (n + 1) (t :: seen) tl
+
+let mk_dbruijn_cdef { name; generics; constraints; super; fields; methods } =
+  let dbs = mk_dbs 0 [] generics in
+  (* (variance * var) list *)
+  {
+    name;
+    generics;
+    constraints =
+      List.map
+        (fun (c, l, r) -> (c, mk_dbruijn dbs l, mk_dbruijn dbs r))
+        constraints;
+    super =
+      (match super with
+      | None -> None
+      | Some (t, targs) -> Some (t, List.map (mk_dbruijn dbs) targs));
+    fields = List.map (fun (k, (v, ty)) -> (k, (v, mk_dbruijn dbs ty))) fields;
+    methods = List.map (fun (k, mdef) -> (k, mk_dbruijn_mdef dbs mdef)) methods;
+  }
+
+let mk_dbruijn_program prog = List.map mk_dbruijn_cdef prog

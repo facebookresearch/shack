@@ -111,7 +111,7 @@ ty :
   | Mixed { Ast.MixedT }
   | Nothing { Ast.NothingT }
   | Dynamic { Ast.DynamicT }
-  | Hash t = Id { Ast.GenT t }
+  | Hash t = Id { Ast.GenT (0, t) }
   | t0 = ty Pipe t1 = ty { Ast.UnionT (t0, t1) }
   | t0 = ty Ampersand t1 = ty { Ast.InterT (t0, t1) }
   | LPar t = ty RPar { t }
