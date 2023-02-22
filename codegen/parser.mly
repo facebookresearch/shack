@@ -11,9 +11,9 @@
       List.fold_left (fun (facc, macc) kind ->
           match kind with
           | Field (vis, name, ty) ->
-            ((vis, ty, name) :: facc, macc)
+            ((name, (vis, ty)) :: facc, macc)
           | Method mdef ->
-            (facc, mdef :: macc))
+            (facc, (mdef.name, mdef) :: macc))
         ([], []) elts
     in (List.rev fields, List.rev methods)
 

@@ -93,8 +93,8 @@ type classDef = {
   (* set of class level constraints *)
   constraints : ty_constraint list;
   super : (tag * lang_ty list) option;
-  fields : (visibility * lang_ty * string) list;
-  methods : methodDef list;
+  fields : (string * (visibility * lang_ty)) list;
+  methods : (string * methodDef) list;
 }
 [@@deriving show]
 
