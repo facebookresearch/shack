@@ -17,6 +17,8 @@ let fmt_list fa ppf xs =
   Format.fprintf ppf "@[<v>[%a]@]" (Format.pp_print_list ~pp_sep:semi fa) xs
 
 let rec fmt_ty ppf = function
+  (* Keep this one in sync with the prelude *)
+  | ArrayKey -> Format.fprintf ppf "%a" fmt_kw "arraykey"
   | IntT -> Format.fprintf ppf "%a" fmt_kw "IntT"
   | BoolT -> Format.fprintf ppf "%a" fmt_kw "BoolT"
   | NothingT -> Format.fprintf ppf "%a" fmt_kw "NothingT"
@@ -66,7 +68,9 @@ let fmt_rtc ppf = function
 let fmt_map fa ppf xs =
   let semi ppf () = Format.fprintf ppf "@ ; " in
   let fa ppf (k, v) = Format.fprintf ppf "@[%a@ :=@ %a@]" fmt_str k fa v in
-  Format.fprintf ppf "@[<v>{[%a]}@]" (Format.pp_print_list ~pp_sep:semi fa) xs
+  match xs with
+  | [] -> Format.fprintf ppf "%a" fmt_kw "∅"
+  | _ -> Format.fprintf ppf "@[<v>{[%a]}@]" (Format.pp_print_list ~pp_sep:semi fa) xs
 
 let rec fmt_cmd ppf = function
   | SkipC -> Format.fprintf ppf "%a" fmt_kw "SkipC"
@@ -86,7 +90,7 @@ let rec fmt_cmd ppf = function
   | ErrorC -> Format.fprintf ppf "%a" fmt_kw "ErrorC"
   | CallC { lhs; recv; name; args } ->
       Format.fprintf ppf "@[CallC@ %a@ (%a)@ " fmt_str lhs fmt_expr recv;
-      Format.fprintf ppf "%a" fmt_str name;
+      Format.fprintf ppf "%a@ " fmt_str name;
       Format.fprintf ppf "%a@]" (fmt_map fmt_expr) args
   | NewC { lhs; name; ty_args; args } ->
       Format.fprintf ppf "@[NewC@ %a@ %a@ " fmt_str lhs fmt_str name;
@@ -108,9 +112,7 @@ let fmt_mdef cname ppf { name; args; return_type; body; return } =
   Format.fprintf ppf "@[<v 2>%a %a := {|@," fmt_kw "Definition" fmt_kw
     (mk_mdef_name cname name);
   Format.fprintf ppf "@[%a := " fmt_kw "methodargs";
-  (match args with
-  | [] -> Format.fprintf ppf "%a" fmt_kw "∅"
-  | _ -> Format.fprintf ppf "%a" (fmt_map fmt_ty) args);
+  Format.fprintf ppf "%a" (fmt_map fmt_ty) args;
   Format.fprintf ppf ";@]@,";
   Format.fprintf ppf "@[%a@ :=@ %a;@]@," fmt_kw "methodrettype" fmt_ty
     return_type;
@@ -127,24 +129,21 @@ let fmt_field ppf (vis, ty) =
 
 let fmt_variance ppf var = Format.fprintf ppf "%a" fmt_kw (show_variance var)
 
+let fmt_constraints ppf (l, r) =
+  Format.fprintf ppf "@[(%a,@ %a)@]" fmt_ty l fmt_ty r
+
 let fmt_cdef ppf { name; generics; constraints; super; fields; methods } =
-  (* TODO constraints *)
-  (* let _cs = *)
-  (*   List.flatten *)
-  (*   @@ List.map *)
-  (*        (fun (var, l, r) -> *)
-  (*          let l = lang_ty_pretty l in *)
-  (*          let r = lang_ty_pretty r in *)
-  (*          match var with *)
-  (*          | Eq -> [ (l, r); (r, l) ] *)
-  (*          | As -> [ (l, r) ] *)
-  (*          | Super -> [ (r, l) ]) *)
-  (*        constraints *)
-  (* in *)
-  (* let _cs = List.map (fun (l, r) -> Printf.sprintf "(%s, %s)" l r) _cs in *)
-  (* let _cs = Printf.sprintf "[%s]" (String.concat ";" _cs) in *)
+  let cs =
+    List.flatten
+    @@ List.map
+         (fun (var, l, r) ->
+           match var with
+           | Eq -> [ (l, r); (r, l) ]
+           | As -> [ (l, r) ]
+           | Super -> [ (r, l) ])
+         constraints
+  in
   let generics = List.map fst generics in
-  let _ = constraints in
   let mnames =
     List.map (fun (mname, _) -> (mname, mk_mdef_name name mname)) methods
   in
@@ -158,16 +157,13 @@ let fmt_cdef ppf { name; generics; constraints; super; fields; methods } =
   Format.fprintf ppf ";@]@,";
   Format.fprintf ppf "@[%a@ := %a;@]@," fmt_kw "generics"
     (fmt_list fmt_variance) generics;
-  Format.fprintf ppf "@[%a@ := [];@]@," fmt_kw "constraints" (* TODO *);
+  Format.fprintf ppf "@[%a@ := %a;@]@," fmt_kw "constraints"
+    (fmt_list fmt_constraints) cs;
   Format.fprintf ppf "@[%a@ := " fmt_kw "classfields";
-  (match fields with
-  | [] -> Format.fprintf ppf "%a" fmt_kw "∅"
-  | _ -> Format.fprintf ppf "%a" (fmt_map fmt_field) fields);
+  Format.fprintf ppf "%a" (fmt_map fmt_field) fields;
   Format.fprintf ppf ";@]@,";
   Format.fprintf ppf "@[%a := " fmt_kw "classmethods";
-  (match methods with
-  | [] -> Format.fprintf ppf "%a" fmt_kw "∅"
-  | _ -> Format.fprintf ppf "%a" (fmt_map fmt_kw) mnames);
+  Format.fprintf ppf "%a" (fmt_map fmt_kw) mnames;
   Format.fprintf ppf ";@]@.";
   Format.fprintf ppf "|}."
 
@@ -194,6 +190,7 @@ let prelude =
    From iris.algebra.lib Require Import gmap_view.\n\n\
    From shack Require Import lang progdef subtype ok typing.\n\
    From shack Require Import eval heap modality interp soundness.\n\n\
+   (* Generated from test.lang *)\n\n\
    Definition arraykey := UnionT IntT BoolT."
 
 let program_pretty prog =

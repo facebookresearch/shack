@@ -15,6 +15,7 @@ rule lexer = parse
   | newline { new_line lexbuf; lexer lexbuf }
   | white+ { lexer lexbuf }
   | "$" { Dollar }
+  | "arraykey" { ArrayKey }
   | "error" { ErrorCmd }
   | "new" { New }
   | "is" { Is }

@@ -7,7 +7,9 @@ class ROBox<+T> {
   } return $ret
 }
 
-class Box<T> {
+class Box<T>
+  where (#T as arraykey)
+{
     public #T data;
 
     function get() : #T {

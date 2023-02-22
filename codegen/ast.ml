@@ -11,6 +11,7 @@ type loc = int [@@deriving eq, show]
 
 (* TODO: exact types *)
 type lang_ty =
+  | ArrayKey
   | IntT
   | BoolT
   | NothingT

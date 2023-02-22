@@ -81,6 +81,8 @@
 (* %token <string> String *)
 %token <string> Id
 
+%token ArrayKey
+
 %left Pipe
 %left Ampersand
 %nonassoc Eq Gt Lt
@@ -104,6 +106,7 @@ ty_args :
   | Lt targs = separated_list(Comma, ty) Gt { targs }
 
 ty :
+  | ArrayKey { Ast.ArrayKey }
   | IntT { Ast.IntT }
   | Bool { Ast.BoolT }
   | Null { Ast.NullT }
@@ -210,7 +213,7 @@ constr:
 
 
 where_clause :
-  | Where cs = separated_list(Comma, constr) { cs }
+  | Where LPar cs = separated_list(Comma, constr) RPar { cs }
 
 generic:
   | Plus gen = Id { (Ast.Covariant, gen) }
