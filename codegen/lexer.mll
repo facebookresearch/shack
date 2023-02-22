@@ -60,5 +60,5 @@ rule lexer = parse
   | "mixed" { Mixed }
   | "nothing" { Nothing }
   | "dynamic" { Dynamic }
-  | (digits | '_')+ as n { Int (int_of_string n) }
+  | digits (digits | '_')* as n { Int (int_of_string n) }
   | alpha (alpha | digits | '_')* as v { Id v }
