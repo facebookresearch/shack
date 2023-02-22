@@ -70,7 +70,10 @@ let fmt_map fa ppf xs =
   let fa ppf (k, v) = Format.fprintf ppf "@[%a@ :=@ %a@]" fmt_str k fa v in
   match xs with
   | [] -> Format.fprintf ppf "%a" fmt_kw "∅"
-  | _ -> Format.fprintf ppf "@[<v>{[%a]}@]" (Format.pp_print_list ~pp_sep:semi fa) xs
+  | _ ->
+      Format.fprintf ppf "@[<v>{[%a]}@]"
+        (Format.pp_print_list ~pp_sep:semi fa)
+        xs
 
 let rec fmt_cmd ppf = function
   | SkipC -> Format.fprintf ppf "%a" fmt_kw "SkipC"
@@ -108,7 +111,7 @@ let rec fmt_cmd ppf = function
 let cmd_pretty cmd = Format.asprintf "%a" fmt_cmd cmd
 let mk_mdef_name cname name = Printf.sprintf "%s_%s" cname name
 
-let fmt_mdef cname ppf { name; args; return_type; body; return } =
+let fmt_mdef cname ppf { name; args; visibility; return_type; body; return } =
   Format.fprintf ppf "@[<v 2>%a %a := {|@," fmt_kw "Definition" fmt_kw
     (mk_mdef_name cname name);
   Format.fprintf ppf "@[%a := " fmt_kw "methodargs";
@@ -119,7 +122,7 @@ let fmt_mdef cname ppf { name; args; return_type; body; return } =
   Format.fprintf ppf "@[%a@ :=@ %a;@]@," fmt_kw "methodbody" fmt_cmd body;
   Format.fprintf ppf "@[%a@ :=@ %a;@]@," fmt_kw "methodret" fmt_expr return;
   Format.fprintf ppf "@[%a@ :=@ %a;@]@." fmt_kw "methodvisibility" fmt_kw
-    "Public" (*TODO*);
+    (show_visibility visibility);
   Format.fprintf ppf "|}."
 
 let mdef_pretty cname mdef = Format.asprintf "%a" (fmt_mdef cname) mdef

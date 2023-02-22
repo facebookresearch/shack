@@ -2,7 +2,7 @@ class ROBox<+T> {
   // Hello world
   public #T data;
 
-  function get() : #T {
+  public function get() : #T {
     let $ret = $this->data;
   } return $ret
 }
@@ -12,25 +12,25 @@ class Box<T>
 {
     public #T data;
 
-    function get() : #T {
+    public function get() : #T {
         let $ret = $this->data
     } return $ret;
 
-    function set(#T $x): null {
+    public function set(#T $x): null {
         $this->data = $x
     }
     return null;
 }
 
 class IntBoxS<> extends Box<int> {
-    function set(int $data) : null {
+    public function set(int $data) : null {
         $this->data = $data + 1
     }
     return null
 }
 
 class Main<> {
-    function main(): bool {
+    public function main(): bool {
         let $robox = new ROBox<>($data = 42);
         let $init = $robox->get();
         let $box = new IntBoxS<>($data = $init);

@@ -199,10 +199,10 @@ farg :
     | t = ty name = symbol { (name, t) }
 
 methodDef :
-    | Function mname = Id LPar args = separated_list(Comma, farg) RPar
+    | vis = visibility Function mname = Id LPar args = separated_list(Comma, farg) RPar
         Colon retty = ty LBrace body = cmd_seq RBrace Return ret = exp {
         Ast.{name = mname; args; return_type = retty;
-             body = to_sequence body; return = ret }
+             body = to_sequence body; return = ret; visibility = vis }
       }
 
 extends_clause :

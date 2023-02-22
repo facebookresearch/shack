@@ -15,7 +15,7 @@ type lang_ty =
   | BoolT
   | NothingT
   | MixedT
-  | ClassT of { name : tag; exact: bool; tyargs : lang_ty list }
+  | ClassT of { name : tag; exact : bool; tyargs : lang_ty list }
   | NullT
   | NonNullT
   | UnionT of lang_ty * lang_ty
@@ -70,9 +70,11 @@ type cmd =
   | ErrorC
 [@@deriving show]
 
-(* TODO: visibility *)
+type visibility = Public | Private [@@deriving show { with_path = false }]
+
 type methodDef = {
   name : string;
+  visibility : visibility;
   args : (string * lang_ty) list;
   return_type : lang_ty;
   body : cmd;
@@ -83,7 +85,6 @@ type methodDef = {
 type variance = Invariant | Covariant | Contravariant
 [@@deriving show { with_path = false }]
 
-type visibility = Public | Private [@@deriving show { with_path = false }]
 type constr = As | Super | Eq [@@deriving show]
 type ty_constraint = constr * lang_ty * lang_ty [@@deriving show]
 
@@ -108,7 +109,7 @@ exception UnknownGeneric of string
  *)
 let rec mk_dbruijn dbs = function
   | ClassT { name; exact; tyargs } ->
-    ClassT { name; exact; tyargs = List.map (mk_dbruijn dbs) tyargs }
+      ClassT { name; exact; tyargs = List.map (mk_dbruijn dbs) tyargs }
   | UnionT (s, t) -> UnionT (mk_dbruijn dbs s, mk_dbruijn dbs t)
   | InterT (s, t) -> InterT (mk_dbruijn dbs s, mk_dbruijn dbs t)
   | GenT (_, t) -> (
@@ -165,9 +166,10 @@ let rec mk_dbruijn_cmd dbs = function
   | ErrorC -> ErrorC
 
 (* (TODO) Update if we ever support method level generics *)
-let mk_dbruijn_mdef dbs { name; args; return_type; body; return } =
+let mk_dbruijn_mdef dbs { name; args; visibility; return_type; body; return } =
   {
     name;
+    visibility;
     args = List.map (fun (k, ty) -> (k, mk_dbruijn dbs ty)) args;
     return_type = mk_dbruijn dbs return_type;
     body = mk_dbruijn_cmd dbs body;
