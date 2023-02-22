@@ -17,12 +17,6 @@
         ([], []) elts
     in (List.rev fields, List.rev methods)
 
-  let to_map l =
-    let open Ast in
-    List.fold_left (fun acc (name, value) ->
-        SMap.add name value acc)
-      SMap.empty l
-
   let rec to_sequence l =
     let open Ast in
     match l with
@@ -161,12 +155,10 @@ cmd :
         Ast.IfC { cond = cond; thn = if_true; els = if_false }
     }
     | Let lhs = symbol Eq recv = exp Arrow mname = Id LPar args = separated_list(Comma, arg) RPar {
-        let args = to_map args in
         Ast.CallC { lhs = lhs; recv = recv; name = mname; args = args }
     }
     | Let lhs = symbol Eq New t = Id targs = ty_args LPar args =
       separated_list(Comma, arg) RPar {
-        let args = to_map args in
         Ast.NewC { lhs = lhs; name = t; ty_args = targs; args = args }
       }
     | Let lhs = symbol Eq recv = exp Arrow field = Id {
@@ -193,7 +185,7 @@ cmd :
     | Lt { Ast.LtO }
 
 farg :
-    | t = ty name = symbol { (t, name) }
+    | t = ty name = symbol { (name, t) }
 
 methodDef :
     | Function mname = Id LPar args = separated_list(Comma, farg) RPar

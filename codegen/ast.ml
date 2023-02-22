@@ -57,45 +57,13 @@ type runtime_check =
   | RCNonNull
 [@@deriving show]
 
-(* TODO: module for show *)
-module SMap = struct
-  include Stdlib.Map.Make(String)
-  let make_pp pp_key pp_data fmt x =
-    Format.fprintf fmt "@[<hv 2>{";
-    let bindings = bindings x in
-    (match bindings with
-    | [] -> ()
-    | _ -> Format.fprintf fmt " ");
-    ignore
-      (List.fold_left
-         (fun sep (key, data) ->
-           if sep then Format.fprintf fmt ";@ ";
-           Format.fprintf fmt "@[";
-           pp_key fmt key;
-           Format.fprintf fmt " ->@ ";
-           pp_data fmt data;
-           Format.fprintf fmt "@]";
-           true)
-         false
-         bindings);
-    (match bindings with
-    | [] -> ()
-    | _ -> Format.fprintf fmt " ");
-    Format.fprintf fmt "}@]"
-
-  let pp : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit =
-    (fun pp_data -> make_pp (fun fmt s -> Format.fprintf fmt "%S" s) pp_data)
-
-  let show pp_data x = Format.asprintf "%a" (pp pp_data) x
-end
-
 type cmd =
   | SkipC
   | SeqC of { fstc: cmd; sndc : cmd }
   | LetC of { lhs: var; e : expr }
   | IfC of { cond : expr; thn: cmd; els: cmd }
-  | CallC of {lhs: var; recv:expr; name:string; args: expr SMap.t }
-  | NewC of { lhs:var; name: tag; ty_args : lang_ty list; args : expr SMap.t }
+  | CallC of {lhs: var; recv:expr; name:string; args: (string * expr) list }
+  | NewC of { lhs:var; name: tag; ty_args : lang_ty list; args : (string * expr) list }
   | GetC of { lhs : var; recv: expr; name : string }
   | SetC of { recv: expr; name: string; rhs : expr }
   | RuntimeCheckC of {v: var; rc: runtime_check; thn : cmd; els: cmd }
@@ -105,7 +73,7 @@ type cmd =
 (* TODO: visibility *)
 type methodDef = {
   name : string;
-  args : (lang_ty * string) list;
+  args : (string * lang_ty) list;
   return_type : lang_ty;
   body : cmd;
   return : expr;

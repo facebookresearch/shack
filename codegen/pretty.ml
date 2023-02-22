@@ -50,6 +50,15 @@ let runtime_check_pretty = function
   | RCNull -> "RCNull"
   | RCNonNull -> "RCNonNull"
 
+
+let pretty_map p xs =
+  let xs = List.map (fun (key, v) ->
+      sprintf "\"%s\" := %s" key (p v)) xs in
+  match xs with
+  | [] -> "∅"
+  | _ -> let s = String.concat ";" xs in
+    sprintf "{[ %s ]}" s
+
 let rec cmd_pretty = function
   | SkipC -> "SkipC"
   | SeqC { fstc; sndc } ->
@@ -65,17 +74,30 @@ let rec cmd_pretty = function
     sprintf "(SetC (%s) \"%s\" (%s))"
       (expr_pretty recv) name (expr_pretty rhs)
   | ErrorC -> "ErrorC"
-  | _ -> "TODO"
+  | CallC {lhs ; recv; name; args } ->
+    let args = pretty_map expr_pretty args in
+    sprintf "(CallC \"%s\" (%s) \"%s\" %s)"
+      lhs (expr_pretty recv) name args
+  | NewC { lhs; name; ty_args; args } ->
+    let args = pretty_map expr_pretty args in
+    let ty_args = match ty_args with
+      | [] -> "None"
+      | _ ->
+        let l = List.map lang_ty_pretty ty_args in
+        let s = String.concat ";" l in
+        sprintf "(Some [ %s ])" s
+    in
+    sprintf "(NewC \"%s\" \"%s\" %s %s)"
+      lhs name ty_args args
+  | RuntimeCheckC {v; rc ; thn ; els } ->
+    ignore v;
+    ignore rc;
+    ignore thn;
+    ignore els;
+    failwith "RTC"
 
 let methodDef_pretty cname { name; args; return_type; body; return } =
-  let args = List.map (fun (ty, name) ->
-      sprintf "\"%s\" := %s" name (lang_ty_pretty ty)) args in
-  let args =
-    match args with
-    | [] -> "∅"
-    | _ -> let s = String.concat ";" args in
-      sprintf "{[%s]}" s
-  in
+  let args = pretty_map lang_ty_pretty args in
   let l = [ "{|";
             sprintf "  methodargs := %s;" args;
             sprintf "  methodrettype := %s;" (lang_ty_pretty return_type);
@@ -104,7 +126,7 @@ let classDef_pretty { name; generics = _; constraints; super; fields;
     | None -> "None"
     | Some (t, targs) ->
       let l = List.map lang_ty_pretty targs in
-      let s = String.concat "::" l in
+      let s = String.concat ";" l in
       sprintf "Some(\"%s\", [%s])" t s
   in
   let fields =
