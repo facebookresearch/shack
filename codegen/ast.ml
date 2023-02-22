@@ -9,14 +9,13 @@
 type tag = string [@@deriving eq, show]
 type loc = int [@@deriving eq, show]
 
-(* TODO: exact types *)
 type lang_ty =
   | ArrayKey
   | IntT
   | BoolT
   | NothingT
   | MixedT
-  | ClassT of { name : tag; tyargs : lang_ty list }
+  | ClassT of { name : tag; exact: bool; tyargs : lang_ty list }
   | NullT
   | NonNullT
   | UnionT of lang_ty * lang_ty
@@ -108,8 +107,8 @@ exception UnknownGeneric of string
  * the right debruijn index. Make a few checks along the way.
  *)
 let rec mk_dbruijn dbs = function
-  | ClassT { name; tyargs } ->
-      ClassT { name; tyargs = List.map (mk_dbruijn dbs) tyargs }
+  | ClassT { name; exact; tyargs } ->
+    ClassT { name; exact; tyargs = List.map (mk_dbruijn dbs) tyargs }
   | UnionT (s, t) -> UnionT (mk_dbruijn dbs s, mk_dbruijn dbs t)
   | InterT (s, t) -> InterT (mk_dbruijn dbs s, mk_dbruijn dbs t)
   | GenT (_, t) -> (

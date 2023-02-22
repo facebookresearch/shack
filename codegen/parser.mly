@@ -31,6 +31,7 @@
 
 %token ErrorCmd
 %token Dollar
+%token Exact
 %token Is
 %token New
 %token Let
@@ -118,8 +119,12 @@ ty :
   | t0 = ty Pipe t1 = ty { Ast.UnionT (t0, t1) }
   | t0 = ty Ampersand t1 = ty { Ast.InterT (t0, t1) }
   | LPar t = ty RPar { t }
-  | Class t = Id targs = ty_args { Ast.ClassT { name = t; tyargs = targs }
-                                     }
+  | Exact Class t = Id targs = ty_args {
+      Ast.ClassT { name = t; exact = true; tyargs = targs }
+  }
+  | Class t = Id targs = ty_args {
+      Ast.ClassT { name = t; exact = false; tyargs = targs }
+  }
 exp :
     | var = symbol {
         if String.equal var "$this" then Ast.ThisE else Ast.VarE var

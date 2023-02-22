@@ -23,9 +23,9 @@ let rec fmt_ty ppf = function
   | BoolT -> Format.fprintf ppf "%a" fmt_kw "BoolT"
   | NothingT -> Format.fprintf ppf "%a" fmt_kw "NothingT"
   | MixedT -> Format.fprintf ppf "%a" fmt_kw "MixedT"
-  | ClassT { name; tyargs } ->
+  | ClassT { name; exact; tyargs } ->
       Format.fprintf ppf "@[ClassT@ ";
-      Format.fprintf ppf "true@ ";
+      Format.fprintf ppf "%a@ " fmt_bool exact;
       Format.fprintf ppf "%a@ " fmt_str name;
       Format.fprintf ppf "%a@]" (fmt_list fmt_ty) tyargs
   | NullT -> Format.fprintf ppf "%a" fmt_kw "NullT"
