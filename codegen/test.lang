@@ -17,7 +17,7 @@ class Box<T> {
     function set(#T $x): null {
         $this->data = $x
     }
-    return null
+    return null;
 }
 
 class IntBoxS<> extends Box<int> {

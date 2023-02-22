@@ -228,11 +228,15 @@ class_elt :
   | vis = visibility t = ty name = Id { Field (vis, name, t) }
   | mdef = methodDef { Method mdef }
 
+class_elts :
+  | (* empty *) { [] }
+  | class_elt { [ $1 ] }
+  | class_elt Semi class_elts { $1 :: $3 }
 
 classDef :
     | Class cname = Id gens = generics ext = option(extends_clause)
         where = option(where_clause) LBrace
-        elts = separated_list(Semi, class_elt)
+        elts = class_elts
         RBrace {
         let (fields, methods) = to_class elts in
         let where = match where with None -> []
