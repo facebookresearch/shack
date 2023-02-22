@@ -6,6 +6,7 @@ INSTALLDEFAULTROOT = shack-test
 
 theories/lang.v
 theories/progdef.v
+theories/reflect/progdef.v
 theories/subtype.v
 theories/ok.v
 theories/eval.v
@@ -29,6 +30,7 @@ theories/soundness/dyn_getc.v
 theories/soundness/dyn_setc.v
 theories/soundness.v
 theories/generated_example.v
+theories/reflect/tactics.v
 theories/examples.v
 theories/sd_examples.v
 theories/rtc_examples.v

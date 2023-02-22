@@ -4,6 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
+
 From stdpp Require Import base strings gmap stringmap fin_maps.
 
 From iris.proofmode Require Import tactics.
@@ -12,6 +13,8 @@ From iris.algebra.lib Require Import gmap_view.
 
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp soundness.
+
+From shack.reflect Require Import progdef tactics.
 
 Definition arraykey := UnionT IntT BoolT.
 
@@ -123,58 +126,38 @@ Definition Main := {|
   classmethods := {["entry_point" := EntryPoint]};
  |}.
 
-Local Instance PDC : ProgDefContext := { pdefs := {[ "ROBox" := ROBox; "Box" := Box; "IntBoxS" := IntBoxS; "Main" := Main ]} }.
+Definition pdefs0 : stringmap classDef :=
+  {[ "ROBox" := ROBox; "Box" := Box; "IntBoxS" := IntBoxS; "Main" := Main ]}.
+
+Local Instance PDC : ProgDefContext := { pdefs := pdefs0 }.
+
+Lemma pacc__:
+  Forall
+  (uncurry (λ (c : tag) (_ : classDef), Acc (λ x y : tag, extends y x) c))
+  (map_to_list pdefs).
+Proof.
+  replace (map_to_list pdefs)
+  with [("Box", Box); ("ROBox", ROBox); ("IntBoxS", IntBoxS); ("Main", Main)]; last first.
+  { by vm_compute. }
+  rewrite Forall_lookup => k c /=.
+  by repeat (rewrite /lookup /=; step_pacc).
+Qed.
+
+Lemma pacc_ : map_Forall (λ c _, Acc (λ x y, extends y x) c) pdefs.
+Proof.
+  rewrite map_Forall_to_list /=.
+  by apply pacc__.
+Qed.
 
 Lemma pacc : ∀ c : tag, Acc (λ x y : tag, extends y x) c.
 Proof.
-  assert (helper: Acc (λ x y : tag, extends y x) "Box").
-  { constructor => t hext.
-    inv hext.
-    rewrite lookup_insert_ne in H; last done.
-    rewrite lookup_insert in H; case: H => H; subst.
-    by rewrite /Box /= in H0.
-  }
   move => c.
-  destruct (String.eqb c "ROBox") eqn:heq0.
-  { apply String.eqb_eq in heq0 as ->.
-    constructor => t hext.
+  destruct (pdefs !! c) as [cdef | ] eqn:hcdef.
+  - move : pacc_ => /map_Forall_lookup h.
+    by eapply h.
+  - constructor => t hext; exfalso.
     inv hext.
-    rewrite lookup_insert in H; case: H => H; subst.
-    by rewrite /ROBox /= in H0.
-  }
-  apply String.eqb_neq in heq0.
-  destruct (String.eqb c "Box") eqn:heq1.
-  { apply String.eqb_eq in heq1 as ->.
-    exact helper.
-  }
-  apply String.eqb_neq in heq1.
-  destruct (String.eqb c "IntBoxS") eqn: heq2.
-  { apply String.eqb_eq in heq2 as ->.
-    constructor => t hext.
-    inv hext.
-    rewrite lookup_insert_ne in H; last done.
-    rewrite lookup_insert_ne in H; last done.
-    rewrite lookup_insert in H; case: H => H; subst.
-    rewrite /IntBoxS /= in H0.
-    case : H0 => <- ?.
-    exact helper.
-  }
-  apply String.eqb_neq in heq2.
-  destruct (String.eqb c "Main") eqn:heq3.
-  { apply String.eqb_eq in heq3 as ->.
-    constructor => t hext.
-    inv hext.
-    rewrite lookup_insert_ne in H; last done.
-    rewrite lookup_insert_ne in H; last done.
-    rewrite lookup_insert_ne in H; last done.
-    rewrite lookup_insert in H; case: H => H; subst.
-    by rewrite /Main /= in H0.
-  }
-  apply String.eqb_neq in heq3.
-  clear helper.
-  constructor => t hext; exfalso.
-  inv hext.
-  by repeat (rewrite lookup_insert_ne // in H).
+    by simplify_eq.
 Qed.
 
 Local Instance PDA : ProgDefAcc  := { pacc := pacc }.
