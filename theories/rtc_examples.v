@@ -10,7 +10,10 @@ From iris.proofmode Require Import tactics.
 From iris.base_logic.lib Require Import iprop own wsat.
 From iris.algebra.lib Require Import gmap_view.
 
-From shack Require Import lang progdef subtype typing eval heap modality interp soundness.
+From shack Require Import lang progdef subtype typing eval heap.
+From shack Require Import modality interp soundness.
+
+From shack.reflect Require Import progdef tactics.
 
 Definition C := {|
   superclass := None;
@@ -69,41 +72,37 @@ Definition Test := {|
   classmethods := {[ "f" := F ]};
 |}.
 
-Local Instance PDC : ProgDefContext := { pdefs := {[ "C" := C; "V" := V; "Test" := Test ]} }.
+Definition pdefs0: stringmap classDef :=
+  {[ "C" := C; "V" := V; "Test" := Test ]}.
+Local Instance PDC : ProgDefContext := { pdefs := pdefs0 }.
+
+Lemma pacc__:
+  Forall
+  (uncurry (λ (c : tag) (_ : classDef), Acc (λ x y : tag, extends y x) c))
+  (map_to_list pdefs).
+Proof.
+  replace (map_to_list pdefs)
+  with [("Test", Test); ("V", V); ("C", C) ]; last first.
+  { by vm_compute. }
+  rewrite Forall_lookup => k c /=.
+  by repeat (rewrite /lookup /=; step_pacc).
+Qed.
+
+Lemma pacc_ : map_Forall (λ c _, Acc (λ x y, extends y x) c) pdefs.
+Proof.
+  rewrite map_Forall_to_list /=.
+  by apply pacc__.
+Qed.
 
 Lemma pacc : ∀ c : tag, Acc (λ x y : tag, extends y x) c.
 Proof.
   move => c.
-  destruct (String.eqb c "C") eqn:heq0.
-  { apply String.eqb_eq in heq0 as ->.
-    constructor => t hext.
+  destruct (pdefs !! c) as [cdef | ] eqn:hcdef.
+  - move : pacc_ => /map_Forall_lookup h.
+    by eapply h.
+  - constructor => t hext; exfalso.
     inv hext.
-    rewrite lookup_insert in H; case: H => H; subst.
-    by rewrite /C /= in H0.
-  }
-  apply String.eqb_neq in heq0.
-  destruct (String.eqb c "V") eqn:heq1.
-  { apply String.eqb_eq in heq1 as ->.
-    constructor => t hext.
-    inv hext.
-    rewrite lookup_insert_ne in H; last done.
-    rewrite lookup_insert in H; case: H => H; subst.
-    by rewrite /V /= in H0.
-  }
-  apply String.eqb_neq in heq1.
-  destruct (String.eqb c "Test") eqn:heq2.
-  { apply String.eqb_eq in heq2 as ->.
-    constructor => t hext.
-    inv hext.
-    rewrite lookup_insert_ne in H; last done.
-    rewrite lookup_insert_ne in H; last done.
-    rewrite lookup_insert in H; case: H => H; subst.
-    by rewrite /Test /= in H0.
-  }
-  apply String.eqb_neq in heq2.
-  constructor => t hext; exfalso.
-  inv hext.
-  by repeat (rewrite lookup_insert_ne // in H).
+    by simplify_eq.
 Qed.
 
 Local Instance PDA : ProgDefAcc  := { pacc := pacc }.
