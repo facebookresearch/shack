@@ -465,6 +465,12 @@ Section ProgDef2.
     by econstructor.
   Qed.
 
+  Lemma parent_spec_2 C P: extends C P → parent C = Some P.
+  Proof.
+    rewrite /parent.
+    by case => A B adef σ -> ->.
+  Qed.
+
   Lemma extends_is_not_reflexive: ∀ c, ~ extends c c.
   Proof.
     move => c hext.

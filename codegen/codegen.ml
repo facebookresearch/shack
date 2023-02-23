@@ -38,19 +38,12 @@ let mk_PDC prog =
     "Definition pdefs0 : stringmap classDef :=";
     Printf.sprintf "  {[ %s ]}." s;
     "Local Instance PDC : ProgDefContext := { pdefs := pdefs0 }.";
-    "Lemma pacc_compute:\n\
-    \  Forall\n\
-    \  (uncurry (λ (c : tag) (_ : classDef), Acc (λ x y : tag, extends y x) c))\n\
-    \  (map_to_list pdefs).\n\
+    "Lemma pacc : ∀ c, Acc (λ x y, extends y x) c.\n\
      Proof.\n\
-    \  rewrite /pdefs /= /pdefs0.\n\
-    \  apply pacc_helper.\n\
-    \  vm_compute map_to_list.\n\
-    \  simpl.\n\
-    \  rewrite Forall_lookup => k c /=.\n\
-    \  by repeat (rewrite /lookup /=; step_pacc).\n\
+    \  apply check_acc_defs_correct with (n := 100).\n\
+    \  by exact (I <: True).\n\
      Qed.";
-    "Local Instance PDA : ProgDefAcc  := { pacc := pacc pacc_compute }.";
+    "Local Instance PDA : ProgDefAcc  := { pacc := pacc }.";
   ]
 
 let process prog =

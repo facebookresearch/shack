@@ -78,20 +78,13 @@ Definition pdefs0: stringmap classDef := {[ "ROBox" := ROBox; "Box" := Box ]}.
 
 Local Instance PDC : ProgDefContext := { pdefs := pdefs0 }.
 
-Lemma pacc_compute:
-  Forall
-  (uncurry (λ (c : tag) (_ : classDef), Acc (λ x y : tag, extends y x) c))
-  (map_to_list pdefs).
+Lemma pacc : ∀ c, Acc (λ x y, extends y x) c.
 Proof.
-  rewrite /pdefs /= /pdefs0.
-  apply pacc_helper.
-  vm_compute map_to_list.
-  simpl.
-  rewrite Forall_lookup => k c /=.
-  by repeat (rewrite /lookup /=; step_pacc).
+  apply check_acc_defs_correct with (n := 100).
+  by exact (I <: True).
 Qed.
 
-Local Instance PDA : ProgDefAcc  := { pacc := pacc pacc_compute }.
+Local Instance PDA : ProgDefAcc  := { pacc := pacc }.
 
 (* This is where we encode the <<SDT>> attribute *)
 Definition BoxSDT := [(GenT 0, DynamicT); (DynamicT, GenT 0)].
