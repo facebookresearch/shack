@@ -180,22 +180,4 @@ let rec gather = function
       in
       List.append mdefs (cdef_pretty cdef :: gather rest)
 
-let prelude =
-  "(*\n\
-  \ * Copyright (c) Meta Platforms, Inc. and affiliates.\n\
-  \ *\n\
-  \ * This source code is licensed under the MIT license found in the\n\
-  \ * LICENSE file in the root directory of this source tree.\n\
-  \ *)\n\
-   From stdpp Require Import base strings gmap stringmap fin_maps.\n\n\
-   From iris.proofmode Require Import tactics.\n\
-   From iris.base_logic.lib Require Import iprop own wsat.\n\
-   From iris.algebra.lib Require Import gmap_view.\n\n\
-   From shack Require Import lang progdef subtype ok typing.\n\
-   From shack Require Import eval heap modality interp soundness.\n\n\
-   (* Generated from test.lang *)\n\n\
-   Definition arraykey := UnionT IntT BoolT."
-
-let program_pretty prog =
-  let l = prelude :: gather prog in
-  String.concat "\n\n" l
+let program_pretty prog = String.concat "\n\n" @@ gather prog

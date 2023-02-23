@@ -13,6 +13,8 @@ From iris.algebra.lib Require Import gmap_view.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp soundness.
 
+From shack.reflect Require Import progdef.
+
 (* Generated from test.lang *)
 
 Definition arraykey := UnionT IntT BoolT.
@@ -103,3 +105,24 @@ Definition Main := {|
   classfields := ∅;
   classmethods := {["main" := Main_main]};
 |}.
+
+Definition pdefs0 : stringmap classDef :=
+
+  {[ "ROBox" := ROBox; "Box" := Box; "IntBoxS" := IntBoxS; "Main" := Main ]}.
+
+Local Instance PDC : ProgDefContext := { pdefs := pdefs0 }.
+
+Lemma pacc_compute:
+  Forall
+  (uncurry (λ (c : tag) (_ : classDef), Acc (λ x y : tag, extends y x) c))
+  (map_to_list pdefs).
+Proof.
+  rewrite /pdefs /= /pdefs0.
+  apply pacc_helper.
+  vm_compute map_to_list.
+  simpl.
+  rewrite Forall_lookup => k c /=.
+  by repeat (rewrite /lookup /=; step_pacc).
+Qed.
+
+Local Instance PDA : ProgDefAcc  := { pacc := pacc pacc_compute }.

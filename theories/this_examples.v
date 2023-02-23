@@ -13,7 +13,7 @@ From iris.algebra.lib Require Import gmap_view.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap.
 
-From shack.reflect Require Import progdef tactics.
+From shack.reflect Require Import progdef.
 
 Definition arraykey := UnionT IntT BoolT.
 
@@ -106,7 +106,7 @@ Definition pdefs0: stringmap classDef := {[ "C" := C; "D" := D; "Main" := Main ]
 
 Local Instance PDC : ProgDefContext := { pdefs := pdefs0 }.
 
-Lemma pacc__:
+Lemma pacc_compute:
   Forall
   (uncurry (λ (c : tag) (_ : classDef), Acc (λ x y : tag, extends y x) c))
   (map_to_list pdefs).
@@ -119,24 +119,7 @@ Proof.
   by repeat (rewrite /lookup /=; step_pacc).
 Qed.
 
-Lemma pacc_ : map_Forall (λ c _, Acc (λ x y, extends y x) c) pdefs.
-Proof.
-  rewrite map_Forall_to_list /=.
-  by apply pacc__.
-Qed.
-
-Lemma pacc : ∀ c : tag, Acc (λ x y : tag, extends y x) c.
-Proof.
-  move => c.
-  destruct (pdefs !! c) as [cdef | ] eqn:hcdef.
-  - move : pacc_ => /map_Forall_lookup h.
-    by eapply h.
-  - constructor => t hext; exfalso.
-    inv hext.
-    by simplify_eq.
-Qed.
-
-Local Instance PDA : ProgDefAcc  := { pacc := pacc }.
+Local Instance PDA : ProgDefAcc  := { pacc := pacc pacc_compute }.
 
 (* Invalid constraint, so we can prove anything trivially *)
 Local Instance SDTCC : SDTClassConstraints := {
