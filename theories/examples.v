@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *)
-From stdpp Require Import base strings gmap stringmap fin_maps.
+From stdpp Require Import base option strings gmap stringmap fin_maps.
 
 From iris.proofmode Require Import tactics.
 From iris.base_logic.lib Require Import iprop own wsat.
@@ -693,24 +693,206 @@ Proof.
     by left.
 Qed.
 
+Fixpoint check_wf_ty (G : ProgDefContext) (ty : lang_ty) :=
+  match ty with
+  | BoolT
+  | DynamicT
+  | GenT _
+  | IntT
+  | MixedT
+  | NonNullT
+  | NothingT
+  | NullT
+  | SupportDynT
+  | ThisT =>
+      true
+
+  | ClassT _ t s =>
+      if pdefs !! t is Some cdef then
+           (length s =? length (generics cdef))
+        && forallb (check_wf_ty G) s
+      else false
+
+  | UnionT ty1 ty2 | InterT ty1 ty2 =>
+      check_wf_ty G ty1 && check_wf_ty G ty2
+  end.
+
+Lemma Forall_impl_in {T : Type} (P Q : T -> Prop) (l : list T) :
+  Forall P l -> Forall (fun x => P x -> Q x) l -> Forall Q l.
+Proof.
+elim: l => //= x l ih; rewrite !Forall_cons.
+move=> [] Px Pl [] PQx /[dup] PQl /ih - /(_ Pl) Ql.
+by split=> //; apply/PQx.
+Qed.
+
+Lemma wf_ty_correct (G : ProgDefContext) (ty : lang_ty) :
+  check_wf_ty G ty -> wf_ty ty.
+Proof.
+elim/lang_ty_ind: ty => //=.
+- move=> ? tag s ih; case E: (_ !! _) => [cdef|] //.
+  case/andb_prop_elim=> hlen hwf; econstructor => //.
+   (* sigh... *)
+  + by rewrite -Nat.eqb_eq -Is_true_true.
+  + by move: hwf; rewrite forallb_True => /Forall_impl_in; apply.
+- by move=> ty1 ty2 ih1 ih2 /andb_prop_elim[] {}/ih1 ih1 {}/ih2 ih2; constructor.
+- by move=> ty1 ty2 ih1 ih2 /andb_prop_elim[] {}/ih1 ih1 {}/ih2 ih2; constructor.
+Qed.    
+
+Definition check_generic_bounded (n : nat) (ty : lang_ty) :=
+  match ty with
+  | IntT => true
+  | GenT k => k <? n
+  | _ => false
+  end.
+
+Lemma generic_bounded_correct (n : nat) (ty : lang_ty) :
+  check_generic_bounded n ty -> bounded n ty.
+Proof.
+case: ty => //=.
+- move=> k lt_kn; constructor.
+  by rewrite -Nat.ltb_lt -Is_true_true.
+Qed.
+
+Definition check_wf_cdef_parent (G : ProgDefContext) (c : classDef) :=
+  if superclass c is Some (parent, σ) then
+       check_wf_ty G (ClassT true parent σ)
+    && forallb (check_generic_bounded (length (generics c))) σ
+    && forallb no_this σ
+  else true.
+
+Lemma wf_cdef_parent_correct (G : ProgDefContext) (c : classDef) :
+  check_wf_cdef_parent G c -> wf_cdef_parent pdefs c.
+Proof.
+rewrite /check_wf_cdef_parent /wf_cdef_parent.
+case: superclass => [[tag σ]|] //.
+case/andb_prop_elim => /andb_prop_elim[] wfty wfs no_this; do! split.
+- by apply: wf_ty_correct.
+- by move/forallb_True/Forall_impl: wfs; apply; apply/generic_bounded_correct.  
+- by move/forallb_True/Forall_impl: no_this; apply.
+Qed.
+
+Definition check_wf_cdef_parent_context (G : ProgDefContext) :=
+  forallb (fun kv => check_wf_cdef_parent G kv.2) (map_to_list pdefs).
+
+Lemma wf_cdef_parent_context_correct (G : ProgDefContext) :
+  check_wf_cdef_parent_context G -> map_Forall (λ _, wf_cdef_parent pdefs) pdefs.
+Proof.
+rewrite /check_wf_cdef_parent_context map_Forall_to_list forallb_True.
+by move/Forall_impl; apply => -[??] /=; apply/wf_cdef_parent_correct.
+Qed.
+
 Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent pdefs) pdefs.
 Proof.
-  apply map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-] | [?]] => //.
-  rewrite lookup_insert_Some.
-  case => [[? <-] | [?]] => //.
-  rewrite lookup_insert_Some.
-  case => [[? <-] | [?]].
-  { split; last split.
-    + econstructor => //.
-      by apply wfσ.
-    + by apply σbounded.
-    + by repeat constructor.
-  }
-  rewrite lookup_singleton_Some.
-  by case => [? <-].
+apply: wf_cdef_parent_context_correct.
+exact (I <: True).
 Qed.
+
+Fixpoint check_inherits (n : nat) (G : ProgDefContext) (A B : tag) :=
+  if n is S n then
+    adef ← pdefs !! A;
+    if (A =? B)%string then
+      Some (gen_targs (length (generics adef)))
+    else
+      '(A', s') ← superclass adef;
+      s ← check_inherits n G A' B;
+      Some (subst_ty s' <$> s : list lang_ty)
+   else None.
+
+Lemma inherits_using_correct n (G : ProgDefContext) (A B : tag) (s : list lang_ty) :
+  check_inherits n G A B = Some s -> inherits_using A B s.
+Proof.
+elim: n A B s => [|n ih] A B s //.
+rewrite /check_inherits; case E: String.eqb => //=.
+- move/String.eqb_eq: E => <-; case E: (_ !! _) => [adef|] //=.
+  by case=> <-; constructor.
+- case Edef: (_ !! _) => [adef|] //=.
+  case Esup: superclass => [[A' s']|] //=.
+  rewrite -/(check_inherits _ _ _) bind_Some.
+  case=> s'' [/ih hin] [<-]; apply InheritsTrans with A', hin.
+  by constructor 1 with adef.
+Qed.
+
+Notation "'mlet:' x ':=' e1 'in' e2" := (x ← e1; e2)
+  (at level 25, x name).
+
+Definition check_method_override_1
+  (σ  : list lang_ty)
+  (ms : stringmap methodDef)
+  (mB : string * methodDef)
+  : option (list (list lang_ty * methodDef * methodDef))
+:=
+  if ms !! mB.1 is Some mA then
+    match methodvisibility mA, methodvisibility mB.2 with
+    | Public, Public =>
+        Some [(σ, mA, mB.2)]
+    | _, _ =>
+        None
+    end
+  else Some [].
+
+Axiom mmap : forall {A B : Type} (f : A -> option B) (s : list A), option (list B).
+
+Definition check_method_override_all
+  (σ   : list lang_ty)
+  (msA : stringmap methodDef)
+  (msB : stringmap methodDef)
+  : option (list (list lang_ty * methodDef * methodDef))
+:=
+  mlet: ovrds :=
+    mmap (check_method_override_1 σ msA) (map_to_list msB) in
+  Some (concat ovrds).
+
+Fixpoint check_method_override
+  (n    : nat)
+  (ms   : stringmap methodDef)
+  (cdef : classDef)
+  (σC   : list lang_ty)
+  : option (list (list lang_ty * methodDef * methodDef))
+:=
+   if n is S n then
+     if superclass cdef is Some (B, σB) then
+       mlet: bdef   := pdefs !! B in
+        let: msB    := classmethods bdef in
+        let: σ      := subst_ty σC <$> σB in
+       mlet: ovrds  := check_method_override_all σ ms msB in
+       mlet: ovrds' := check_method_override n ms bdef σ in
+
+       Some (ovrds ++ ovrds')
+
+     else Some []
+
+   else None.
+
+Lemma check_method_override_PuPu
+  (p    : stringmap classDef)
+  (A    : tag)
+  (B    : tag)
+  (adef : classDef)
+  (bdef : classDef)
+  (m    : string)
+  (σ    : list lang_ty)
+  (mA   : methodDef)
+  (mB   : methodDef)
+  (n    : nat)
+  (l    : list (list lang_ty * methodDef * methodDef))
+  :
+     p !! A = Some adef
+  -> p !! B = Some bdef
+  -> @inherits_using {| pdefs := p |} A B σ
+  -> classmethods adef !! m = Some mA
+  -> classmethods bdef !! m = Some mB
+  -> methodvisibility mA = Public
+  -> methodvisibility mB = Public
+  -> check_method_override n (classmethods adef) adef [] = Some l
+  -> (σ, mA, mB) ∈ l.
+Proof.
+move=> + + h; elim: h adef bdef mA mB n => {A B σ} /=.
+Set Printing Implicit.
+
+
+move=> pAE pBE AinB mAE mBE pub_mA pub_mB.
+elim: AinB.
+
 
 Lemma wf_override : wf_method_override pdefs.
 Proof.
