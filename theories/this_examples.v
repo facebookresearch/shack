@@ -13,7 +13,7 @@ From iris.algebra.lib Require Import gmap_view.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap.
 
-From shack.reflect Require Import progdef.
+From shack.reflect Require Import lang progdef.
 
 Definition arraykey := UnionT IntT BoolT.
 
@@ -41,7 +41,7 @@ Definition C := {|
 (* Definition of class D:
  * class D extends C {
  *   function f(this $in): void {
-        $in->g(in);
+        $in->g($in);
    }
  *   function g(this $_): void {}
  *)
@@ -220,23 +220,15 @@ Proof.
     apply map_Forall_singleton; by constructor.
   - rewrite /f2 /=.
     change {["$_" := NullT; "$in" := ThisT]}
-    with (<["$_" := subst_fty false "D" [] g.(methodrettype)]> f2.(methodargs)).
-    apply CallPubInexactTy with (orig := "D").
-    + eapply ESubTy.
-      * constructor.
-        by rewrite lookup_insert.
-      * by econstructor.
-      * by econstructor.
-      * by econstructor.
-      * apply SubConstraint.
-        by set_solver.
+    with (<["$_" := g.(methodrettype)]> f2.(methodargs)).
+    apply CallThisTy  with (cdef := D) (orig := "D") => //.
+    + constructor.
+      by set_solver.
     + by apply HasMethod with (cdef := D).
-    + done.
     + by rewrite /g /= !dom_insert_L !dom_empty_L.
-    + move => t0 σ0 h0 k ty arg => /=.
-      rewrite lookup_insert_Some => [[ [<- <-] | [? h]]]; last by simplify_eq.
-      rewrite lookup_insert => [[<-]].
-      by rewrite /subst_fty /= subst_ty_gen_targs.
+    + move => k ty arg hk.
+      rewrite lookup_singleton_Some => [[heq <-]]; simplify_eq.
+      by constructor.
   - by apply NullTy.
 Qed.
 
@@ -291,7 +283,7 @@ Proof.
     }
     change (<["$tmp" := NullT]> Γmain)
     with (<["$tmp" := subst_fty false "Main" [] problem.(methodrettype)]>  Γmain).
-    apply CallPubInexactTy with (orig := "Main").
+    apply CallPubTy with (orig := "Main").
     + eapply ESubTy.
       * by constructor.
       * by econstructor.
@@ -300,56 +292,53 @@ Proof.
       * apply SubConstraint.
         by set_solver.
     + by apply HasMethod with (cdef := Main).
+    + right.
+      rewrite /no_this_mdef /problem /=.
+      split => //.
+      rewrite map_Forall_lookup => k ty.
+      rewrite lookup_insert_Some => [[ [? <-] | [?] ]] //.
+      by rewrite lookup_singleton_Some => [[? <-]].
     + done.
     + by rewrite /problem /= !dom_insert_L !dom_empty_L.
-    + move => t0 σ0 h0 k ty arg => /=.
-      rewrite lookup_insert_Some => [[ [<- <-] | [? h]]].
-      * rewrite lookup_insert => [[<-]].
+    + rewrite /problem => k ty arg /=.
+      rewrite lookup_insert_Some => [[ [<- <-] | [?] ]] /=.
+      * rewrite lookup_insert => [ [<-] ].
         rewrite /subst_fty /=.
         eapply ESubTy.
         -- constructor.
            by set_solver.
-        -- rewrite /subst_fty /=.
-           by econstructor.
-        -- rewrite /subst_fty /=.
-           by econstructor.
-        -- rewrite /subst_fty /=.
-           by econstructor.
-        -- rewrite /subst_fty /=.
-           apply SubTrans with (ClassT false "D" []).
+        -- by apply wf_ty_correct.
+        -- by apply generic_bounded_correct.
+        -- by econstructor.
+        -- apply SubTrans with (ClassT false "D" []).
            { by apply SubExact with D. }
            change (ClassT false "C" []) with (ClassT false "C" (subst_ty [] <$> [])).
            apply SubClass with D => //.
            by apply ExtendsUsing with D.
-      * apply lookup_singleton_Some in h as [<- <-].
-        rewrite lookup_insert_ne //.
-        rewrite lookup_insert => [[ <- ]] /=.
+      * rewrite lookup_singleton_Some => [[<- <-]]; simpl_map => [[<-]].
         rewrite /subst_fty /=.
         eapply ESubTy.
         -- constructor.
            by set_solver.
-        -- rewrite /subst_fty /=.
-           by econstructor.
-        -- rewrite /subst_fty /=.
-           by econstructor.
-        -- rewrite /subst_fty /=.
-           by econstructor.
+        -- by apply wf_ty_correct.
+        -- by apply generic_bounded_correct.
+        -- by econstructor.
         -- by apply SubExact with C.
   - by apply NullTy.
 Qed.
 
-Lemma wf_mdef_ty_problem: wf_mdef_ty "problem" ΔM 0 problem → False.
-Proof.
-  rewrite /wf_mdef_ty /problem /=.
-  case => Γf.
-  case => hwfΓf.
-  case => hc _.
-  inv hc.
-  - apply var_has_ty_inv in H3.
-    rewrite lookup_insert in H3.
+(* Lemma wf_mdef_ty_problem: wf_mdef_ty "problem" ΔM 0 problem → False. *)
+(* Proof. *)
+(*   rewrite /wf_mdef_ty /problem /=. *)
+(*   case => Γf. *)
+(*   case => hwfΓf. *)
+(*   case => hc _. *)
+(*   inv hc. *)
+(*   - apply var_has_ty_inv in H3. *)
+(*     rewrite lookup_insert in H3. *)
 
 
-Qed.
+(* Qed. *)
 
 Lemma wf_mdef_ty_problem: wf_mdef_ty "problem" ΔM 0 problem.
 Proof.
@@ -363,17 +352,8 @@ Proof.
   - rewrite /problem /=.
     change ({["$_" := NullT; "$c0" := ClassT false "C" []; "$c1" := ClassT false "C" []]})
     with (<["$_" := subst_fty false "C" [] f.(methodrettype)]> problem.(methodargs)).
-    apply CallPubInexactTy with "C".
-    + by apply GenTy.
+    apply CallPubTy with "C".
+    + by apply VarTy.
     + by econstructor.
-    + done.
-    + by rewrite /f /= !dom_insert_L !dom_empty_L.
-    + rewrite /f => t0 σ0 h0 k ty arg /=.
-      rewrite lookup_singleton_Some => [[<- <-]].
-      rewrite lookup_insert /subst_fty => [[ <- ]] /=.
-      rewrite subst_ty_gen_targs; last done.
-      (* not possible *)
-  - by apply NullTy.
-Qed.
-
-Print Assumptions wf_mdef_ty_problem.
+    + (* Can't prove either side *)
+      Abort.
