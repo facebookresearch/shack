@@ -14,7 +14,7 @@ From iris.algebra.lib Require Import gmap_view.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp soundness.
 
-From shack.reflect Require Import progdef.
+From shack.reflect Require Import lang progdef.
 
 Definition arraykey := UnionT IntT BoolT.
 
@@ -645,21 +645,8 @@ Qed.
 
 Lemma wf_parent : map_Forall (λ _cname, wf_cdef_parent) pdefs.
 Proof.
-  apply map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-] | [?]] => //.
-  rewrite lookup_insert_Some.
-  case => [[? <-] | [?]] => //.
-  rewrite lookup_insert_Some.
-  case => [[? <-] | [?]].
-  { split; last split.
-    + econstructor => //.
-      by apply wfσ.
-    + by apply σbounded.
-    + by repeat constructor.
-  }
-  rewrite lookup_singleton_Some.
-  by case => [? <-].
+  apply: wf_cdef_parent_context_correct.
+  exact (I <: True).
 Qed.
 
 Global Hint Resolve wf_parent : core.
@@ -778,29 +765,8 @@ Qed.
 
 Lemma wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_fields_bounded /ROBox /=.
-    rewrite map_Forall_singleton.
-    econstructor.
-    by auto with arith.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_fields_bounded /Box /=.
-    rewrite map_Forall_singleton.
-    econstructor.
-    by auto with arith.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_fields_bounded /IntBoxS /=.
-    by apply map_Forall_empty.
-  }
-  rewrite lookup_singleton_Some.
-  case => [? <-].
-  by rewrite /wf_cdef_fields /Main.
+  apply wf_cdef_fields_bounded_context_correct.
+  by exact (I <: True).
 Qed.
 
 Lemma wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) pdefs.
@@ -861,86 +827,8 @@ Qed.
 
 Lemma wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /cdef_methods_bounded /ROBox /=.
-    apply map_Forall_singleton.
-    split.
-    { rewrite /Get /=.
-      by apply map_Forall_empty.
-    }
-    split.
-    { rewrite /Get /=.
-      constructor; by auto with arith.
-    }
-    split; first by repeat constructor.
-    by repeat constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /cdef_methods_bounded /Box /=.
-    rewrite map_Forall_lookup => x mx.
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    + split.
-      { rewrite /BoxSet /=.
-        apply map_Forall_singleton.
-        constructor.
-        by auto with arith.
-      }
-      split; by repeat constructor.
-    + rewrite lookup_singleton_Some.
-      case => [? <-].
-      split.
-      * rewrite /Get /=.
-        by apply map_Forall_empty.
-      * rewrite /Get /=.
-        constructor; first by auto with arith.
-        by repeat constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /cdef_methods_bounded /IntBoxS /=.
-    rewrite map_Forall_singleton.
-    split.
-    { rewrite /IntBoxSSet /=.
-      rewrite map_Forall_singleton.
-      by constructor.
-    }
-    split; by repeat constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]]; last by rewrite lookup_empty.
-  rewrite /cdef_methods_bounded /Main /=.
-  apply map_Forall_singleton.
-  split; first by apply map_Forall_empty.
-  split; first by constructor.
-  split.
-  { constructor.
-    - constructor.
-      + by repeat constructor.
-      + rewrite map_Forall_singleton.
-        by repeat constructor.
-    - constructor; first by repeat constructor.
-      constructor.
-      { constructor; first by repeat constructor.
-        rewrite map_Forall_singleton.
-        by repeat constructor.
-      }
-      constructor.
-      { constructor; first by repeat constructor.
-        by apply map_Forall_empty.
-      }
-      constructor; first by repeat constructor.
-      constructor.
-      { constructor; first by repeat constructor.
-        rewrite map_Forall_singleton.
-        by repeat constructor.
-      }
-      by repeat constructor.
-  }
-  by repeat constructor.
+  apply cdef_methods_bounded_context_correct.
+  by exact (I <: True).
 Qed.
 
 Lemma wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) pdefs.
@@ -1173,21 +1061,8 @@ Qed.
 
 Lemma wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_constraints_bounded /= Forall_singleton.
-    split; by repeat constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_constraints_bounded /= Forall_nil. }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_constraints_bounded /= Forall_nil. }
-  rewrite lookup_singleton_Some.
-  case => [? <-].
-  by rewrite /wf_cdef_constraints_bounded /= Forall_nil.
+  apply wf_cdef_constraints_bounded_context_correct.
+  by exact (I <: True).
 Qed.
 
 Lemma wf_constraints_no_this: map_Forall (λ _ : string, wf_cdef_constraints_no_this) pdefs.

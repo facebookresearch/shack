@@ -13,7 +13,7 @@ From iris.algebra.lib Require Import gmap_view.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp soundness.
 
-From shack.reflect Require Import progdef.
+From shack.reflect Require Import lang progdef.
 
 (* Generated from test.lang *)
 
@@ -119,3 +119,21 @@ Proof.
 Qed.
 
 Local Instance PDA : ProgDefAcc  := { pacc := pacc }.
+
+Lemma wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs.
+Proof.
+  apply wf_cdef_fields_bounded_context_correct.
+  by exact (I <: True).
+Qed.
+
+Lemma wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) pdefs.
+Proof.
+  apply cdef_methods_bounded_context_correct.
+  by exact (I <: True).
+Qed.
+
+Lemma wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) pdefs.
+Proof.
+  apply wf_cdef_constraints_bounded_context_correct.
+  by exact (I <: True).
+Qed.

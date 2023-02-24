@@ -21,7 +21,7 @@ let prelude =
    From iris.algebra.lib Require Import gmap_view.\n\n\
    From shack Require Import lang progdef subtype ok typing.\n\
    From shack Require Import eval heap modality interp soundness.\n\n\
-   From shack.reflect Require Import progdef.\n\n\
+   From shack.reflect Require Import lang progdef.\n\n\
    (* Generated from test.lang *)\n\n\
    Definition arraykey := UnionT IntT BoolT."
 
@@ -46,9 +46,38 @@ let mk_PDC prog =
     "Local Instance PDA : ProgDefAcc  := { pacc := pacc }.";
   ]
 
+let mk_bounded () =
+  let b0 =
+    "Lemma wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) \
+     pdefs.\n\
+     Proof.\n\
+    \  apply wf_cdef_fields_bounded_context_correct.\n\
+    \  by exact (I <: True).\n\
+     Qed."
+  in
+
+  let b1 =
+    "Lemma wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) \
+     pdefs.\n\
+     Proof.\n\
+    \  apply cdef_methods_bounded_context_correct.\n\
+    \  by exact (I <: True).\n\
+     Qed."
+  in
+
+  let b2 =
+    "Lemma wf_constraints_bounded : map_Forall (λ _cname, \
+     wf_cdef_constraints_bounded) pdefs.\n\
+     Proof.\n\
+    \  apply wf_cdef_constraints_bounded_context_correct.\n\
+    \  by exact (I <: True).\n\
+     Qed."
+  in
+  [ b0; b1; b2 ]
+
 let process prog =
   let l = [ prelude; Pretty.program_pretty prog ] in
-  let l = l @ mk_PDC prog in
+  let l = l @ mk_PDC prog @ mk_bounded () in
   String.concat ~sep:"\n\n" l
 
 let process_cmd input_file output_file =
