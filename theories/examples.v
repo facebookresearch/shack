@@ -771,28 +771,8 @@ Qed.
 
 Lemma wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_fields_wf /ROBox /=.
-    rewrite map_Forall_singleton.
-    econstructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_fields_wf /Box /=.
-    rewrite map_Forall_singleton.
-    by econstructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_fields_wf /IntBoxS /=.
-    by apply map_Forall_empty.
-  }
-  rewrite lookup_singleton_Some.
-  case => [? <-].
-  rewrite /wf_cdef_fields_wf /Main /=.
-  by apply map_Forall_empty.
+  apply: wf_cdef_fields_wf_context_correct.
+  exact (I <: True).
 Qed.
 
 Lemma wf_fields_mono : map_Forall (λ _cname, wf_field_mono) pdefs.
@@ -833,52 +813,8 @@ Qed.
 
 Lemma wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_methods_wf /ROBox /=.
-    rewrite map_Forall_singleton.
-    split.
-    + rewrite /Get /=.
-      by apply map_Forall_empty.
-    + rewrite /Get /=.
-      by constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_methods_wf /Box /=.
-    rewrite map_Forall_lookup => x mx.
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    + split; last by constructor.
-      rewrite /BoxSet /=.
-      rewrite map_Forall_singleton.
-      by constructor.
-    + rewrite lookup_insert_Some.
-      case => [[? <-]|[?]]; last by rewrite lookup_empty.
-      split.
-      * rewrite /Get /=.
-        by apply map_Forall_empty.
-      * rewrite /Get /=.
-        by constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_methods_wf /IntBoxS /=.
-    rewrite map_Forall_singleton.
-    split.
-    + rewrite /IntBoxSSet /=.
-      rewrite map_Forall_singleton.
-      by constructor.
-    + rewrite /IntBoxSSet /=.
-      by constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]]; last by rewrite lookup_empty.
-  rewrite /wf_cdef_methods_wf /Main /=.
-  apply map_Forall_singleton.
-  split; last by constructor.
-  by apply map_Forall_empty.
+  apply: wf_cdef_methods_wf_context_correct.
+  exact (I <: True).
 Qed.
 
 Lemma wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) pdefs.
@@ -1042,21 +978,8 @@ Qed.
 
 Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_constraints_wf /ROBox /= Forall_singleton.
-    split; by constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_constraints_wf /= Forall_nil. }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_constraints_wf /= Forall_nil. }
-  rewrite lookup_singleton_Some.
-  case => [? <-].
-  by rewrite /wf_cdef_constraints_wf /= Forall_nil.
+  apply: wf_cdef_constraints_wf_context_correct.
+  exact (I <: True).
 Qed.
 
 Lemma wf_constraints_bounded : map_Forall (λ _cname, wf_cdef_constraints_bounded) pdefs.

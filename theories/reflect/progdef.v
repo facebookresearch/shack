@@ -44,6 +44,93 @@ Proof.
   - by move=> ty1 ty2 ih1 ih2 /andb_prop_elim[] {}/ih1 ih1 {}/ih2 ih2; constructor.
 Qed.
 
+Definition check_wf_cdef_fields_wf (G: ProgDefContext) cdef :=
+  forallb (fun kv => check_wf_ty G kv.2.2) (map_to_list cdef.(classfields)).
+
+Lemma wf_cdef_fields_wf_correct (G: ProgDefContext) cdef:
+  check_wf_cdef_fields_wf G cdef → wf_cdef_fields_wf cdef.
+Proof.
+  rewrite /check_wf_cdef_fields_wf /wf_cdef_fields_wf /=.
+  move/forallb_True => hF; rewrite map_Forall_to_list; apply: Forall_impl_in => //.
+  rewrite Forall_lookup => ? [? [? ty]] /= ?; by apply wf_ty_correct.
+Qed.
+
+Definition check_wf_cdef_fields_wf_context (G: ProgDefContext) :=
+  forallb (fun kv => check_wf_cdef_fields_wf G kv.2) (map_to_list pdefs).
+
+Lemma wf_cdef_fields_wf_context_correct (G: ProgDefContext):
+  check_wf_cdef_fields_wf_context G →
+  map_Forall (λ _cname, wf_cdef_fields_wf) pdefs.
+Proof.
+  rewrite /check_wf_cdef_fields_wf_context forallb_True => hF.
+  rewrite map_Forall_to_list; apply: Forall_impl_in => //.
+  rewrite Forall_lookup => ? [? c] ? /=; by apply wf_cdef_fields_wf_correct.
+Qed.
+
+Definition check_wf_ty_mdef (G: ProgDefContext) mdef : bool :=
+  forallb (λ kv, check_wf_ty G kv.2) (map_to_list mdef.(methodargs)) &&
+  check_wf_ty G mdef.(methodrettype).
+
+Lemma wf_ty_mdef_correct (G: ProgDefContext) mdef:
+  check_wf_ty_mdef G mdef → mdef_wf mdef.
+Proof.
+  rewrite /check_wf_ty_mdef /mdef_wf.
+  case/andb_prop_elim => /forallb_True h0 h1.
+  split.
+  { rewrite map_Forall_to_list; apply: Forall_impl_in => //=.
+    rewrite Forall_lookup => ? [? ty] /= ?; by apply wf_ty_correct.
+  }
+  by apply wf_ty_correct.
+Qed.
+
+Definition check_wf_cdef_methods_wf (G: ProgDefContext) cdef :=
+  forallb (fun kv => check_wf_ty_mdef G kv.2) (map_to_list cdef.(classmethods)).
+
+Lemma wf_cdef_methods_wf_correct (G: ProgDefContext) cdef:
+  check_wf_cdef_methods_wf G cdef → wf_cdef_methods_wf cdef.
+Proof.
+  rewrite /check_wf_cdef_methods_wf /wf_cdef_methods_wf /=.
+  move/forallb_True => hF; rewrite map_Forall_to_list; apply: Forall_impl_in => //.
+  rewrite Forall_lookup => ? [? mdef] /= ?; by apply wf_ty_mdef_correct.
+Qed.
+
+Definition check_wf_cdef_methods_wf_context (G: ProgDefContext) :=
+  forallb (fun kv => check_wf_cdef_methods_wf G kv.2) (map_to_list pdefs).
+
+Lemma wf_cdef_methods_wf_context_correct (G: ProgDefContext):
+  check_wf_cdef_methods_wf_context G →
+  map_Forall (λ _cname, wf_cdef_methods_wf) pdefs.
+Proof.
+  rewrite /check_wf_cdef_methods_wf_context forallb_True => hF.
+  rewrite map_Forall_to_list; apply: Forall_impl_in => //.
+  rewrite Forall_lookup => ? [? c] ? /=; by apply wf_cdef_methods_wf_correct.
+Qed.
+
+Definition check_wf_cdef_constraints_wf (G: ProgDefContext) cdef: bool :=
+  forallb (λ c, check_wf_ty G c.1 && check_wf_ty G c.2) cdef.(constraints).
+
+Lemma wf_cdef_constraints_wf_correct (G: ProgDefContext) cdef:
+  check_wf_cdef_constraints_wf G cdef →
+  wf_cdef_constraints_wf cdef.
+Proof.
+  rewrite /check_wf_cdef_constraints_wf /wf_cdef_constraints_wf forallb_True => hF.
+  apply: Forall_impl_in => //.
+  rewrite Forall_lookup => [? c1] ? /andb_prop_elim [h0 h1].
+  split; by apply wf_ty_correct.
+Qed.
+
+Definition check_wf_cdef_constraints_wf_context (G: ProgDefContext) : bool :=
+  forallb (fun kv => check_wf_cdef_constraints_wf G kv.2) (map_to_list pdefs).
+
+Lemma wf_cdef_constraints_wf_context_correct (G: ProgDefContext) :
+  check_wf_cdef_constraints_wf_context G →
+  map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs.
+Proof.
+  rewrite /check_wf_cdef_constraints_wf_context forallb_True => hF.
+  rewrite map_Forall_to_list; apply: Forall_impl_in => //.
+  rewrite Forall_lookup => ? [? c] ? /=; by apply wf_cdef_constraints_wf_correct.
+Qed.
+
 Definition check_wf_cdef_parent (G : ProgDefContext) (c : classDef) :=
   if superclass c is Some (parent, σ) then
        check_wf_ty G (ClassT true parent σ)

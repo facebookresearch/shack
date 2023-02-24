@@ -75,9 +75,36 @@ let mk_bounded () =
   in
   [ b0; b1; b2 ]
 
+let mk_wf () =
+  let wf0 =
+    "Lemma wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) pdefs.\n\
+     Proof.\n\
+    \  apply: wf_cdef_fields_wf_context_correct.\n\
+    \  exact (I <: True).\n\
+     Qed."
+  in
+
+  let wf1 =
+    "Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) \
+     pdefs.\n\
+     Proof.\n\
+    \  apply: wf_cdef_constraints_wf_context_correct.\n\
+    \  exact (I <: True).\n\
+     Qed."
+  in
+
+  let wf2 =
+    "Lemma wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) pdefs.\n\
+     Proof.\n\
+    \  apply: wf_cdef_methods_wf_context_correct.\n\
+    \  exact (I <: True).\n\
+     Qed."
+  in
+  [ wf0; wf1; wf2 ]
+
 let process prog =
   let l = [ prelude; Pretty.program_pretty prog ] in
-  let l = l @ mk_PDC prog @ mk_bounded () in
+  let l = l @ mk_PDC prog @ mk_bounded () @ mk_wf () in
   String.concat ~sep:"\n\n" l
 
 let process_cmd input_file output_file =

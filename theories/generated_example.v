@@ -137,3 +137,21 @@ Proof.
   apply wf_cdef_constraints_bounded_context_correct.
   by exact (I <: True).
 Qed.
+
+Lemma wf_fields_wf  : map_Forall (λ _cname, wf_cdef_fields_wf) pdefs.
+Proof.
+  apply: wf_cdef_fields_wf_context_correct.
+  exact (I <: True).
+Qed.
+
+Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs.
+Proof.
+  apply: wf_cdef_constraints_wf_context_correct.
+  exact (I <: True).
+Qed.
+
+Lemma wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) pdefs.
+Proof.
+  apply: wf_cdef_methods_wf_context_correct.
+  exact (I <: True).
+Qed.
