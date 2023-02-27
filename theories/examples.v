@@ -14,7 +14,7 @@ From iris.algebra.lib Require Import gmap_view.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp soundness.
 
-From shack.reflect Require Import lang progdef.
+From shack.reflect Require Import lang progdef subtype.
 
 Definition arraykey := UnionT IntT BoolT.
 
@@ -777,32 +777,8 @@ Qed.
 
 Lemma wf_fields_mono : map_Forall (λ _cname, wf_field_mono) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_field_mono /ROBox /=.
-    rewrite map_Forall_lookup => x mx.
-    rewrite lookup_singleton_Some.
-    case => [? <-].
-    split; by constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_field_mono /Box /=.
-    rewrite map_Forall_lookup => x mx.
-    rewrite lookup_singleton_Some.
-    case => [? <-].
-    split; by constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_field_mono /IntBoxS /=.
-    by apply map_Forall_empty.
-  }
-  rewrite lookup_singleton_Some.
-  case => [? <-].
-  rewrite /wf_field_mono /Main /=.
-  by apply map_Forall_empty.
+  apply wf_fields_mono_correct.
+  exact (I <: True).
 Qed.
 
 Lemma wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) pdefs.
@@ -819,46 +795,8 @@ Qed.
 
 Lemma wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_methods_mono /ROBox /=.
-    apply map_Forall_singleton.
-    rewrite /wf_mdef_mono /Get /=.
-    split; last by constructor.
-    by apply map_Forall_empty.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_methods_mono /Box /=.
-    rewrite map_Forall_lookup => x mx.
-    rewrite lookup_insert_Some.
-    case => [[? <-]|[?]].
-    * rewrite /wf_mdef_mono /BoxSet /=.
-      split; last by constructor.
-      apply map_Forall_singleton.
-      by constructor.
-    * rewrite lookup_insert_Some.
-      case => [[? <-]|[?]]; last by rewrite lookup_empty.
-      rewrite /wf_mdef_mono /Get /=.
-      split; first by apply map_Forall_empty.
-      by constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_methods_mono /IntBoxS /=.
-    apply map_Forall_singleton.
-    rewrite /wf_mdef_mono /IntBoxSSet /=.
-    split; last by constructor.
-    apply map_Forall_singleton.
-    by constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]]; last by rewrite lookup_empty.
-  rewrite /wf_cdef_methods_mono /Main /=.
-  apply map_Forall_singleton.
-  split; last by constructor.
-  by apply map_Forall_empty.
+  apply wf_methods_mono_correct.
+  exact (I <: True).
 Qed.
 
 Lemma wf_mdefs : map_Forall cdef_wf_mdef_ty pdefs.
@@ -949,31 +887,8 @@ Qed.
 
 Lemma wf_mono : map_Forall (λ _cname, wf_cdef_mono) pdefs.
 Proof.
-  rewrite map_Forall_lookup => x cx.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]]; first done.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]]; first done.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_mono /IntBoxS /=.
-    econstructor => //.
-    + move => i wi ti //=.
-      rewrite list_lookup_singleton_Some.
-      case => [-> <-].
-      simpl.
-      case => <- _.
-      by constructor.
-    + move => i wi ti //=.
-      rewrite list_lookup_singleton_Some.
-      case => [-> <-].
-      simpl.
-      case => <- _.
-      by constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]]; last by rewrite lookup_empty.
-  done.
+  apply wf_mono_correct.
+  exact (I <: True).
 Qed.
 
 Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs.

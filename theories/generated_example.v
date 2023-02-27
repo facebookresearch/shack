@@ -13,7 +13,7 @@ From iris.algebra.lib Require Import gmap_view.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp soundness.
 
-From shack.reflect Require Import lang progdef.
+From shack.reflect Require Import lang progdef subtype.
 
 (* Generated from test.lang *)
 
@@ -31,7 +31,7 @@ Definition ROBox := {|
   superclass := None;
   generics := [Covariant];
   constraints := [];
-  classfields := {["data" := (Public, GenT 0)]};
+  classfields := {["data" := (Private, GenT 0)]};
   classmethods := {["get" := ROBox_get]};
 |}.
 
@@ -153,5 +153,23 @@ Qed.
 Lemma wf_methods_wf : map_Forall (λ _cname, wf_cdef_methods_wf) pdefs.
 Proof.
   apply: wf_cdef_methods_wf_context_correct.
+  exact (I <: True).
+Qed.
+
+Lemma wf_fields_mono : map_Forall (λ _cname, wf_field_mono) pdefs.
+Proof.
+  apply wf_fields_mono_correct.
+  exact (I <: True).
+Qed.
+
+Lemma wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) pdefs.
+Proof.
+  apply wf_methods_mono_correct.
+  exact (I <: True).
+Qed.
+
+Lemma wf_mono : map_Forall (λ _cname, wf_cdef_mono) pdefs.
+Proof.
+  apply wf_mono_correct.
   exact (I <: True).
 Qed.

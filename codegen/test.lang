@@ -7,7 +7,7 @@
 
 class ROBox<+T> {
   // Hello world
-  public #T data;
+  private #T data;
 
   public function get() : #T {
     let $ret = $this->data;

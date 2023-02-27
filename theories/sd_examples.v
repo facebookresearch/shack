@@ -13,7 +13,7 @@ From iris.algebra.lib Require Import gmap_view.
 From shack Require Import lang progdef subtype ok typing.
 From shack Require Import eval heap modality interp.
 
-From shack.reflect Require Import lang progdef.
+From shack.reflect Require Import lang progdef subtype.
 
 (*
  * << SDT when T = Dynamic >>
@@ -710,14 +710,8 @@ Qed.
 
 Lemma wf_fields_mono : map_Forall (λ _cname, wf_field_mono) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { by apply map_Forall_empty. }
-  rewrite lookup_singleton_Some.
-  case => [? <-].
-  apply map_Forall_singleton.
-  by repeat constructor.
+  apply wf_fields_mono_correct.
+  exact (I <: True).
 Qed.
 
 Lemma wf_methods_bounded : map_Forall (λ _cname, cdef_methods_bounded) pdefs.
@@ -734,29 +728,8 @@ Qed.
 
 Lemma wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /cdef_methods_bounded /ROBox /=.
-    apply map_Forall_singleton.
-    split.
-    { apply map_Forall_singleton.
-      by repeat constructor.
-    }
-    by repeat constructor.
-  }
-  rewrite lookup_singleton_Some => [[? <-]].
-  apply map_Forall_lookup => m mdef.
-  rewrite /Box /= lookup_insert_Some => [[[? <-] | ]].
-  - split.
-    { apply map_Forall_singleton.
-      by repeat constructor.
-    }
-    by repeat constructor.
-  - case => ?.
-    rewrite lookup_singleton_Some => [[? <-]].
-    split; first by apply map_Forall_empty.
-    by repeat constructor.
+  apply wf_methods_mono_correct.
+  exact (I <: True).
 Qed.
 
 Lemma wf_mdefs : map_Forall cdef_wf_mdef_ty pdefs.
@@ -820,26 +793,8 @@ Qed.
 
 Lemma wf_mono : map_Forall (λ _cname, wf_cdef_mono) pdefs.
 Proof.
-  rewrite map_Forall_lookup => x cx.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_mono /ROBox /=.
-    econstructor => //.
-    + move => i wi ti //=.
-      rewrite list_lookup_singleton_Some.
-      case => [-> <-].
-      simpl.
-      case => <- _.
-      by constructor.
-    + move => i wi ti //=.
-      rewrite list_lookup_singleton_Some.
-      case => [-> <-].
-      simpl.
-      case => <- _.
-      by constructor.
-  }
-  rewrite lookup_singleton_Some.
-  by case => [? <-].
+  apply wf_mono_correct.
+  exact (I <: True).
 Qed.
 
 Lemma wf_constraints_wf : map_Forall (λ _cname, wf_cdef_constraints_wf) pdefs.

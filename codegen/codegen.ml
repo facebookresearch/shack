@@ -21,7 +21,7 @@ let prelude =
    From iris.algebra.lib Require Import gmap_view.\n\n\
    From shack Require Import lang progdef subtype ok typing.\n\
    From shack Require Import eval heap modality interp soundness.\n\n\
-   From shack.reflect Require Import lang progdef.\n\n\
+   From shack.reflect Require Import lang progdef subtype.\n\n\
    (* Generated from test.lang *)\n\n\
    Definition arraykey := UnionT IntT BoolT."
 
@@ -102,9 +102,35 @@ let mk_wf () =
   in
   [ wf0; wf1; wf2 ]
 
+let mk_mono () =
+  let mono0 =
+    "Lemma wf_fields_mono : map_Forall (λ _cname, wf_field_mono) pdefs.\n\
+     Proof.\n\
+    \  apply wf_fields_mono_correct.\n\
+    \  exact (I <: True).\n\
+     Qed."
+  in
+
+  let mono1 =
+    "Lemma wf_methods_mono : map_Forall (λ _cname, wf_cdef_methods_mono) pdefs.\n\
+     Proof.\n\
+    \  apply wf_methods_mono_correct.\n\
+    \  exact (I <: True).\n\
+     Qed."
+  in
+
+  let mono2 =
+    "Lemma wf_mono : map_Forall (λ _cname, wf_cdef_mono) pdefs.\n\
+     Proof.\n\
+    \  apply wf_mono_correct.\n\
+    \  exact (I <: True).\n\
+     Qed."
+  in
+  [ mono0; mono1; mono2 ]
+
 let process prog =
   let l = [ prelude; Pretty.program_pretty prog ] in
-  let l = l @ mk_PDC prog @ mk_bounded () @ mk_wf () in
+  let l = l @ mk_PDC prog @ mk_bounded () @ mk_wf () @ mk_mono () in
   String.concat ~sep:"\n\n" l
 
 let process_cmd input_file output_file =

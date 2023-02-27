@@ -9,6 +9,7 @@ theories/reflect/lang.v
 theories/progdef.v
 theories/reflect/progdef.v
 theories/subtype.v
+theories/reflect/subtype.v
 theories/ok.v
 theories/eval.v
 theories/heap.v
