@@ -128,9 +128,33 @@ let mk_mono () =
   in
   [ mono0; mono1; mono2 ]
 
+let mk_no_this () =
+  let no_this =
+    "Lemma wf_constraints_no_this: map_Forall (λ _ : string, \
+     wf_cdef_constraints_no_this) pdefs.\n\
+     Proof.\n\
+    \ apply wf_constraints_no_this_correct.\n\
+    \  by exact (I <: True).\n\
+     Qed."
+  in
+  [ no_this ]
+
+let mk_wf_fields () =
+  let wf =
+    "Lemma wf_fields : map_Forall (λ _cname, wf_cdef_fields) pdefs.\n\
+     Proof.\n\
+    \  apply (wf_fields_correct _ 100).\n\
+    \  by exact (I <: True).\n\
+     Qed."
+  in
+  [ wf ]
+
 let process prog =
   let l = [ prelude; Pretty.program_pretty prog ] in
-  let l = l @ mk_PDC prog @ mk_bounded () @ mk_wf () @ mk_mono () in
+  let l =
+    l @ mk_PDC prog @ mk_bounded () @ mk_wf () @ mk_mono () @ mk_no_this ()
+    @ mk_wf_fields ()
+  in
   String.concat ~sep:"\n\n" l
 
 let process_cmd input_file output_file =

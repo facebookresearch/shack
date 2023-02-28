@@ -173,3 +173,15 @@ Proof.
   apply wf_mono_correct.
   exact (I <: True).
 Qed.
+
+Lemma wf_constraints_no_this: map_Forall (λ _ : string, wf_cdef_constraints_no_this) pdefs.
+Proof.
+ apply wf_constraints_no_this_correct.
+  by exact (I <: True).
+Qed.
+
+Lemma wf_fields : map_Forall (λ _cname, wf_cdef_fields) pdefs.
+Proof.
+  apply (wf_fields_correct _ 100).
+  by exact (I <: True).
+Qed.

@@ -748,19 +748,8 @@ Qed.
 
 Lemma wf_fields : map_Forall (λ _cname, wf_cdef_fields) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_fields /ROBox. }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_fields /Box. }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_fields /IntBoxS. }
-  rewrite lookup_singleton_Some.
-  case => [? <-].
-  by rewrite /wf_cdef_fields /Main.
+  apply (wf_fields_correct _ 100).
+  by exact (I <: True).
 Qed.
 
 Lemma wf_fields_bounded : map_Forall (λ _cname, wf_cdef_fields_bounded) pdefs.
@@ -905,21 +894,8 @@ Qed.
 
 Lemma wf_constraints_no_this: map_Forall (λ _ : string, wf_cdef_constraints_no_this) pdefs.
 Proof.
-  rewrite map_Forall_lookup => c0 d0.
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { rewrite /wf_cdef_constraints_no_this /= Forall_singleton.
-    split; by repeat constructor.
-  }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_constraints_no_this /= Forall_nil. }
-  rewrite lookup_insert_Some.
-  case => [[? <-]|[?]].
-  { by rewrite /wf_cdef_constraints_no_this /= Forall_nil. }
-  rewrite lookup_singleton_Some.
-  case => [? <-].
-  by rewrite /wf_cdef_constraints_no_this /= Forall_nil.
+ apply wf_constraints_no_this_correct.
+  by exact (I <: True).
 Qed.
 
 Lemma wf_parent_ok : map_Forall (λ _cname, wf_cdef_parent_ok) pdefs.
