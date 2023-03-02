@@ -201,7 +201,7 @@ let main () =
     let man =
       [
         `S Manpage.s_description;
-        `P (String.strip {| Process Hack-like files for Shack." |});
+        `P (String.strip {| Process Hack-like files for Shack. |});
       ]
     in
     let info = Cmd.info "codegen" ~version:"%%VERSION%%" ~doc ~man in
